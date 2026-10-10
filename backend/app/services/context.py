@@ -15,7 +15,7 @@ import duckdb
 import polars as pl
 
 from app.errors import NotFound, NotReady
-from db.conn import query_df, upsert
+from db.conn import query_df
 from ingest.market_values import MarketFormat
 from projections.base import LeagueShape, ProjectionInputs, run
 from projections.baseline import BaselineEngine
@@ -248,7 +248,6 @@ def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueConte
     shape = LeagueShape(league.num_teams, tuple(league.roster_positions), league.last_week)
     inputs = ProjectionInputs(scored, players, schedule, league.rules, league.season, week, shape)
     proj = run(ENGINE, inputs)
-    _store_projections(con, proj, league.scoring_profile_id, league.season, week)
 
     rates = position_rates(norms_window(scored, league.season, through), league.rules)
     report = build_report(scored, rates, league.season, through)
@@ -332,27 +331,6 @@ def _replacement_ppg(proj: pl.DataFrame, shape: LeagueShape) -> dict[str, float]
         ppg = proj.filter(pl.col("position") == pos)["ppg"].sort(descending=True)
         out[pos] = float(ppg[n - 1]) if ppg.len() >= n else 0.0
     return out
-
-
-def _store_projections(
-    con: duckdb.DuckDBPyConnection, proj: pl.DataFrame, profile_id: str, season: int, week: int
-) -> None:
-    rows = proj.select(
-        pl.lit(ENGINE.run_id).alias("run_id"),
-        "player_id",
-        pl.lit(profile_id).alias("scoring_profile_id"),
-        pl.lit(season).alias("season"),
-        pl.lit(week).alias("week"),
-        "proj_next4_ppg",
-        "p10",
-        "p90",
-        "proj_ros_points",
-        "ros_value_par",
-    ).filter(pl.col("player_id").is_not_null())
-    try:
-        upsert(con, "projections", rows)
-    except duckdb.Error as exc:  # projections are a cache; never fail a request over them
-        log.warning("could not store projections: %s", exc)
 
 
 # ───────── cache ─────────
