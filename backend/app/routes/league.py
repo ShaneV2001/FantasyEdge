@@ -60,6 +60,8 @@ def manual_league(
             roster_positions=body.roster_positions,
             scoring=body.scoring,
             player_ids=body.player_ids,
+            starters=body.starters,
+            ir=body.ir,
             season=int(season),
             trade_deadline_week=body.trade_deadline_week,
         )

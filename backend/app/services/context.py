@@ -78,6 +78,7 @@ class TeamRow:
     faab_remaining: int | None
     player_ids: list[str] = field(default_factory=list)
     starters: list[str] = field(default_factory=list)
+    slots: dict[str, str] = field(default_factory=dict)  # player_id -> starter|bench|ir|taxi
 
 
 @dataclass
@@ -183,6 +184,7 @@ def load_teams(con: duckdb.DuckDBPyConnection, league_id: str) -> list[TeamRow]:
                 faab_remaining=t["faab_remaining"],
                 player_ids=mine["player_id"].to_list(),
                 starters=mine.filter(pl.col("slot") == "starter")["player_id"].to_list(),
+                slots=dict(mine.select("player_id", "slot").iter_rows()),
             )
         )
     return out

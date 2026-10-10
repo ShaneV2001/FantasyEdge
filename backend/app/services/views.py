@@ -150,7 +150,7 @@ def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
     profs = profiles(ctx)
     prof = profs.get(team_id)
     optimal = set(prof.starters) if prof else set()
-    slot_of = {p: "starter" for p in team.starters}
+    slot_of = team.slots
     roster = []
     for pid in team.player_ids:
         if pid not in ctx.players:
@@ -466,7 +466,9 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
         )
     if ctx.league.platform == "manual":
         notes.append(
-            "Manual team: waiver and lineup advice need a synced league (free agents and starters unknown)."
+            "Manual team: waiver advice and trade partners need a synced league (free agents and "
+            "other rosters unknown)."
+            + ("" if team.starters else " Mark your starters to get start/sit advice.")
         )
     return m.AdviceOut(
         team_id=team_id,

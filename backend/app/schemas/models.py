@@ -128,26 +128,22 @@ class ManualLeagueRequest(BaseModel):
     name: str = Field(default="My team", max_length=80)
     num_teams: int = Field(default=12, ge=2, le=32)
     roster_positions: list[str] = Field(
-        default=[
-            "QB",
-            "RB",
-            "RB",
-            "WR",
-            "WR",
-            "TE",
-            "FLEX",
-            "K",
-            "DEF",
-            "BN",
-            "BN",
-            "BN",
-            "BN",
-            "BN",
-            "BN",
-        ]
+        default=["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "K", "DEF", *["BN"] * 6],
+        description="Starting slots plus one 'BN' per bench spot and one 'IR' per IR spot "
+        "(bench depth varies by league).",
+        min_length=1,
+        max_length=60,
     )
     scoring: Literal["standard", "half_ppr", "ppr"] | dict[str, float] = "half_ppr"
-    player_ids: list[str] = Field(min_length=1, max_length=40)
+    player_ids: list[str] = Field(
+        min_length=1, max_length=60, description="Everyone on the roster (starters, bench and IR)"
+    )
+    starters: list[str] = Field(
+        default=[],
+        description="Subset of player_ids in the starting lineup; must fit the starting slots. "
+        "Empty = we pick the best lineup.",
+    )
+    ir: list[str] = Field(default=[], description="Subset of player_ids stashed on IR")
     trade_deadline_week: int | None = None
 
 

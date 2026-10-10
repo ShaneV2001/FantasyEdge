@@ -350,6 +350,8 @@ export type ManualLeagueRequest = {
     num_teams?: number;
     /**
      * Roster Positions
+     *
+     * Starting slots plus one 'BN' per bench spot and one 'IR' per IR spot (bench depth varies by league).
      */
     roster_positions?: Array<string>;
     /**
@@ -360,8 +362,22 @@ export type ManualLeagueRequest = {
     };
     /**
      * Player Ids
+     *
+     * Everyone on the roster (starters, bench and IR)
      */
     player_ids: Array<string>;
+    /**
+     * Starters
+     *
+     * Subset of player_ids in the starting lineup; must fit the starting slots. Empty = we pick the best lineup.
+     */
+    starters?: Array<string>;
+    /**
+     * Ir
+     *
+     * Subset of player_ids stashed on IR
+     */
+    ir?: Array<string>;
     /**
      * Trade Deadline Week
      */

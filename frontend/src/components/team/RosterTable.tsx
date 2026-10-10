@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 
 import type { RosterPlayer } from '@/api'
 import { InjuryTag, PositionBadge, SignalBadge } from '@/components/player/badges'
@@ -77,6 +77,7 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
     </TableHead>
   )
 
+  const hasStarters = roster.some((r) => r.slot === 'starter')
   const firstBench = sort.key === 'default' ? rows.findIndex((p) => !p.optimal_starter) : -1
   return (
     <Table>
@@ -96,8 +97,22 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
         {rows.map((p, i) => {
           const divider = i > 0 && i === firstBench
           const rankGap = p.market_rank != null && p.model_rank != null ? p.model_rank - p.market_rank : null
+          const section =
+            sort.key === 'default' && i === 0 && p.optimal_starter
+              ? 'Best lineup'
+              : divider
+                ? `Bench${roster.some((r) => r.slot === 'ir') ? ' & IR' : ''}`
+                : null
           return (
-            <TableRow key={p.player_id} className={cn(divider && 'border-t-2 border-t-border')}>
+            <Fragment key={p.player_id}>
+            {section && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={8} className="pt-4 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                  {section}
+                </TableCell>
+              </TableRow>
+            )}
+            <TableRow>
               <TableCell>
                 <PositionBadge position={p.position} />
               </TableCell>
@@ -106,7 +121,21 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
                   <span className={cn('font-medium', !p.optimal_starter && 'text-muted-foreground')}>{p.name}</span>
                   <Trend p={p} />
                   <InjuryTag status={p.injury_status} />
-                  {p.slot === 'starter' && <span className="sr-only">(starting)</span>}
+                  {p.slot === 'ir' && (
+                    <span className="rounded bg-muted px-1 font-mono text-[10px] font-semibold text-muted-foreground" title="On your IR slot">
+                      IR SLOT
+                    </span>
+                  )}
+                  {hasStarters && p.slot === 'starter' && !p.optimal_starter && (
+                    <span className="rounded bg-warn/15 px-1 text-[10px] font-semibold text-warn" title="You're starting him, but a bench player projects higher">
+                      STARTING
+                    </span>
+                  )}
+                  {hasStarters && p.slot === 'bench' && p.optimal_starter && (
+                    <span className="rounded bg-buy/15 px-1 text-[10px] font-semibold text-buy" title="Benched, but projects as one of your best starters">
+                      BENCHED
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {p.nfl_team ?? 'FA'}
@@ -162,6 +191,7 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
                 <SignalBadge score={p.regression_score} />
               </TableCell>
             </TableRow>
+            </Fragment>
           )
         })}
       </TableBody>

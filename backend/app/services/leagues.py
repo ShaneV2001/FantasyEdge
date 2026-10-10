@@ -15,6 +15,7 @@ from db.conn import log_sync, query_df, replace_where, upsert
 from ingest import sleeper as sl
 from ingest.run import Clients, market_sync
 from scoring.rules import PRESETS, describe, from_sleeper, normalize, profile_id
+from signals.lineup import NON_STARTING, SLOT_ELIGIBILITY, fit_to_slots, starting_slots
 
 log = logging.getLogger("ff_edge.leagues")
 
@@ -273,6 +274,76 @@ def select_team(con: duckdb.DuckDBPyConnection, league_id: str, external_roster_
 # ───────── manual ─────────
 
 
+def roster_slots(
+    con: duckdb.DuckDBPyConnection,
+    *,
+    roster_positions: list[str],
+    player_ids: list[str],
+    starters: list[str],
+    ir: list[str],
+) -> dict[str, str]:
+    """Validate a hand-entered roster and return player_id -> 'starter' | 'bench' | 'ir'."""
+    known = dict(
+        query_df(
+            con,
+            "SELECT player_id, position FROM players WHERE player_id IN (SELECT unnest(?))",
+            [player_ids],
+        ).iter_rows()
+    )
+    missing = [p for p in player_ids if p not in known]
+    if missing:
+        raise LookupError(f"unknown player ids: {', '.join(missing[:5])}")
+    return assign_roster_slots(roster_positions, known, player_ids, starters, ir)
+
+
+def assign_roster_slots(
+    roster_positions: list[str],
+    positions: dict[str, str],
+    player_ids: list[str],
+    starters: list[str],
+    ir: list[str],
+) -> dict[str, str]:
+    """Pure roster-shape checks: starters fit the lineup, bench and IR fit their depth."""
+    bad = [s for s in roster_positions if s not in SLOT_ELIGIBILITY and s not in NON_STARTING]
+    if bad:
+        raise ValueError(f"unknown roster slot(s): {', '.join(sorted(set(bad)))}")
+    slots = starting_slots(roster_positions)
+    if not slots:
+        raise ValueError("a lineup needs at least one starting slot")
+    n_bench = roster_positions.count("BN") + roster_positions.count("TAXI")
+    n_ir = roster_positions.count("IR")
+    if len(set(player_ids)) != len(player_ids):
+        raise ValueError("a player appears on the roster twice")
+    ids = set(player_ids)
+    if not set(starters) <= ids or not set(ir) <= ids:
+        raise ValueError("starters and IR players must also be on the roster")
+    if set(starters) & set(ir):
+        raise ValueError("a player can't be both starting and on IR")
+    if len(ir) > n_ir:
+        raise ValueError(f"{len(ir)} players on IR but the league has {n_ir} IR spot(s)")
+    active = [p for p in player_ids if p not in set(ir)]
+    if len(active) > len(slots) + n_bench:
+        raise ValueError(
+            f"{len(active)} active players but only {len(slots)} starting + {n_bench} bench spots"
+        )
+    if starters:
+        if len(starters) > len(slots):
+            raise ValueError(f"{len(starters)} starters but only {len(slots)} starting slots")
+        _, unplaced = fit_to_slots([(p, positions[p]) for p in starters], slots)
+        if unplaced:
+            raise ValueError(
+                "these starters don't fit an open lineup slot: "
+                + ", ".join(f"{p} ({positions[p]})" for p in unplaced)
+            )
+        bench = len(active) - len(starters)
+        if bench > n_bench:
+            raise ValueError(f"{bench} bench players but only {n_bench} bench spots")
+    starter_set, ir_set = set(starters), set(ir)
+    return {
+        p: "starter" if p in starter_set else "ir" if p in ir_set else "bench" for p in player_ids
+    }
+
+
 def create_manual(
     con: duckdb.DuckDBPyConnection,
     *,
@@ -282,18 +353,19 @@ def create_manual(
     scoring: str | dict[str, float],
     player_ids: list[str],
     season: int,
+    starters: list[str] | None = None,
+    ir: list[str] | None = None,
     trade_deadline_week: int | None = None,
 ) -> tuple[str, str]:
     rules = PRESETS[scoring] if isinstance(scoring, str) else normalize(scoring)
-    prof = ensure_profile(con, rules, f"Manual ({describe(rules)})")
-    known = set(
-        query_df(
-            con, "SELECT player_id FROM players WHERE player_id IN (SELECT unnest(?))", [player_ids]
-        )["player_id"].to_list()
+    slot_of = roster_slots(
+        con,
+        roster_positions=roster_positions,
+        player_ids=player_ids,
+        starters=starters or [],
+        ir=ir or [],
     )
-    missing = [p for p in player_ids if p not in known]
-    if missing:
-        raise LookupError(f"unknown player ids: {', '.join(missing[:5])}")
+    prof = ensure_profile(con, rules, f"Manual ({describe(rules)})")
     league_id = f"mn-{uuid.uuid4().hex[:10]}"
     team_id = f"{league_id}-1"
     now = _now()
@@ -351,7 +423,7 @@ def create_manual(
         "roster_spots",
         pl.DataFrame(
             [
-                {"team_id": team_id, "player_id": p, "slot": "bench", "synced_at": now}
+                {"team_id": team_id, "player_id": p, "slot": slot_of[p], "synced_at": now}
                 for p in player_ids
             ]
         ),

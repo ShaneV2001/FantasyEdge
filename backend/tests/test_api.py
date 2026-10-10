@@ -232,3 +232,35 @@ def test_players_table_has_internal_ids(client):
         parse_id_map(load_text("dp_playerids.csv")),
     )
     assert ids["player_id"][0] == "sl:x"
+
+
+def test_manual_roster_with_bench_and_ir(client):
+    tc, _ = client
+    by_pos: dict[str, list[str]] = {}
+    for p in tc.get("/players", params={"limit": 100}).json():
+        by_pos.setdefault(p["position"], []).append(p["player_id"])
+    starters = [by_pos["QB"][0], *by_pos["RB"][:2], *by_pos["WR"][:3], by_pos["TE"][0]]
+    bench = [by_pos["QB"][1], by_pos["RB"][2], by_pos["WR"][3]]
+    ir = [by_pos["RB"][3]]
+    lineup = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "BN", "BN", "BN", "IR"]  # 3-deep bench
+    body = {
+        "name": "Deep Bench",
+        "roster_positions": lineup,
+        "player_ids": starters + bench + ir,
+        "starters": starters,
+        "ir": ir,
+    }
+    r = tc.post("/league/manual", json=body)
+    assert r.status_code == 200, r.text
+    team = tc.get(f"/team/{r.json()['team_id']}").json()
+    slot = {p["player_id"]: p["slot"] for p in team["roster"]}
+    assert all(slot[p] == "starter" for p in starters)
+    assert all(slot[p] == "bench" for p in bench)
+    assert slot[ir[0]] == "ir"
+    advice = tc.get(f"/team/{r.json()['team_id']}/advice").json()
+    assert not any("Mark your starters" in n for n in advice["notes"])
+
+    # one more bench player than the league allows → 422 with a clear message
+    too_many = body | {"player_ids": body["player_ids"] + [by_pos["WR"][4]]}
+    r = tc.post("/league/manual", json=too_many)
+    assert r.status_code == 422 and "bench" in r.json()["detail"]

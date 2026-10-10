@@ -9,7 +9,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
 from signals.byes import ByeWeekRow
-from signals.lineup import SLOT_ELIGIBILITY
+from signals.lineup import SLOT_ELIGIBILITY, fit_to_slots
 from signals.team import RosMath, TeamProfile
 from signals.trade import TradeEvaluation
 
@@ -106,7 +106,19 @@ def lineup_actions(inp: AdvisorInputs) -> list[Action]:
     actions = []
     benched_better = sorted((p for p in best_ids if p not in current), key=lambda p: -pts[p])
     sat = sorted((p for p in current if p not in best_ids), key=lambda p: pts[p])
-    for add, drop in zip(benched_better, sat, strict=False):
+    pos = {p: inp.players[p]["position"] for p in my if p in inp.players}
+    lineup = list(current)
+    pairs = []
+    for add in benched_better:
+        # swap only with a starter whose removal keeps the lineup legal (no RB-for-K swaps)
+        for drop in sat:
+            trial = [p for p in lineup if p != drop] + [add]
+            if not fit_to_slots([(p, pos[p]) for p in trial], inp.math.slots)[1]:
+                pairs.append((add, drop))
+                sat.remove(drop)
+                lineup = trial
+                break
+    for add, drop in pairs:
         gain = pts[add] - pts[drop]
         if gain < START_SIT_MIN_GAIN:
             continue
