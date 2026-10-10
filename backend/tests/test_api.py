@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app import deps
 from app.config import Settings
 from app.main import app
-from app.services import context
+from app.services import context, views
 from db.conn import connect, upsert
 from ingest.http import CachedHttp
 from ingest.idmap import DP_IDS_URL, attach_internal_ids, parse_id_map
@@ -188,9 +188,23 @@ def test_manual_league_flow(client):
 
 def test_unknown_team_and_user(client):
     tc, _ = client
-    assert tc.get("/team/does-not-exist").status_code == 404
+    r = tc.get("/team/does-not-exist")
+    assert r.status_code == 404 and r.json()["kind"] == "team", r.text
     r = tc.post("/league/connect", json={"username": "ghost"})
     assert r.status_code == 404 and "not found" in r.json()["detail"], r.text
+    assert r.json()["kind"] == "user"
+
+
+def test_internal_key_error_is_a_500_not_a_404(client, monkeypatch):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+
+    def broken(ctx, team_id):
+        return {}["missing"]
+
+    monkeypatch.setattr(views, "team_view", broken)
+    with TestClient(app, raise_server_exceptions=False) as raw:
+        assert raw.get(f"/team/{team_id}").status_code == 500
 
 
 def test_sleeper_down_returns_503(client):

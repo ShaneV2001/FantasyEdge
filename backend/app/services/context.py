@@ -14,6 +14,7 @@ from datetime import datetime
 import duckdb
 import polars as pl
 
+from app.errors import NotFound, NotReady
 from db.conn import query_df, upsert
 from ingest.market_values import MarketFormat
 from projections.base import LeagueShape, ProjectionInputs, run
@@ -28,10 +29,6 @@ log = logging.getLogger("ff_edge.context")
 
 ENGINE = BaselineEngine()
 PLAYOFF_WEEKS = (15, 16, 17)
-
-
-class NotReady(RuntimeError):
-    """Raised when the local store is missing data the request needs (run `tasks.py data`)."""
 
 
 @dataclass
@@ -111,7 +108,7 @@ class LeagueContext:
         for t in self.teams:
             if t.team_id == team_id:
                 return t
-        raise KeyError(team_id)
+        raise NotFound("team", f"Team not found: {team_id}")
 
     @property
     def rostered(self) -> set[str]:
@@ -140,7 +137,7 @@ def load_league(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueRow:
         [league_id],
     ).pl()
     if row.is_empty():
-        raise KeyError(league_id)
+        raise NotFound("league", f"League not found: {league_id}")
     r = row.row(0, named=True)
     return LeagueRow(
         league_id=r["league_id"],

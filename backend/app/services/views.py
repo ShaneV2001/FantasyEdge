@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from app.errors import InvalidInput
 from app.schemas import models as m
 from app.services.context import LeagueContext
 from scoring.rules import PRESETS, normalize
@@ -402,33 +403,36 @@ def evaluate_trade(
 ) -> m.TradeOut:
     team = ctx.team(team_id)
     if not give and not receive:
-        raise ValueError("pick at least one player to give or receive")
+        raise InvalidInput("pick at least one player to give or receive")
     unknown = [p for p in [*give, *receive] if p not in ctx.players]
     if unknown:
-        raise ValueError(f"unknown player(s): {', '.join(unknown[:3])}")
+        raise InvalidInput(f"unknown player(s): {', '.join(unknown[:3])}")
     owned = [p for p in receive if ctx.owner_of(p)]
     owners = {ctx.owner_of(p).team_id for p in owned}  # type: ignore[union-attr]
     if owners == {team_id}:
-        raise ValueError("you already have a player you're trying to receive")
+        raise InvalidInput("you already have a player you're trying to receive")
     if len(owners) > 1:
-        raise ValueError("all received players must come from the same team")
+        raise InvalidInput("all received players must come from the same team")
     if owned and len(owned) != len(receive):
-        raise ValueError(
+        raise InvalidInput(
             "mix of rostered and unrostered players: trade with one team, or make it fully hypothetical"
         )
     # Players on a league team -> two-sided trade; otherwise a hypothetical trade (manual teams,
     # free agents, or players from another league) that only models your side.
     partner = ctx.team(owners.pop()) if owners else None
-    ev = tr.evaluate(
-        ros_math(ctx),
-        ctx.players,
-        (team.team_id, team.player_ids),
-        (partner.team_id, partner.player_ids) if partner else None,
-        give,
-        receive,
-        viable_ppg=ctx.replacement_ppg,
-        market_label=market_label(ctx),
-    )
+    try:
+        ev = tr.evaluate(
+            ros_math(ctx),
+            ctx.players,
+            (team.team_id, team.player_ids),
+            (partner.team_id, partner.player_ids) if partner else None,
+            give,
+            receive,
+            viable_ppg=ctx.replacement_ppg,
+            market_label=market_label(ctx),
+        )
+    except ValueError as exc:  # signals/ stays app-agnostic and raises plain ValueError
+        raise InvalidInput(str(exc)) from exc
     return trade_out(ctx, ev)
 
 

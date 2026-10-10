@@ -8,8 +8,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.errors import InvalidInput, NotFound, NotReady
 from app.routes import league, meta, team, trade
-from app.services.context import NotReady
 from ingest.http import SourceUnavailable
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -48,20 +48,13 @@ def _not_ready(_: Request, exc: NotReady) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": str(exc), "source": "local"})
 
 
-@app.exception_handler(KeyError)
-def _not_found(_: Request, exc: KeyError) -> JSONResponse:
-    return JSONResponse(
-        status_code=404, content={"detail": f"Not found: {exc.args[0] if exc.args else ''}"}
-    )
+@app.exception_handler(NotFound)
+def _not_found(_: Request, exc: NotFound) -> JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": exc.detail, "kind": exc.kind})
 
 
-@app.exception_handler(LookupError)
-def _lookup(_: Request, exc: LookupError) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": str(exc)})
-
-
-@app.exception_handler(ValueError)
-def _bad_value(_: Request, exc: ValueError) -> JSONResponse:
+@app.exception_handler(InvalidInput)
+def _invalid(_: Request, exc: InvalidInput) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 

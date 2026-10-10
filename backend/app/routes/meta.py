@@ -6,6 +6,7 @@ import duckdb
 from fastapi import APIRouter, Depends, Query
 
 from app.deps import get_clients, get_con, write_lock
+from app.errors import NotFound
 from app.schemas import models as m
 from app.services import context, leagues
 from ingest import run as jobs
@@ -60,7 +61,7 @@ def refresh(
                 "SELECT platform, external_id FROM leagues WHERE league_id = ?", [body.league_id]
             ).fetchone()
             if platform is None:
-                raise KeyError(body.league_id)
+                raise NotFound("league", f"League not found: {body.league_id}")
             if platform[0] == "sleeper":
                 rosters = leagues.sync_sleeper_league(con, c, platform[1], force=True)
                 detail.append(f"league: {len(rosters)} rosters synced")

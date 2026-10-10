@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime
 import duckdb
 import polars as pl
 
+from app.errors import InvalidInput, NotFound
 from db.conn import log_sync, query_df, replace_where, upsert
 from ingest import sleeper as sl
 from ingest.run import Clients, market_sync
@@ -81,7 +82,7 @@ def connect_sleeper(
 ) -> list[LeagueChoice]:
     user = c.sleeper.user(username.strip())
     if not user:
-        raise LookupError(f"Sleeper user '{username}' not found")
+        raise NotFound("user", f"Sleeper user '{username}' not found")
     state = c.sleeper.state()
     season = int(state.get("league_season") or state["season"])
     out = []
@@ -265,7 +266,7 @@ def select_team(con: duckdb.DuckDBPyConnection, league_id: str, external_roster_
         [league_id, str(external_roster_id)],
     ).fetchone()
     if not row:
-        raise LookupError(f"roster {external_roster_id} not found in {league_id}")
+        raise NotFound("roster", f"roster {external_roster_id} not found in {league_id}")
     con.execute("UPDATE teams SET is_mine = (team_id = ?) WHERE league_id = ?", [row[0], league_id])
     con.execute("UPDATE leagues SET last_synced_at = ? WHERE league_id = ?", [_now(), league_id])
     return row[0]
@@ -292,7 +293,7 @@ def roster_slots(
     )
     missing = [p for p in player_ids if p not in known]
     if missing:
-        raise LookupError(f"unknown player ids: {', '.join(missing[:5])}")
+        raise NotFound("player", f"unknown player ids: {', '.join(missing[:5])}")
     return assign_roster_slots(roster_positions, known, player_ids, starters, ir)
 
 
@@ -306,38 +307,38 @@ def assign_roster_slots(
     """Pure roster-shape checks: starters fit the lineup, bench and IR fit their depth."""
     bad = [s for s in roster_positions if s not in SLOT_ELIGIBILITY and s not in NON_STARTING]
     if bad:
-        raise ValueError(f"unknown roster slot(s): {', '.join(sorted(set(bad)))}")
+        raise InvalidInput(f"unknown roster slot(s): {', '.join(sorted(set(bad)))}")
     slots = starting_slots(roster_positions)
     if not slots:
-        raise ValueError("a lineup needs at least one starting slot")
+        raise InvalidInput("a lineup needs at least one starting slot")
     n_bench = roster_positions.count("BN") + roster_positions.count("TAXI")
     n_ir = roster_positions.count("IR")
     if len(set(player_ids)) != len(player_ids):
-        raise ValueError("a player appears on the roster twice")
+        raise InvalidInput("a player appears on the roster twice")
     ids = set(player_ids)
     if not set(starters) <= ids or not set(ir) <= ids:
-        raise ValueError("starters and IR players must also be on the roster")
+        raise InvalidInput("starters and IR players must also be on the roster")
     if set(starters) & set(ir):
-        raise ValueError("a player can't be both starting and on IR")
+        raise InvalidInput("a player can't be both starting and on IR")
     if len(ir) > n_ir:
-        raise ValueError(f"{len(ir)} players on IR but the league has {n_ir} IR spot(s)")
+        raise InvalidInput(f"{len(ir)} players on IR but the league has {n_ir} IR spot(s)")
     active = [p for p in player_ids if p not in set(ir)]
     if len(active) > len(slots) + n_bench:
-        raise ValueError(
+        raise InvalidInput(
             f"{len(active)} active players but only {len(slots)} starting + {n_bench} bench spots"
         )
     if starters:
         if len(starters) > len(slots):
-            raise ValueError(f"{len(starters)} starters but only {len(slots)} starting slots")
+            raise InvalidInput(f"{len(starters)} starters but only {len(slots)} starting slots")
         _, unplaced = fit_to_slots([(p, positions[p]) for p in starters], slots)
         if unplaced:
-            raise ValueError(
+            raise InvalidInput(
                 "these starters don't fit an open lineup slot: "
                 + ", ".join(f"{p} ({positions[p]})" for p in unplaced)
             )
         bench = len(active) - len(starters)
         if bench > n_bench:
-            raise ValueError(f"{bench} bench players but only {n_bench} bench spots")
+            raise InvalidInput(f"{bench} bench players but only {n_bench} bench spots")
     starter_set, ir_set = set(starters), set(ir)
     return {
         p: "starter" if p in starter_set else "ir" if p in ir_set else "bench" for p in player_ids
@@ -434,7 +435,7 @@ def create_manual(
 def league_id_for_team(con: duckdb.DuckDBPyConnection, team_id: str) -> str:
     row = con.execute("SELECT league_id FROM teams WHERE team_id = ?", [team_id]).fetchone()
     if not row:
-        raise KeyError(team_id)
+        raise NotFound("team", f"Team not found: {team_id}")
     return row[0]
 
 
@@ -457,10 +458,10 @@ def update_manual(
         [team_id],
     ).fetchone()
     if not row:
-        raise KeyError(team_id)
+        raise NotFound("team", f"Team not found: {team_id}")
     league_id, platform = row
     if platform != "manual":
-        raise ValueError(
+        raise InvalidInput(
             f"{platform.title()} rosters sync from {platform.title()} — change them there, then press Update."
         )
     rules = PRESETS[scoring] if isinstance(scoring, str) else normalize(scoring)

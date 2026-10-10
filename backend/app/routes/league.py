@@ -4,6 +4,7 @@ import duckdb
 from fastapi import APIRouter, Depends
 
 from app.deps import get_clients, get_con, write_lock
+from app.errors import NotReady
 from app.schemas import models as m
 from app.services import context, leagues
 from ingest.run import Clients
@@ -51,7 +52,7 @@ def manual_league(
     """Create a league from a hand-entered roster (works for any platform)."""
     season = con.execute("SELECT max(season) FROM nfl_games").fetchone()[0]
     if season is None:
-        raise context.NotReady("No NFL schedule in the local store — run `python tasks.py data`.")
+        raise NotReady("No NFL schedule in the local store — run `python tasks.py data`.")
     with write_lock:
         league_id, team_id = leagues.create_manual(
             con,
