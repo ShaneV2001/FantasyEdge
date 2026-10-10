@@ -429,3 +429,13 @@ def test_dynasty_league_uses_dynasty_market_values(client):
     assert r.status_code == 200, r.text
     assert any("dynasty_" in d for d in r.json()["detail"]), r.json()
     assert tc.get(f"/team/{team_id}").status_code == 200
+
+
+def test_manual_league_playoff_start(client):
+    tc, _ = client
+    team_id, body, _ = _manual_team(tc)
+    assert tc.get(f"/team/{team_id}").json()["league"]["playoff_week_start"] == 15
+    r = tc.put(f"/team/{team_id}/roster", json=body | {"playoff_week_start": 14})
+    assert r.status_code == 200, r.text
+    assert tc.get(f"/team/{team_id}").json()["league"]["playoff_week_start"] == 14
+    assert tc.get(f"/team/{team_id}/advice").status_code == 200

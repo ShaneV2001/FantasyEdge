@@ -85,6 +85,7 @@ class LeagueOut(BaseModel):
     )
     trade_deadline_week: int | None
     deadline_passed: bool
+    playoff_week_start: int = Field(description="First fantasy-playoff week")
     uses_faab: bool
     faab_budget: int | None
     last_synced_at: datetime | None
@@ -148,6 +149,9 @@ class ManualLeagueRequest(BaseModel):
     )
     ir: list[str] = Field(default=[], description="Subset of player_ids stashed on IR")
     trade_deadline_week: int | None = None
+    playoff_week_start: int = Field(
+        default=15, ge=1, le=18, description="First fantasy-playoff week (playoffs run 3 weeks)"
+    )
 
 
 # ───────── team ─────────

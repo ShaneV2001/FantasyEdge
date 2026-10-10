@@ -50,6 +50,8 @@ export interface BuilderInitial {
   name: string
   numTeams: number
   scoring: Scoring
+  playoffWeekStart: number
+  tradeDeadlineWeek: number | null
   shape: LineupShape
   picked: Picked[]
 }
@@ -153,6 +155,7 @@ export function ManualRosterBuilder({ initial }: { initial?: BuilderInitial }) {
   const [name, setName] = useState(initial?.name ?? 'My team')
   const [numTeams, setNumTeams] = useState(String(initial?.numTeams ?? 12))
   const [scoring, setScoring] = useState<Scoring>(initial?.scoring ?? 'half_ppr')
+  const [playoffStart, setPlayoffStart] = useState(String(initial?.playoffWeekStart ?? 15))
   const [shape, setShape] = useState<LineupShape>(initial?.shape ?? LINEUP_PRESETS.standard.shape)
   const [picked, setPicked] = useState<Picked[]>(initial?.picked ?? [])
   const [q, setQ] = useState('')
@@ -235,6 +238,8 @@ export function ManualRosterBuilder({ initial }: { initial?: BuilderInitial }) {
       num_teams: Number(numTeams),
       roster_positions: rosterPositions(shape),
       scoring,
+      playoff_week_start: Number(playoffStart),
+      trade_deadline_week: initial?.tradeDeadlineWeek ?? null,
       player_ids: picked.map((p) => p.player_id),
       starters: starters.map((p) => p.player_id),
       ir: ir.map((p) => p.player_id),
@@ -256,7 +261,7 @@ export function ManualRosterBuilder({ initial }: { initial?: BuilderInitial }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         {/* league basics */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-4">
           <div className="grid gap-1.5">
             <Label htmlFor="team-name">Team name</Label>
             <Input id="team-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
@@ -283,6 +288,21 @@ export function ManualRosterBuilder({ initial }: { initial?: BuilderInitial }) {
               <ToggleGroupItem value="half_ppr">½ PPR</ToggleGroupItem>
               <ToggleGroupItem value="ppr">PPR</ToggleGroupItem>
             </ToggleGroup>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Playoffs start</Label>
+            <Select value={playoffStart} onValueChange={setPlayoffStart}>
+              <SelectTrigger aria-label="Playoffs start">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[13, 14, 15, 16].map((w) => (
+                  <SelectItem key={w} value={String(w)}>
+                    Week {w}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

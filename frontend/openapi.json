@@ -1148,6 +1148,11 @@
             "type": "boolean",
             "title": "Deadline Passed"
           },
+          "playoff_week_start": {
+            "type": "integer",
+            "title": "Playoff Week Start",
+            "description": "First fantasy-playoff week"
+          },
           "uses_faab": {
             "type": "boolean",
             "title": "Uses Faab"
@@ -1188,6 +1193,7 @@
           "scoring",
           "trade_deadline_week",
           "deadline_passed",
+          "playoff_week_start",
           "uses_faab",
           "faab_budget",
           "last_synced_at"
@@ -1294,6 +1300,14 @@
               }
             ],
             "title": "Trade Deadline Week"
+          },
+          "playoff_week_start": {
+            "type": "integer",
+            "maximum": 18.0,
+            "minimum": 1.0,
+            "title": "Playoff Week Start",
+            "description": "First fantasy-playoff week (playoffs run 3 weeks)",
+            "default": 15
           }
         },
         "type": "object",

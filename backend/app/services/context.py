@@ -28,7 +28,7 @@ from signals.schedule import Schedule, build_schedule, fp_allowed_index, schedul
 log = logging.getLogger("ff_edge.context")
 
 ENGINE = BaselineEngine()
-PLAYOFF_WEEKS = (15, 16, 17)
+DEFAULT_PLAYOFF_START = 15
 
 
 @dataclass
@@ -57,10 +57,22 @@ class LeagueRow:
 
     @property
     def last_week(self) -> int:
-        # Fantasy season ends with the playoffs: playoff start + 2 (3-week playoffs), capped at 17.
-        if self.playoff_week_start:
-            return min(int(self.playoff_week_start) + 2, 18)
-        return 17
+        # Fantasy season ends with the playoffs: playoff start + 2 (3-week playoffs), capped at
+        # week 18 (the last NFL regular-season week).
+        return min(self.playoff_start + 2, 18)
+
+    @property
+    def playoff_start(self) -> int:
+        return int(self.playoff_week_start or DEFAULT_PLAYOFF_START)
+
+    @property
+    def playoff_weeks(self) -> range:
+        return range(self.playoff_start, self.last_week + 1)
+
+    @property
+    def playoff_label(self) -> str:
+        first, last = self.playoff_weeks[0], self.playoff_weeks[-1]
+        return f"week {first}" if first == last else f"weeks {first}-{last}"
 
 
 @dataclass
@@ -303,9 +315,15 @@ def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueConte
         pos = r["position"]
         if pos in SKILL_POSITIONS:
             r["ease_next4"] = schedule_ease(
-                schedule, matchup, r["nfl_team"], pos, range(week, week + 4)
+                schedule,
+                matchup,
+                r["nfl_team"],
+                pos,
+                range(week, min(week + 4, league.last_week + 1)),
             )
-            r["ease_playoffs"] = schedule_ease(schedule, matchup, r["nfl_team"], pos, PLAYOFF_WEEKS)
+            r["ease_playoffs"] = schedule_ease(
+                schedule, matchup, r["nfl_team"], pos, league.playoff_weeks
+            )
         else:
             r["ease_next4"] = r["ease_playoffs"] = None
         info[pid] = r

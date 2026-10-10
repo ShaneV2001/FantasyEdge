@@ -66,6 +66,7 @@ class AdvisorInputs:
     free_agents: Sequence[str] | None  # None when the player pool is unknown (manual league)
     regression_messages: Mapping[str, list[str]]
     market_label: str = "Market"
+    playoff_label: str = "weeks 15-17"
 
 
 def _confidence(n_signals: int) -> str:
@@ -220,7 +221,8 @@ def sell_actions(inp: AdvisorInputs) -> list[Action]:
         elif p.get("ease_playoffs") and p["ease_playoffs"] <= TOUGH_SCHEDULE:
             signals += 1
             reasons.append(
-                f"Tough fantasy-playoff schedule, weeks 15-17 (index {p['ease_playoffs']:.2f})."
+                f"Tough fantasy-playoff schedule, {inp.playoff_label} "
+                f"(index {p['ease_playoffs']:.2f})."
             )
         impact = min(abs(reg) + (gap or 0) / 5 + max(p.get("ros_value_par") or 0, 0) / 60, 5.0)
         actions.append(
@@ -268,7 +270,10 @@ def buy_actions(inp: AdvisorInputs) -> list[Action]:
                 reasons.append(f"{inp.team_names[tid]} has {p['position']} depth to spare.")
             if p.get("ease_playoffs") and p["ease_playoffs"] >= EASY_SCHEDULE:
                 signals += 1
-                reasons.append(f"Easy fantasy-playoff schedule (index {p['ease_playoffs']:.2f}).")
+                reasons.append(
+                    f"Easy fantasy-playoff schedule, {inp.playoff_label} "
+                    f"(index {p['ease_playoffs']:.2f})."
+                )
             bye = p.get("bye_week")
             if bye is not None and bye < inp.week:
                 reasons.append("His bye is already done.")

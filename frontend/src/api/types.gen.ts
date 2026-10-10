@@ -334,6 +334,12 @@ export type LeagueOut = {
      */
     deadline_passed: boolean;
     /**
+     * Playoff Week Start
+     *
+     * First fantasy-playoff week
+     */
+    playoff_week_start: number;
+    /**
      * Uses Faab
      */
     uses_faab: boolean;
@@ -393,6 +399,12 @@ export type ManualLeagueRequest = {
      * Trade Deadline Week
      */
     trade_deadline_week?: number | null;
+    /**
+     * Playoff Week Start
+     *
+     * First fantasy-playoff week (playoffs run 3 weeks)
+     */
+    playoff_week_start?: number;
 };
 
 /**

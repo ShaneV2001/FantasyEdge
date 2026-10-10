@@ -65,5 +65,6 @@ def manual_league(
             ir=body.ir,
             season=int(season),
             trade_deadline_week=body.trade_deadline_week,
+            playoff_week_start=body.playoff_week_start,
         )
     return m.TeamRef(team_id=team_id, league_id=league_id)

@@ -370,6 +370,7 @@ def create_manual(
     starters: list[str] | None = None,
     ir: list[str] | None = None,
     trade_deadline_week: int | None = None,
+    playoff_week_start: int = 15,
 ) -> tuple[str, str]:
     rules = PRESETS[scoring] if isinstance(scoring, str) else normalize(scoring)
     slot_of = roster_slots(
@@ -383,66 +384,68 @@ def create_manual(
     league_id = f"mn-{uuid.uuid4().hex[:10]}"
     team_id = f"{league_id}-1"
     now = _now()
-    upsert(
-        con,
-        "leagues",
-        pl.DataFrame(
-            [
-                {
-                    "league_id": league_id,
-                    "platform": "manual",
-                    "external_id": None,
-                    "season": season,
-                    "name": name,
-                    "num_teams": num_teams,
-                    "roster_positions": json.dumps(roster_positions),
-                    "scoring_profile_id": prof,
-                    "trade_deadline_week": trade_deadline_week,
-                    "uses_faab": False,
-                    "faab_budget": None,
-                    "playoff_week_start": 15,
-                    "league_type": "redraft",
-                    "last_synced_at": now,
-                }
-            ],
-            schema_overrides={
-                "external_id": pl.Utf8,
-                "trade_deadline_week": pl.Int32,
-                "faab_budget": pl.Int32,
-            },
-        ),
-    )
-    upsert(
-        con,
-        "teams",
-        pl.DataFrame(
-            [
-                {
-                    "team_id": team_id,
-                    "league_id": league_id,
-                    "external_roster_id": "1",
-                    "owner_name": "Me",
-                    "team_name": name,
-                    "is_mine": True,
-                    "wins": 0,
-                    "losses": 0,
-                    "points_for": 0.0,
-                    "faab_remaining": None,
-                }
-            ],
-            schema_overrides={"faab_remaining": pl.Int32},
-        ),
-    )
-    upsert(
-        con,
-        "roster_spots",
-        pl.DataFrame(
-            [
-                {"team_id": team_id, "player_id": p, "slot": slot_of[p], "synced_at": now}
-                for p in player_ids
-            ]
-        ),
-    )
+    with transaction(con):
+        upsert(
+            con,
+            "leagues",
+            pl.DataFrame(
+                [
+                    {
+                        "league_id": league_id,
+                        "platform": "manual",
+                        "external_id": None,
+                        "season": season,
+                        "name": name,
+                        "num_teams": num_teams,
+                        "roster_positions": json.dumps(roster_positions),
+                        "scoring_profile_id": prof,
+                        "trade_deadline_week": trade_deadline_week,
+                        "uses_faab": False,
+                        "faab_budget": None,
+                        "playoff_week_start": playoff_week_start,
+                        "league_type": "redraft",
+                        "last_synced_at": now,
+                    }
+                ],
+                schema_overrides={
+                    "external_id": pl.Utf8,
+                    "trade_deadline_week": pl.Int32,
+                    "faab_budget": pl.Int32,
+                    "playoff_week_start": pl.Int32,
+                },
+            ),
+        )
+        upsert(
+            con,
+            "teams",
+            pl.DataFrame(
+                [
+                    {
+                        "team_id": team_id,
+                        "league_id": league_id,
+                        "external_roster_id": "1",
+                        "owner_name": "Me",
+                        "team_name": name,
+                        "is_mine": True,
+                        "wins": 0,
+                        "losses": 0,
+                        "points_for": 0.0,
+                        "faab_remaining": None,
+                    }
+                ],
+                schema_overrides={"faab_remaining": pl.Int32},
+            ),
+        )
+        upsert(
+            con,
+            "roster_spots",
+            pl.DataFrame(
+                [
+                    {"team_id": team_id, "player_id": p, "slot": slot_of[p], "synced_at": now}
+                    for p in player_ids
+                ]
+            ),
+        )
     return league_id, team_id
 
 
@@ -465,6 +468,7 @@ def update_manual(
     starters: list[str] | None = None,
     ir: list[str] | None = None,
     trade_deadline_week: int | None = None,
+    playoff_week_start: int = 15,
 ) -> tuple[str, str]:
     """Replace a manual team's settings and roster (players, starters, bench, IR)."""
     row = con.execute(
@@ -488,21 +492,24 @@ def update_manual(
     )
     prof = ensure_profile(con, rules, f"Manual ({describe(rules)})")
     now = _now()
-    con.execute(
-        """UPDATE leagues SET name = ?, num_teams = ?, roster_positions = ?, scoring_profile_id = ?,
-                  trade_deadline_week = ?, last_synced_at = ? WHERE league_id = ?""",
-        [name, num_teams, json.dumps(roster_positions), prof, trade_deadline_week, now, league_id],
-    )
-    con.execute("UPDATE teams SET team_name = ? WHERE team_id = ?", [name, team_id])
-    con.execute("DELETE FROM roster_spots WHERE team_id = ?", [team_id])
-    upsert(
-        con,
-        "roster_spots",
-        pl.DataFrame(
-            [
-                {"team_id": team_id, "player_id": p, "slot": slot_of[p], "synced_at": now}
-                for p in player_ids
-            ]
-        ),
-    )
+    with transaction(con):
+        con.execute(
+            """UPDATE leagues SET name = ?, num_teams = ?, roster_positions = ?,
+                      scoring_profile_id = ?, trade_deadline_week = ?, playoff_week_start = ?,
+                      last_synced_at = ? WHERE league_id = ?""",
+            [name, num_teams, json.dumps(roster_positions), prof, trade_deadline_week,
+             playoff_week_start, now, league_id],
+        )  # fmt: skip
+        con.execute("UPDATE teams SET team_name = ? WHERE team_id = ?", [name, team_id])
+        con.execute("DELETE FROM roster_spots WHERE team_id = ?", [team_id])
+        upsert(
+            con,
+            "roster_spots",
+            pl.DataFrame(
+                [
+                    {"team_id": team_id, "player_id": p, "slot": slot_of[p], "synced_at": now}
+                    for p in player_ids
+                ]
+            ),
+        )
     return league_id, team_id

@@ -39,3 +39,12 @@ def test_no_lineup_advice_without_starters():
     players = {"qb": P("QB", "QB", 20), "rb1": P("RB One", "RB", 15)}
     inp = _inputs(players, list(players), [], schedule(["AAA"], weeks=17))
     assert adv.lineup_actions(inp) == []
+
+
+def test_sell_reason_names_the_league_playoff_weeks():
+    p = P("Seller", "WR", 15) | {"regression_score": -2.0, "ease_playoffs": 0.8}
+    players = {"wr": p, "qb": P("QB", "QB", 20)}
+    inp = _inputs(players, list(players), [], schedule(["AAA"], weeks=17))
+    inp.playoff_label = "weeks 14-16"
+    (sell,) = adv.sell_actions(inp)
+    assert any("weeks 14-16" in r for r in sell.reasons)

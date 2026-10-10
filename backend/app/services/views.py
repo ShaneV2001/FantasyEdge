@@ -150,6 +150,7 @@ def league_out(ctx: LeagueContext) -> m.LeagueOut:
         scoring_preset=scoring_preset(lg.rules),
         trade_deadline_week=lg.trade_deadline_week,
         deadline_passed=ctx.deadline_passed,
+        playoff_week_start=lg.playoff_start,
         uses_faab=lg.uses_faab,
         faab_budget=lg.faab_budget,
         last_synced_at=lg.last_synced_at,
@@ -490,6 +491,7 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
         free_agents=free_agents(ctx),
         regression_messages=msgs,
         market_label=market_label(ctx),
+        playoff_label=ctx.league.playoff_label,
     )
     actions = adv.build_feed(inp)
     names = {t.team_id: t.team_name for t in ctx.teams}

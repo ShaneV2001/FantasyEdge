@@ -58,6 +58,7 @@ def update_roster(
             starters=body.starters,
             ir=body.ir,
             trade_deadline_week=body.trade_deadline_week,
+            playoff_week_start=body.playoff_week_start,
         )
     context.invalidate(league_id)
     return m.TeamRef(team_id=team_id, league_id=league_id)

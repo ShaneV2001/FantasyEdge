@@ -22,6 +22,8 @@ export function toBuilderInitial(team: TeamOut): BuilderInitial {
     name: team.team_name,
     numTeams: team.league.num_teams,
     scoring: team.league.scoring_preset ?? 'half_ppr',
+    playoffWeekStart: team.league.playoff_week_start,
+    tradeDeadlineWeek: team.league.trade_deadline_week,
     shape: shapeFromRosterPositions(team.league.roster_positions),
     picked,
   }
