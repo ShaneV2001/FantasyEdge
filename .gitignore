@@ -1,0 +1,30 @@
+# data & caches
+data/
+runs/
+*.duckdb
+*.duckdb.wal
+
+# secrets
+.env
+token.json
+*.token
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# node
+node_modules/
+dist/
+*.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

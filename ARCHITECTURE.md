@@ -1,0 +1,306 @@
+# ff-edge — Architecture
+
+## 1. Stack
+
+### Frontend
+| Concern | Choice | Why |
+|---|---|---|
+| Framework | **Vite + React + TypeScript** | Backend is Python, so we don't need Next.js server features; Vite is the simplest SPA setup and shadcn supports it directly. |
+| Components | **shadcn/ui** (Radix primitives) | Copy-in components you own and can restyle. |
+| Styling | **Tailwind CSS** | Required by shadcn. |
+| Icons | **lucide-react** | shadcn's default icon set. |
+| Routing | **TanStack Router** (or React Router) | Type-safe routes and search params (filters live in the URL). |
+| Server state | **TanStack Query** | Caching, refetch, loading/error states for every API call. |
+| Tables | **TanStack Table** | Powers shadcn's Data Table — sorting, filtering, pagination for the Players page. |
+| Charts | **Recharts** via shadcn **Chart** components | Matches the shadcn theme out of the box. |
+| Forms | **React Hook Form + Zod** | shadcn's Form component is built on these. |
+| Client state | **Zustand** (persisted) | Tiny store for "my connected team", scoring profile, UI prefs. |
+| API types | **@hey-api/openapi-ts** (or orval) | Generates typed client + TanStack Query hooks from FastAPI's OpenAPI schema — backend and frontend never drift. |
+| Search | shadcn **Command** (cmdk) | ⌘K player search anywhere. |
+| Toasts | shadcn **Sonner** | "Roster refreshed", errors. |
+| Testing | **Vitest + Testing Library**, **Playwright** (e2e) | |
+| Lint/format | **Biome** (or ESLint + Prettier) | |
+| Package manager | **pnpm** | |
+
+### Backend
+| Concern | Choice |
+|---|---|
+| Language | Python 3.11+ |
+| API | **FastAPI** + **Pydantic v2** |
+| Data frames | **Polars** (nflreadpy returns Polars natively) |
+| Store | **DuckDB** (single file `data/ff.duckdb`) |
+| HTTP | **httpx** + **tenacity** (retry/backoff) + on-disk response cache |
+| ML | **LightGBM**, **scikit-learn** (splits, metrics), quantile objectives for p10/p90 |
+| Scheduling | **GitHub Actions** cron for daily refresh; `POST /refresh` for on-demand |
+| Tooling | **uv**, **ruff**, **pytest**, **respx** (mock HTTP with recorded fixtures) |
+
+### Infra
+- **Docker Compose**: `api` + `web` services, one command to run locally.
+- Later hosting: static frontend on any static host; API on any small container host. DuckDB is fine for single-user; switch to Postgres only if you add multi-user accounts.
+
+---
+
+## 2. Data flow
+
+```mermaid
+flowchart LR
+  subgraph Sources
+    S[Sleeper API]
+    N[nflverse / nflreadpy]
+    F[FantasyCalc]
+    D[DynastyProcess CSVs]
+  end
+  S & N & F & D --> I[ingest/*] --> R[(raw tables)]
+  R --> FE[features/*] --> FT[(player_week_features)]
+  FT --> TR[models/train] --> MR[(model_runs)]
+  FT --> SC[models/score] --> PJ[(projections)]
+  PJ --> SG[signals/*] --> SI[(signals)]
+  PJ & SI & R --> API[FastAPI] --> UI[React + shadcn]
+```
+
+**Refresh cadence (in season)**
+| Job | When | What |
+|---|---|---|
+| `players_sync` | Daily 6am ET | Sleeper `/players/nfl` → `players` (≤1×/day per Sleeper) |
+| `stats_sync` | Tue 6am ET (+ Thu/Mon) | nflverse weekly stats, snaps, injuries, schedules |
+| `market_sync` | Daily | FantasyCalc values (fallback DynastyProcess) |
+| `score` | After stats_sync | Rebuild features → score → signals |
+| `train` | Weekly (Tue) | Retrain + write `model_runs` report |
+| `league_sync` | On connect / "Update" button / every 30 min while app open | Rosters, transactions, matchups, trending |
+
+---
+
+## 3. Database schema (DuckDB)
+
+```mermaid
+erDiagram
+  PLAYERS ||--o{ PLAYER_WEEK_STATS : has
+  PLAYERS ||--o{ PLAYER_WEEK_FEATURES : has
+  PLAYERS ||--o{ INJURIES : has
+  PLAYERS ||--o{ MARKET_VALUES : valued_by
+  PLAYERS ||--o{ PROJECTIONS : projected
+  PLAYERS ||--o{ SIGNALS : flagged
+  PLAYERS ||--o{ ROSTER_SPOTS : rostered
+  NFL_GAMES ||--o{ PLAYER_WEEK_STATS : played_in
+  MODEL_RUNS ||--o{ PROJECTIONS : produced
+  SCORING_PROFILES ||--o{ PROJECTIONS : scored_by
+  SCORING_PROFILES ||--o{ LEAGUES : uses
+  LEAGUES ||--o{ TEAMS : contains
+  TEAMS ||--o{ ROSTER_SPOTS : holds
+  LEAGUES ||--o{ TRANSACTIONS : logs
+```
+
+```sql
+-- ───────── Reference ─────────
+CREATE TABLE players (
+  player_id      VARCHAR PRIMARY KEY,   -- internal = nflverse gsis_id when available
+  sleeper_id     VARCHAR UNIQUE,
+  espn_id        VARCHAR,
+  yahoo_id       VARCHAR,
+  fantasycalc_id VARCHAR,
+  full_name      VARCHAR NOT NULL,
+  position       VARCHAR NOT NULL,      -- QB/RB/WR/TE/K/DEF
+  nfl_team       VARCHAR,
+  birth_date     DATE,
+  years_exp      INTEGER,
+  status         VARCHAR,               -- Active / IR / FA ...
+  depth_chart_order INTEGER,
+  updated_at     TIMESTAMP
+);
+
+CREATE TABLE nfl_games (
+  game_id   VARCHAR PRIMARY KEY,
+  season    INTEGER, week INTEGER,
+  home_team VARCHAR, away_team VARCHAR,
+  kickoff   TIMESTAMP,
+  home_score INTEGER, away_score INTEGER
+);
+
+-- ───────── Raw stats (from nflverse) ─────────
+CREATE TABLE player_week_stats (
+  player_id VARCHAR, season INTEGER, week INTEGER,
+  game_id VARCHAR, team VARCHAR, opponent VARCHAR,
+  snaps INTEGER, snap_pct DOUBLE, routes INTEGER,
+  pass_att INTEGER, pass_cmp INTEGER, pass_yds INTEGER, pass_td INTEGER, interceptions INTEGER,
+  carries INTEGER, rush_yds INTEGER, rush_td INTEGER,
+  targets INTEGER, receptions INTEGER, rec_yds INTEGER, rec_td INTEGER,
+  air_yards INTEGER, target_share DOUBLE, air_yards_share DOUBLE, wopr DOUBLE,
+  rz_carries INTEGER, rz_targets INTEGER, gl_carries INTEGER,
+  fumbles_lost INTEGER, two_pt INTEGER,
+  epa_total DOUBLE,
+  PRIMARY KEY (player_id, season, week)
+);
+
+CREATE TABLE injuries (
+  player_id VARCHAR, season INTEGER, week INTEGER,
+  report_status VARCHAR,     -- Out / Doubtful / Questionable
+  practice_status VARCHAR,   -- DNP / Limited / Full
+  body_part VARCHAR,
+  PRIMARY KEY (player_id, season, week)
+);
+
+-- ───────── Market (FantasyCalc / DynastyProcess) ─────────
+CREATE TABLE market_values (
+  player_id VARCHAR, source VARCHAR,           -- 'fantasycalc' | 'dynastyprocess'
+  snapshot_date DATE,
+  format VARCHAR,                              -- 'redraft_1qb_12_ppr1' etc.
+  value DOUBLE, overall_rank INTEGER, position_rank INTEGER,
+  trend_30d DOUBLE,
+  PRIMARY KEY (player_id, source, snapshot_date, format)
+);
+
+CREATE TABLE trending (
+  player_id VARCHAR, kind VARCHAR,             -- 'add' | 'drop'
+  count INTEGER, lookback_hours INTEGER, fetched_at TIMESTAMP
+);
+
+-- ───────── Scoring ─────────
+CREATE TABLE scoring_profiles (
+  scoring_profile_id VARCHAR PRIMARY KEY,      -- hash of rules JSON
+  name VARCHAR,                                -- 'Half PPR default', 'My Sleeper league'
+  rules JSON                                   -- {"rec":0.5,"pass_td":4,...}
+);
+
+-- ───────── Features / ML ─────────
+CREATE TABLE player_week_features (
+  player_id VARCHAR, season INTEGER, week INTEGER,   -- features known BEFORE this week
+  feature_version VARCHAR,
+  features JSON,                                     -- or wide columns once stable
+  target_next4_ppg DOUBLE,                           -- NULL for future weeks
+  PRIMARY KEY (player_id, season, week, feature_version)
+);
+
+CREATE TABLE model_runs (
+  run_id VARCHAR PRIMARY KEY,
+  trained_at TIMESTAMP,
+  model_version VARCHAR, feature_version VARCHAR,
+  train_seasons VARCHAR, valid_season INTEGER,
+  metrics JSON,                 -- MAE / Spearman by position + baselines
+  feature_importance JSON,
+  artifact_path VARCHAR,
+  is_active BOOLEAN
+);
+
+CREATE TABLE projections (
+  run_id VARCHAR, player_id VARCHAR, scoring_profile_id VARCHAR,
+  season INTEGER, week INTEGER,
+  proj_next4_ppg DOUBLE, p10 DOUBLE, p90 DOUBLE,
+  proj_ros_points DOUBLE,
+  ros_value_par DOUBLE,          -- points above replacement
+  PRIMARY KEY (run_id, player_id, scoring_profile_id, season, week)
+);
+
+CREATE TABLE signals (
+  player_id VARCHAR, scoring_profile_id VARCHAR, season INTEGER, week INTEGER,
+  buy_sell_score DOUBLE,         -- -100 (sell) .. +100 (buy)
+  market_gap DOUBLE, td_over_expected DOUBLE,
+  usage_trend DOUBLE, efficiency_z DOUBLE, playoff_sos DOUBLE,
+  reasons JSON,                  -- ["Usage up 3 straight weeks", ...]
+  PRIMARY KEY (player_id, scoring_profile_id, season, week)
+);
+
+-- ───────── Leagues / "Add your team" ─────────
+CREATE TABLE leagues (
+  league_id VARCHAR PRIMARY KEY,               -- internal
+  platform VARCHAR,                            -- 'sleeper' | 'espn' | 'yahoo' | 'manual'
+  external_id VARCHAR, season INTEGER, name VARCHAR,
+  num_teams INTEGER,
+  roster_positions JSON,                       -- ["QB","RB","RB","WR","WR","TE","FLEX","BN",...]
+  scoring_profile_id VARCHAR,
+  trade_deadline_week INTEGER, uses_faab BOOLEAN, faab_budget INTEGER,
+  last_synced_at TIMESTAMP
+);
+
+CREATE TABLE teams (
+  team_id VARCHAR PRIMARY KEY,
+  league_id VARCHAR, external_roster_id VARCHAR,
+  owner_name VARCHAR, team_name VARCHAR,
+  is_mine BOOLEAN,
+  wins INTEGER, losses INTEGER, points_for DOUBLE,
+  faab_remaining INTEGER
+);
+
+CREATE TABLE roster_spots (
+  team_id VARCHAR, player_id VARCHAR,
+  slot VARCHAR,                                -- 'starter' | 'bench' | 'ir' | 'taxi'
+  synced_at TIMESTAMP,
+  PRIMARY KEY (team_id, player_id)
+);
+
+CREATE TABLE transactions (
+  league_id VARCHAR, external_id VARCHAR, kind VARCHAR,  -- trade/waiver/free_agent
+  week INTEGER, created_at TIMESTAMP,
+  payload JSON,
+  PRIMARY KEY (league_id, external_id)
+);
+
+CREATE TABLE saved_trades (
+  trade_id VARCHAR PRIMARY KEY, league_id VARCHAR, created_at TIMESTAMP,
+  give JSON, receive JSON, result JSON
+);
+```
+
+**Bye weeks** come from `nfl_games`: a team's bye is the regular-season week with no game row. Advisor output, regression flags and bye grids are computed on request from these tables (cheap at single-league scale), not stored.
+
+**Key decisions**
+- Projections are keyed by **scoring profile** so the same player has different values in PPR vs half-PPR leagues.
+- `player_week_features` row for week *W* may only use data from weeks < *W* (enforced by a test).
+- `model_runs.is_active` lets you roll back to a previous model without retraining.
+
+---
+
+## 4. API contract (FastAPI)
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/players?pos=&q=&sort=&profile=` | Paged player list with projection, value, market, signal |
+| GET | `/players/{id}?profile=` | Player detail: weekly history, usage trends, projection band, reasons |
+| POST | `/league/connect` `{platform, username}` | User's leagues for selection |
+| POST | `/league/{id}/select-team` `{external_roster_id}` | Marks `is_mine`, syncs |
+| POST | `/league/manual` `{name, num_teams, roster_positions, scoring, player_ids}` | Creates manual league/team |
+| GET | `/team/{id}` | Roster with values, positional strength vs league |
+| GET | `/team/{id}/advice` | **Phase 1.** Ranked advisor feed: type, headline, reasons, urgency, confidence + team grade by position |
+| GET | `/team/{id}/regression` | **Phase 1.** Regression flags (TD over expected, efficiency z-scores, usage/production mismatch) for roster + league |
+| GET | `/team/{id}/byes` | **Phase 1.** Week-by-week bye grid, unfillable slots, danger weeks |
+| GET | `/team/{id}/startsit?week=` | Optimal lineup + alternatives |
+| GET | `/team/{id}/waivers` | Ranked adds, suggested drops, FAAB range |
+| POST | `/trade/evaluate` `{team_id, give[], receive[]}` | Value both sides, lineup delta ROS, verdict |
+| GET | `/trade/suggest?team_id=` | Mutually beneficial trade ideas |
+| GET | `/signals?profile=&pos=&dir=buy\|sell` | Buy-low / sell-high board |
+| POST | `/refresh` `{scope: league\|market\|all}` | Triggers sync jobs |
+| GET | `/model/report` | Active run metrics vs baselines, feature importance |
+| GET | `/meta/status` | Last-sync times per source, NFL week |
+
+All responses are Pydantic models → OpenAPI → generated TS client.
+
+---
+
+## 5. Frontend structure
+
+```
+frontend/src/
+├── api/                 # generated client + query hooks (do not edit)
+├── components/
+│   ├── ui/              # shadcn components
+│   ├── player/          # PlayerAvatar, PositionBadge, SignalBadge, ValueSparkline
+│   ├── team/            # RosterTable, PositionStrengthChart, LineupGrid
+│   └── layout/          # AppSidebar, TopBar, CommandSearch
+├── routes/
+│   ├── connect.tsx      # Sleeper username / manual entry
+│   ├── advisor.tsx      # Phase 1 home: action feed + team grade
+│   ├── byes.tsx         # Phase 1: bye-week grid
+│   ├── team.tsx         # My Team dashboard + regression flags
+│   ├── players.tsx      # Data table
+│   ├── players.$id.tsx  # Player page
+│   ├── waivers.tsx
+│   ├── trade.tsx        # Analyzer + finder
+│   ├── startsit.tsx
+│   ├── signals.tsx      # Buy/sell board
+│   └── model.tsx        # Transparency
+├── stores/team.ts       # Zustand (persisted): connected league/team, profile
+└── lib/                 # formatters, position colors
+```
+
+**shadcn components to install:** sidebar, card, table (data-table), tabs, badge, button, input, select, command, dialog, sheet, tooltip, chart, skeleton, sonner, form, avatar, separator, progress, toggle-group.
+
+**Design tokens:** one fixed color per position (QB, RB, WR, TE) used everywhere; buy = green, sell = red, hold = neutral; dark mode default.
