@@ -12,7 +12,7 @@ router = APIRouter(prefix="/trade", tags=["trade"])
 
 
 @router.post("/evaluate", response_model=m.TradeOut)
-def evaluate(
+def evaluate_trade(
     body: m.TradeEvaluateRequest, con: duckdb.DuckDBPyConnection = Depends(get_con)
 ) -> m.TradeOut:
     """Score a trade by its effect on both teams' rest-of-season starting lineups."""
@@ -21,7 +21,7 @@ def evaluate(
 
 
 @router.get("/suggest", response_model=m.TradeSuggestOut)
-def suggest(
+def suggest_trades(
     team_id: str = Query(...), con: duckdb.DuckDBPyConnection = Depends(get_con)
 ) -> m.TradeSuggestOut:
     """1-for-1 and 2-for-1 ideas where both lineups gain (hidden after the trade deadline)."""

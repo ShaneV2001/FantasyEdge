@@ -24,7 +24,7 @@ ATTRIBUTION = [
 
 
 @router.get("/meta/status", response_model=m.StatusOut)
-def status(con: duckdb.DuckDBPyConnection = Depends(get_con)) -> m.StatusOut:
+def get_status(con: duckdb.DuckDBPyConnection = Depends(get_con)) -> m.StatusOut:
     rows = con.execute(
         "SELECT source, last_synced_at, status, detail FROM sync_log ORDER BY source"
     ).fetchall()

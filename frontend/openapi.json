@@ -1,0 +1,2440 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ff-edge API",
+    "description": "Fantasy football team advisor. Data: Sleeper, nflverse (CC-BY 4.0), FantasyCalc, DynastyProcess.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/league/connect": {
+      "post": {
+        "tags": [
+          "league"
+        ],
+        "summary": "Connect League",
+        "description": "Look up a Sleeper user's leagues for the current season and sync each one.",
+        "operationId": "connect_league",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/league/{league_id}/select-team": {
+      "post": {
+        "tags": [
+          "league"
+        ],
+        "summary": "Select Team",
+        "operationId": "select_team",
+        "parameters": [
+          {
+            "name": "league_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "League Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectTeamRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamRef"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/league/manual": {
+      "post": {
+        "tags": [
+          "league"
+        ],
+        "summary": "Manual League",
+        "description": "Create a league from a hand-entered roster (works for any platform).",
+        "operationId": "manual_league",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualLeagueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamRef"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/team/{team_id}": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Team",
+        "description": "Roster with projections, ROS value, market value, flags and grades vs the league.",
+        "operationId": "get_team",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/team/{team_id}/advice": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Advice",
+        "description": "Ranked advisor feed (Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team grades.",
+        "operationId": "get_advice",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdviceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/team/{team_id}/regression": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Regression",
+        "description": "TD over expected, efficiency outliers and usage/production mismatches.",
+        "operationId": "get_regression",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegressionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/team/{team_id}/byes": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Byes",
+        "description": "Week \u00d7 lineup-slot grid of remaining byes with danger weeks.",
+        "operationId": "get_byes",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ByesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trade/evaluate": {
+      "post": {
+        "tags": [
+          "trade"
+        ],
+        "summary": "Evaluate Trade",
+        "description": "Score a trade by its effect on both teams' rest-of-season starting lineups.",
+        "operationId": "evaluate_trade",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeEvaluateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trade/suggest": {
+      "get": {
+        "tags": [
+          "trade"
+        ],
+        "summary": "Suggest Trades",
+        "description": "1-for-1 and 2-for-1 ideas where both lineups gain (hidden after the trade deadline).",
+        "operationId": "suggest_trades",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeSuggestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/meta/status": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Get Status",
+        "operationId": "get_status",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/refresh": {
+      "post": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Refresh",
+        "description": "Re-pull league rosters/transactions (scope=league), market values, or everything.",
+        "operationId": "refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/players": {
+      "get": {
+        "tags": [
+          "meta",
+          "players"
+        ],
+        "summary": "Search Players",
+        "description": "Player search (used by manual team entry). Full players table arrives in phase 3.",
+        "operationId": "search_players",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 60,
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "pos",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(QB|RB|WR|TE|K|DEF)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pos"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerRef"
+                  },
+                  "title": "Response Search Players"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Health",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActionOut": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "Trade",
+              "Sell",
+              "Buy",
+              "Waiver",
+              "Lineup",
+              "Bye prep"
+            ],
+            "title": "Type"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "this_week",
+              "before_byes",
+              "before_deadline",
+              "rest_of_season"
+            ],
+            "title": "Urgency"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Confidence"
+          },
+          "priority": {
+            "type": "number",
+            "title": "Priority"
+          },
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Players"
+          },
+          "counterparty_team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty Team Id"
+          },
+          "counterparty_team_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty Team Name"
+          },
+          "trade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "headline",
+          "reasons",
+          "urgency",
+          "confidence",
+          "priority",
+          "players"
+        ],
+        "title": "ActionOut"
+      },
+      "AdviceOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionOut"
+            },
+            "type": "array",
+            "title": "Actions"
+          },
+          "grades": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PositionGradeOut"
+            },
+            "type": "object",
+            "title": "Grades"
+          },
+          "needs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Needs"
+          },
+          "deadline_passed": {
+            "type": "boolean",
+            "title": "Deadline Passed"
+          },
+          "market": {
+            "$ref": "#/components/schemas/MarketInfo"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "season",
+          "week",
+          "generated_at",
+          "actions",
+          "grades",
+          "needs",
+          "deadline_passed",
+          "market"
+        ],
+        "title": "AdviceOut"
+      },
+      "ByeWeekOut": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "weeks_away": {
+            "type": "integer",
+            "title": "Weeks Away"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/SlotCellOut"
+            },
+            "type": "array",
+            "title": "Cells"
+          },
+          "on_bye": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "On Bye"
+          },
+          "starters_on_bye": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Starters On Bye"
+          },
+          "danger": {
+            "type": "boolean",
+            "title": "Danger"
+          },
+          "danger_slots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Danger Slots"
+          },
+          "lineup_points": {
+            "type": "number",
+            "title": "Lineup Points"
+          },
+          "full_strength_points": {
+            "type": "number",
+            "title": "Full Strength Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "weeks_away",
+          "cells",
+          "on_bye",
+          "starters_on_bye",
+          "danger",
+          "danger_slots",
+          "lineup_points",
+          "full_strength_points"
+        ],
+        "title": "ByeWeekOut"
+      },
+      "ByesOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "last_week": {
+            "type": "integer",
+            "title": "Last Week"
+          },
+          "slots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Slots"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/ByeWeekOut"
+            },
+            "type": "array",
+            "title": "Weeks"
+          },
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerByeOut"
+            },
+            "type": "array",
+            "title": "Players"
+          },
+          "danger_weeks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Danger Weeks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "week",
+          "last_week",
+          "slots",
+          "weeks",
+          "players",
+          "danger_weeks"
+        ],
+        "title": "ByesOut"
+      },
+      "ConnectRequest": {
+        "properties": {
+          "platform": {
+            "type": "string",
+            "const": "sleeper",
+            "title": "Platform",
+            "default": "sleeper"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Username"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "title": "ConnectRequest"
+      },
+      "ConnectResponse": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "leagues": {
+            "items": {
+              "$ref": "#/components/schemas/LeagueChoiceOut"
+            },
+            "type": "array",
+            "title": "Leagues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "leagues"
+        ],
+        "title": "ConnectResponse"
+      },
+      "FlagOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "td_over_expected",
+              "efficiency",
+              "usage_mismatch"
+            ],
+            "title": "Kind"
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric"
+          },
+          "direction": {
+            "type": "integer",
+            "title": "Direction",
+            "description": "+1 expect better production, -1 expect worse"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "numbers": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Numbers",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "metric",
+          "direction",
+          "value",
+          "message"
+        ],
+        "title": "FlagOut"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LeagueChoiceOut": {
+        "properties": {
+          "league_id": {
+            "type": "string",
+            "title": "League Id"
+          },
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "num_teams": {
+            "type": "integer",
+            "title": "Num Teams"
+          },
+          "scoring": {
+            "type": "string",
+            "title": "Scoring"
+          },
+          "roster_positions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roster Positions"
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/TeamChoiceOut"
+            },
+            "type": "array",
+            "title": "Teams"
+          }
+        },
+        "type": "object",
+        "required": [
+          "league_id",
+          "external_id",
+          "name",
+          "season",
+          "num_teams",
+          "scoring",
+          "roster_positions",
+          "teams"
+        ],
+        "title": "LeagueChoiceOut"
+      },
+      "LeagueOut": {
+        "properties": {
+          "league_id": {
+            "type": "string",
+            "title": "League Id"
+          },
+          "platform": {
+            "type": "string",
+            "title": "Platform"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "num_teams": {
+            "type": "integer",
+            "title": "Num Teams"
+          },
+          "roster_positions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roster Positions"
+          },
+          "scoring": {
+            "type": "string",
+            "title": "Scoring"
+          },
+          "trade_deadline_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Deadline Week"
+          },
+          "deadline_passed": {
+            "type": "boolean",
+            "title": "Deadline Passed"
+          },
+          "uses_faab": {
+            "type": "boolean",
+            "title": "Uses Faab"
+          },
+          "faab_budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Faab Budget"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "league_id",
+          "platform",
+          "name",
+          "season",
+          "week",
+          "num_teams",
+          "roster_positions",
+          "scoring",
+          "trade_deadline_week",
+          "deadline_passed",
+          "uses_faab",
+          "faab_budget",
+          "last_synced_at"
+        ],
+        "title": "LeagueOut"
+      },
+      "ManualLeagueRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Name",
+            "default": "My team"
+          },
+          "num_teams": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 2.0,
+            "title": "Num Teams",
+            "default": 12
+          },
+          "roster_positions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roster Positions",
+            "default": [
+              "QB",
+              "RB",
+              "RB",
+              "WR",
+              "WR",
+              "TE",
+              "FLEX",
+              "K",
+              "DEF",
+              "BN",
+              "BN",
+              "BN",
+              "BN",
+              "BN",
+              "BN"
+            ]
+          },
+          "scoring": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "standard",
+                  "half_ppr",
+                  "ppr"
+                ]
+              },
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              }
+            ],
+            "title": "Scoring",
+            "default": "half_ppr"
+          },
+          "player_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "minItems": 1,
+            "title": "Player Ids"
+          },
+          "trade_deadline_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Deadline Week"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_ids"
+        ],
+        "title": "ManualLeagueRequest"
+      },
+      "MarketInfo": {
+        "properties": {
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "description": "True when using a fallback source or another format"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "format",
+          "stale"
+        ],
+        "title": "MarketInfo"
+      },
+      "PlayerByeOut": {
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "bye_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bye Week"
+          },
+          "weeks_away": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weeks Away"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player",
+          "bye_week",
+          "weeks_away",
+          "done"
+        ],
+        "title": "PlayerByeOut"
+      },
+      "PlayerFlagsOut": {
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          },
+          "team_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Name",
+            "description": "Fantasy owner; null = free agent"
+          },
+          "on_my_team": {
+            "type": "boolean",
+            "title": "On My Team"
+          },
+          "regression_score": {
+            "type": "number",
+            "title": "Regression Score"
+          },
+          "actual_td": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Td"
+          },
+          "expected_td": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Td"
+          },
+          "tdoe": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tdoe"
+          },
+          "market_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Rank"
+          },
+          "model_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Rank"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/FlagOut"
+            },
+            "type": "array",
+            "title": "Flags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player",
+          "team_id",
+          "on_my_team",
+          "regression_score",
+          "flags"
+        ],
+        "title": "PlayerFlagsOut"
+      },
+      "PlayerRef": {
+        "properties": {
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "nfl_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nfl Team"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_id",
+          "name",
+          "position"
+        ],
+        "title": "PlayerRef"
+      },
+      "PositionGradeOut": {
+        "properties": {
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points"
+          },
+          "league_avg": {
+            "type": "number",
+            "title": "League Avg"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "teams": {
+            "type": "integer",
+            "title": "Teams"
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "F"
+            ],
+            "title": "Grade"
+          },
+          "delta_pct": {
+            "type": "number",
+            "title": "Delta Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "position",
+          "points",
+          "league_avg",
+          "rank",
+          "teams",
+          "grade",
+          "delta_pct"
+        ],
+        "title": "PositionGradeOut"
+      },
+      "RefreshOut": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "detail": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Detail"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "ok",
+          "detail"
+        ],
+        "title": "RefreshOut"
+      },
+      "RefreshRequest": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "league",
+              "market",
+              "all"
+            ],
+            "title": "Scope",
+            "default": "league"
+          },
+          "league_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "League Id"
+          }
+        },
+        "type": "object",
+        "title": "RefreshRequest"
+      },
+      "RegressionOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "roster": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerFlagsOut"
+            },
+            "type": "array",
+            "title": "Roster"
+          },
+          "league": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerFlagsOut"
+            },
+            "type": "array",
+            "title": "League"
+          },
+          "thresholds": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Thresholds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "week",
+          "roster",
+          "league",
+          "thresholds"
+        ],
+        "title": "RegressionOut"
+      },
+      "RosterPlayer": {
+        "properties": {
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "nfl_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nfl Team"
+          },
+          "sleeper_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleeper Id"
+          },
+          "ppg": {
+            "type": "number",
+            "title": "Ppg",
+            "description": "Projected fantasy points per game (league scoring)"
+          },
+          "p10": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P10"
+          },
+          "p90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P90"
+          },
+          "l3_ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "L3 Ppg"
+          },
+          "season_ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Ppg"
+          },
+          "usage_ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage Ppg"
+          },
+          "games_played": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Games Played"
+          },
+          "proj_ros_points": {
+            "type": "number",
+            "title": "Proj Ros Points"
+          },
+          "next4_points": {
+            "type": "number",
+            "title": "Next4 Points"
+          },
+          "games_remaining": {
+            "type": "number",
+            "title": "Games Remaining"
+          },
+          "ros_value_par": {
+            "type": "number",
+            "title": "Ros Value Par",
+            "description": "Rest-of-season points above replacement"
+          },
+          "bye_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bye Week"
+          },
+          "injury_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Injury Status"
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
+          },
+          "market_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value"
+          },
+          "market_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Rank",
+            "description": "Market rank within position"
+          },
+          "model_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Rank",
+            "description": "Model ROS-value rank within position"
+          },
+          "regression_score": {
+            "type": "number",
+            "title": "Regression Score",
+            "default": 0.0
+          },
+          "ease_next4": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ease Next4",
+            "description": "Matchup index next 4 weeks (>1 easier)"
+          },
+          "ease_playoffs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ease Playoffs"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "slot": {
+            "type": "string",
+            "title": "Slot",
+            "description": "Platform slot: starter | bench | ir | taxi"
+          },
+          "optimal_starter": {
+            "type": "boolean",
+            "title": "Optimal Starter",
+            "description": "In our best full-strength lineup"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/FlagOut"
+            },
+            "type": "array",
+            "title": "Flags",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_id",
+          "name",
+          "position",
+          "ppg",
+          "proj_ros_points",
+          "next4_points",
+          "games_remaining",
+          "ros_value_par",
+          "slot",
+          "optimal_starter"
+        ],
+        "title": "RosterPlayer"
+      },
+      "SelectTeamRequest": {
+        "properties": {
+          "external_roster_id": {
+            "type": "string",
+            "title": "External Roster Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_roster_id"
+        ],
+        "title": "SelectTeamRequest"
+      },
+      "SlotCellOut": {
+        "properties": {
+          "slot": {
+            "type": "string",
+            "title": "Slot"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "thin",
+              "empty"
+            ],
+            "title": "Status"
+          },
+          "player": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlayerRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ppg"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "label",
+          "status"
+        ],
+        "title": "SlotCellOut"
+      },
+      "SourceStatus": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "last_synced_at",
+          "status",
+          "detail"
+        ],
+        "title": "SourceStatus"
+      },
+      "StatusOut": {
+        "properties": {
+          "season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season"
+          },
+          "week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Week"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceStatus"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "attribution": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Attribution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season",
+          "week",
+          "sources",
+          "attribution"
+        ],
+        "title": "StatusOut"
+      },
+      "TeamChoiceOut": {
+        "properties": {
+          "external_roster_id": {
+            "type": "string",
+            "title": "External Roster Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "owner_name": {
+            "type": "string",
+            "title": "Owner Name"
+          },
+          "is_user": {
+            "type": "boolean",
+            "title": "Is User"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_roster_id",
+          "team_name",
+          "owner_name",
+          "is_user"
+        ],
+        "title": "TeamChoiceOut"
+      },
+      "TeamOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "owner_name": {
+            "type": "string",
+            "title": "Owner Name"
+          },
+          "record": {
+            "type": "string",
+            "title": "Record"
+          },
+          "league": {
+            "$ref": "#/components/schemas/LeagueOut"
+          },
+          "roster": {
+            "items": {
+              "$ref": "#/components/schemas/RosterPlayer"
+            },
+            "type": "array",
+            "title": "Roster"
+          },
+          "grades": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PositionGradeOut"
+            },
+            "type": "object",
+            "title": "Grades"
+          },
+          "needs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Needs"
+          },
+          "surplus": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Surplus"
+          },
+          "starter_points": {
+            "type": "number",
+            "title": "Starter Points"
+          },
+          "league_teams": {
+            "items": {
+              "$ref": "#/components/schemas/TeamSummary"
+            },
+            "type": "array",
+            "title": "League Teams"
+          },
+          "market": {
+            "$ref": "#/components/schemas/MarketInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "team_name",
+          "owner_name",
+          "record",
+          "league",
+          "roster",
+          "grades",
+          "needs",
+          "surplus",
+          "starter_points",
+          "league_teams",
+          "market"
+        ],
+        "title": "TeamOut"
+      },
+      "TeamRef": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "league_id": {
+            "type": "string",
+            "title": "League Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "league_id"
+        ],
+        "title": "TeamRef"
+      },
+      "TeamSummary": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "owner_name": {
+            "type": "string",
+            "title": "Owner Name"
+          },
+          "is_mine": {
+            "type": "boolean",
+            "title": "Is Mine"
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins"
+          },
+          "losses": {
+            "type": "integer",
+            "title": "Losses"
+          },
+          "points_for": {
+            "type": "number",
+            "title": "Points For"
+          },
+          "starter_points": {
+            "type": "number",
+            "title": "Starter Points"
+          },
+          "grades": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PositionGradeOut"
+            },
+            "type": "object",
+            "title": "Grades"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "team_name",
+          "owner_name",
+          "is_mine",
+          "wins",
+          "losses",
+          "points_for",
+          "starter_points",
+          "grades"
+        ],
+        "title": "TeamSummary"
+      },
+      "TradeEvaluateRequest": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "give": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Give",
+            "default": []
+          },
+          "receive": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Receive",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id"
+        ],
+        "title": "TradeEvaluateRequest"
+      },
+      "TradeOut": {
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "lean_accept",
+              "neutral",
+              "decline"
+            ],
+            "title": "Verdict"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "me": {
+            "$ref": "#/components/schemas/TradeSideOut"
+          },
+          "partner": {
+            "$ref": "#/components/schemas/TradeSideOut"
+          },
+          "danger_weeks_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Danger Weeks Before"
+          },
+          "danger_weeks_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Danger Weeks After"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "verdict",
+          "headline",
+          "reasons",
+          "me",
+          "partner"
+        ],
+        "title": "TradeOut"
+      },
+      "TradeSideOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "gives": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Gives"
+          },
+          "receives": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Receives"
+          },
+          "lineup_before": {
+            "type": "number",
+            "title": "Lineup Before"
+          },
+          "lineup_after": {
+            "type": "number",
+            "title": "Lineup After"
+          },
+          "lineup_delta": {
+            "type": "number",
+            "title": "Lineup Delta"
+          },
+          "model_value_out": {
+            "type": "number",
+            "title": "Model Value Out"
+          },
+          "model_value_in": {
+            "type": "number",
+            "title": "Model Value In"
+          },
+          "market_value_out": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value Out"
+          },
+          "market_value_in": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "team_name",
+          "gives",
+          "receives",
+          "lineup_before",
+          "lineup_after",
+          "lineup_delta",
+          "model_value_out",
+          "model_value_in",
+          "market_value_out",
+          "market_value_in"
+        ],
+        "title": "TradeSideOut"
+      },
+      "TradeSuggestOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "deadline_passed": {
+            "type": "boolean",
+            "title": "Deadline Passed"
+          },
+          "trade_deadline_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Deadline Week"
+          },
+          "ideas": {
+            "items": {
+              "$ref": "#/components/schemas/TradeOut"
+            },
+            "type": "array",
+            "title": "Ideas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "week",
+          "deadline_passed",
+          "trade_deadline_week",
+          "ideas"
+        ],
+        "title": "TradeSuggestOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

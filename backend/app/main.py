@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("ff_edge.api")
 
 app = FastAPI(
+    generate_unique_id_function=lambda route: route.name,  # clean client names: getTeam, getAdvice…
     title="ff-edge API",
     version="0.1.0",
     description="Fantasy football team advisor. Data: Sleeper, nflverse (CC-BY 4.0), FantasyCalc, DynastyProcess.",

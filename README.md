@@ -12,10 +12,9 @@ Connect your Sleeper league (or enter a roster by hand) and ff-edge gives you:
 
 Everything runs locally on free, public data. There are no accounts, API keys or paid services.
 
-> **Project status: Phase 1 (Team Advisor MVP), in progress.**
-> The backend (ingestion, projections, regression, byes, trades, advisor) is built and tested.
-> The API and web UI are being wired up now. Projections are rule-based in Phase 1; an ML model
-> replaces them in Phase 2, but only if it beats the baselines (see [Roadmap](#roadmap)).
+> **Project status: Phase 1 (Team Advisor MVP).** Connect, Advisor, My Team, Byes and Trade pages
+> work end to end on live Sleeper + nflverse + FantasyCalc data. Projections are rule-based in
+> Phase 1; an ML model replaces them in Phase 2, but only if it beats the baselines (see [Roadmap](#roadmap)).
 
 ---
 
@@ -115,6 +114,12 @@ If you have `make`, the same targets work as `make setup`, `make data`, `make de
 
 All data lives in `data/` (gitignored): a single DuckDB file plus an HTTP response cache.
 
+> DuckDB allows one writing process at a time, so stop the API before running `python tasks.py data`
+> (or use the **Update** button / `POST /refresh` while it's running).
+
+**Using it:** open http://localhost:5173, enter your Sleeper username, pick your league and team, and
+the Advisor page opens. The **Update** button in the sidebar re-pulls rosters and transactions.
+
 ---
 
 ## Project layout
@@ -128,7 +133,9 @@ backend/
   projections/  engine interface, phase-1 baseline, positional norms
   signals/      regression, byes, lineup optimizer, team grades, trades, advisor
   tests/        unit + API tests on recorded fixtures (no live network calls)
-frontend/       Vite + React + TypeScript + shadcn/ui
+frontend/       Vite + React + TypeScript + shadcn/ui, TanStack Router/Query, Zustand, Recharts
+  src/api/      generated typed client + TanStack Query hooks (python tasks.py gen-api)
+  src/routes/   connect, advisor, team, byes, trade pages
 scripts/        fixture recorder
 ```
 
@@ -174,7 +181,7 @@ ff-edge does not scrape any website. It uses only public APIs and published data
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | **Team Advisor MVP**: ingestion, rule-based projections, regression report, bye planner, trade analyzer/finder, advisor feed; Connect, Advisor, My Team, Byes and Trade pages | 🚧 in progress |
+| 1 | **Team Advisor MVP**: ingestion, rule-based projections, regression report, bye planner, trade analyzer/finder, advisor feed; Connect, Advisor, My Team, Byes and Trade pages | ✅ done |
 | 2 | **Model v1**: leakage-safe features, LightGBM with quantile bands, walk-forward evaluation vs. season-PPG and last-3 baselines; swapped in only if it beats both | planned |
 | 3 | Rest of the API: players, start/sit, waivers, buy/sell signals board, model report | planned |
 | 4 | Rest of the UI: players table, player pages, waivers, start/sit, signals, model transparency page | planned |
