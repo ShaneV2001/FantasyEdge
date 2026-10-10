@@ -236,6 +236,35 @@ def _market(
     return df.unique("player_id"), source, fmt_used, stale
 
 
+UNPROJECTED_NOTE = "No projection: not in the local player database (run `tasks.py data`)."
+
+
+def _add_unprojected(info: dict[str, dict], teams: list[TeamRow], columns: list[str]) -> None:
+    """Rostered players we can't project (e.g. Sleeper IDs missing from `players`) still appear
+    everywhere, at zero points, instead of silently vanishing from the roster."""
+    missing = sorted({p for t in teams for p in t.player_ids if p not in info})
+    if missing:
+        log.warning("%d rostered player(s) have no projection: %s", len(missing), missing[:5])
+    for pid in missing:
+        row: dict = dict.fromkeys(columns)
+        row |= {
+            "player_id": pid,
+            "name": f"Unknown player ({pid})",
+            "position": "?",
+            "method": "no_data",
+            "availability_note": UNPROJECTED_NOTE,
+            "regression_score": 0.0,
+            "ease_next4": None,
+            "ease_playoffs": None,
+        }
+        for col in ("ppg", "p10", "p90", "proj_ros_points", "next4_points", "ros_value_par",
+                    "proj_next4_ppg", "replacement_ros"):  # fmt: skip
+            row[col] = 0.0
+        for col in ("games_played", "games_remaining"):
+            row[col] = 0
+        info[pid] = row
+
+
 def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueContext:
     league = load_league(con, league_id)
     teams = load_teams(con, league_id)
@@ -327,6 +356,7 @@ def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueConte
         else:
             r["ease_next4"] = r["ease_playoffs"] = None
         info[pid] = r
+    _add_unprojected(info, teams, proj.columns)
 
     return LeagueContext(
         league=league,

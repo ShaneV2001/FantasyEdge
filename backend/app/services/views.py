@@ -541,23 +541,3 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
         market=market_info(ctx),
         notes=notes,
     )
-
-
-def search_players(
-    ctx_players: dict[str, dict], q: str, pos: str | None, limit: int
-) -> list[m.PlayerRef]:
-    ql = q.lower().strip()
-    out = []
-    for pid, p in ctx_players.items():
-        if pos and p["position"] != pos:
-            continue
-        if ql and ql not in (p.get("name") or "").lower():
-            continue
-        out.append((p.get("ros_value_par") or 0, pid, p))
-    out.sort(key=lambda x: -x[0])
-    return [
-        m.PlayerRef(
-            player_id=pid, name=p["name"], position=p["position"], nfl_team=p.get("nfl_team")
-        )
-        for _, pid, p in out[:limit]
-    ]

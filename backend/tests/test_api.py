@@ -439,3 +439,23 @@ def test_manual_league_playoff_start(client):
     assert r.status_code == 200, r.text
     assert tc.get(f"/team/{team_id}").json()["league"]["playoff_week_start"] == 14
     assert tc.get(f"/team/{team_id}/advice").status_code == 200
+
+
+def test_unknown_rostered_player_stays_visible(client):
+    tc, router = client
+    rosters = load_json("sleeper_rosters.json")
+    mine = next(r for r in rosters if r["owner_id"] == "u0")
+    mine["players"].append("99999999")  # not in the players table → no projection
+    router.get(f"{SL}/league/{LEAGUE}/rosters").mock(return_value=httpx.Response(200, json=rosters))
+    team_id = connect_and_pick(tc)
+    roster = tc.get(f"/team/{team_id}").json()["roster"]
+    ghost = next(p for p in roster if p["player_id"] == "sl:99999999")
+    assert "Unknown player" in ghost["name"] and ghost["ppg"] == 0
+    for path in ("advice", "byes", "regression"):
+        assert tc.get(f"/team/{team_id}/{path}").status_code == 200, path
+    assert tc.get("/trade/suggest", params={"team_id": team_id}).status_code == 200
+    r = tc.post(
+        "/trade/evaluate",
+        json={"team_id": team_id, "give": ["sl:99999999"], "receive": []},
+    )
+    assert r.status_code == 200, r.text
