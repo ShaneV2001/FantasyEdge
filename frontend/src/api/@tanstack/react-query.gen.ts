@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { connectLeague, evaluateTrade, getAdvice, getByes, getRegression, getStatus, getTeam, health, manualLeague, type Options, refresh, searchPlayers, selectTeam, suggestTrades } from '../sdk.gen';
-import type { ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetByesData, GetByesError, GetByesResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, RefreshData, RefreshError, RefreshResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse } from '../types.gen';
+import { connectLeague, evaluateTrade, getAdvice, getByes, getRegression, getStatus, getTeam, health, manualLeague, type Options, refresh, searchPlayers, selectTeam, suggestTrades, updateRoster } from '../sdk.gen';
+import type { ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetByesData, GetByesError, GetByesResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, RefreshData, RefreshError, RefreshResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -173,6 +173,25 @@ export const getByesOptions = (options: Options<GetByesData>) => queryOptions<Ge
     },
     queryKey: getByesQueryKey(options)
 });
+
+/**
+ * Update Roster
+ *
+ * Edit a manual team: name, scoring, league size, lineup/bench/IR depth and players.
+ */
+export const updateRosterMutation = (options?: Partial<Options<UpdateRosterData>>): UseMutationOptions<UpdateRosterResponse, UpdateRosterError, Options<UpdateRosterData>> => {
+    const mutationOptions: UseMutationOptions<UpdateRosterResponse, UpdateRosterError, Options<UpdateRosterData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateRoster({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 /**
  * Evaluate Trade

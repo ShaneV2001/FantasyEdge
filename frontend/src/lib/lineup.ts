@@ -119,3 +119,17 @@ export function defaultRole(
   if (players.filter((p) => p.role === 'bench').length < shape.bench) return 'bench'
   return null
 }
+
+/** Inverse of rosterPositions(): count slots back into an editable shape. */
+export function shapeFromRosterPositions(rp: string[]): LineupShape {
+  const slots: Record<string, number> = Object.fromEntries(SLOT_ORDER.map((s) => [s, 0]))
+  let bench = 0
+  let ir = 0
+  for (const s of rp) {
+    if (s === 'BN' || s === 'TAXI') bench++
+    else if (s === 'IR') ir++
+    else if (s in slots) slots[s]++
+    else if (s === 'WRRB_FLEX' || s === 'REC_FLEX') slots.FLEX++ // closest editable equivalent
+  }
+  return { slots, bench, ir }
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { checkRoster, defaultRole, fitToSlots, LINEUP_PRESETS, rosterPositions, type Role } from './lineup'
+import { checkRoster, defaultRole, fitToSlots, LINEUP_PRESETS, rosterPositions, type Role, shapeFromRosterPositions } from './lineup'
 
 const std = LINEUP_PRESETS.standard.shape
 
@@ -34,5 +34,12 @@ describe('lineup helpers', () => {
     expect(res.messages.join(' ')).toMatch(/No open lineup slot for q2/)
     expect(res.messages.join(' ')).toMatch(/only 0 IR spots/)
     expect(checkRoster([P('q1', 'QB'), P('r1', 'RB'), P('r2', 'RB', 'bench')], shape).ok).toBe(true)
+  })
+})
+
+describe('shapeFromRosterPositions', () => {
+  it('round-trips with rosterPositions', () => {
+    const shape = { ...std, bench: 4, ir: 2 }
+    expect(shapeFromRosterPositions(rosterPositions(shape))).toEqual(shape)
   })
 })

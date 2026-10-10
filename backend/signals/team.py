@@ -10,7 +10,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from projections.base import weekly_points
-from signals.lineup import SKILL_POSITIONS, Lineup, LineupPlayer, optimal_lineup
+from signals.lineup import SKILL_POSITIONS, SLOT_ELIGIBILITY, Lineup, LineupPlayer, optimal_lineup
 from signals.schedule import Schedule
 
 
@@ -74,18 +74,72 @@ class RosMath:
 
 
 # ───────── grades, needs & surplus ─────────
+#
+# Position strength = the team's best players at a position, weighted by how many lineup spots that
+# position fills: dedicated slots count fully, plus the position's typical share of FLEX /
+# SUPER_FLEX slots (e.g. RB with 2 RB slots + 1 FLEX = top-2 RBs + 0.45 x the 3rd RB). This avoids
+# crediting a position for whoever happens to win the FLEX spot, and rewards real depth.
+# Letters come from z-scores against the comparison teams so every position is graded on its own
+# spread: A >= +1.0 sd, B >= +0.35 sd, C within +/-0.35 sd, D >= -1.0 sd, F below.
+
+FLEX_SHARES: dict[str, dict[str, float]] = {
+    "FLEX": {"RB": 0.45, "WR": 0.45, "TE": 0.10},
+    "WRRB_FLEX": {"RB": 0.5, "WR": 0.5},
+    "REC_FLEX": {"WR": 0.8, "TE": 0.2},
+    "SUPER_FLEX": {"QB": 0.9, "RB": 0.05, "WR": 0.05},
+}
+OVERALL = "ALL"
 
 
-def _grade(delta: float) -> str:
-    if delta >= 0.15:
+def grade_from_z(z: float) -> str:
+    if z >= 1.0:
         return "A"
-    if delta >= 0.05:
+    if z >= 0.35:
         return "B"
-    if delta > -0.05:
+    if z > -0.35:
         return "C"
-    if delta > -0.15:
+    if z >= -1.0:
         return "D"
     return "F"
+
+
+def position_weights(slots: Sequence[str]) -> dict[str, list[float]]:
+    """Per position: weight for the 1st, 2nd, ... best player (1.0 per dedicated slot + flex share)."""
+    dedicated = dict.fromkeys(SKILL_POSITIONS, 0)
+    share = dict.fromkeys(SKILL_POSITIONS, 0.0)
+    for slot in slots:
+        if slot in dedicated:
+            dedicated[slot] += 1
+        for pos, f in FLEX_SHARES.get(slot, {}).items():
+            share[pos] += f
+    out = {}
+    for pos in SKILL_POSITIONS:
+        w = [1.0] * dedicated[pos]
+        extra = round(share[pos], 4)
+        while extra > 1e-9:
+            w.append(min(1.0, extra))
+            extra -= 1.0
+        if w:
+            out[pos] = w
+    return out
+
+
+def position_strength(
+    pids: Iterable[str], players: Mapping[str, Mapping], weights: Mapping[str, list[float]]
+) -> dict[str, float]:
+    pids = list(pids)
+    out = {}
+    for pos, w in weights.items():
+        ppg = sorted(
+            (
+                players[p].get("ppg") or 0.0
+                for p in pids
+                if p in players and players[p]["position"] == pos
+            ),
+            reverse=True,
+        )
+        out[pos] = sum(wi * v for wi, v in zip(w, ppg, strict=False))
+    return out
 
 
 @dataclass
@@ -97,6 +151,7 @@ class PositionGrade:
     teams: int
     grade: str
     delta_pct: float
+    z: float = 0.0
 
 
 @dataclass
@@ -107,6 +162,7 @@ class TeamProfile:
     needs: list[str] = field(default_factory=list)
     surplus: list[str] = field(default_factory=list)
     starter_points: float = 0.0
+    overall: PositionGrade | None = None
 
 
 def full_strength_lineup(
@@ -120,19 +176,40 @@ def full_strength_lineup(
     return optimal_lineup(pool, slots)
 
 
+def grade_value(label: str, value: float, field_values: list[float]) -> PositionGrade:
+    """Grade one value against the whole field (the field includes the team itself)."""
+    n = len(field_values)
+    mean = sum(field_values) / n if n else 0.0
+    var = sum((v - mean) ** 2 for v in field_values) / (n - 1) if n > 1 else 0.0
+    sd = var**0.5
+    z = (value - mean) / sd if sd > 1e-9 else 0.0
+    rank = 1 + sum(1 for v in field_values if v > value + 1e-9)
+    delta = (value - mean) / mean if mean else 0.0
+    return PositionGrade(
+        label,
+        round(value, 2),
+        round(mean, 2),
+        rank,
+        n,
+        grade_from_z(z),
+        round(delta, 3),
+        round(z, 2),
+    )
+
+
 def team_profiles(
-    rosters: Mapping[str, list[str]], players: Mapping[str, Mapping], slots: Sequence[str]
+    rosters: Mapping[str, list[str]],
+    players: Mapping[str, Mapping],
+    slots: Sequence[str],
+    grade_only: Iterable[str] | None = None,
 ) -> dict[str, TeamProfile]:
-    """Position strength (starter PPG by player position) graded vs league average,
-    plus needs (weak starters) and surplus (bench players who would start elsewhere)."""
+    """Grade every team (or only `grade_only`) by position and overall against all `rosters`,
+    plus needs (weak positions) and surplus (bench players who would start for a typical team)."""
+    weights = position_weights(slots)
+    strength = {t: position_strength(p, players, weights) for t, p in rosters.items()}
     lineups = {t: full_strength_lineup(p, players, slots) for t, p in rosters.items()}
-    pos_points = {
-        t: {
-            pos: sum(lp.points for _, lp in lu.slots if lp and lp.position == pos)
-            for pos in SKILL_POSITIONS
-        }
-        for t, lu in lineups.items()
-    }
+    totals = {t: lu.points for t, lu in lineups.items()}
+
     starter_ppg: dict[str, list[float]] = {pos: [] for pos in SKILL_POSITIONS}
     for lu in lineups.values():
         for _, lp in lu.slots:
@@ -142,27 +219,18 @@ def team_profiles(
 
     n = len(rosters)
     out: dict[str, TeamProfile] = {}
-    for t, pts in pos_points.items():
-        grades = {}
-        for pos in SKILL_POSITIONS:
-            vals = sorted((pp[pos] for pp in pos_points.values()), reverse=True)
-            avg = sum(vals) / n if n else 0.0
-            delta = (pts[pos] - avg) / avg if avg else 0.0
-            grades[pos] = PositionGrade(
-                pos,
-                round(pts[pos], 2),
-                round(avg, 2),
-                vals.index(pts[pos]) + 1,
-                n,
-                _grade(delta),
-                round(delta, 3),
-            )
+    for t in rosters if grade_only is None else grade_only:
+        grades = {
+            pos: grade_value(pos, strength[t][pos], [strength[x][pos] for x in rosters])
+            for pos in weights
+        }
+        overall = grade_value(OVERALL, totals[t], list(totals.values()))
         lu = lineups[t]
         starters = [lp.player_id for _, lp in lu.slots if lp]
         bench = [p for p in rosters[t] if p not in starters and p in players]
         needs = [
-            pos for pos in SKILL_POSITIONS
-            if grades[pos].grade in ("D", "F") or (n >= 6 and grades[pos].rank > n * 2 / 3)
+            pos for pos, g in grades.items()
+            if g.grade in ("D", "F") or (n >= 6 and g.rank > n * 2 / 3)
         ]  # fmt: skip
         surplus = sorted(
             {
@@ -173,6 +241,54 @@ def team_profiles(
             }
         )
         out[t] = TeamProfile(
-            t, grades, starters, needs, [s for s in surplus if s not in needs], round(lu.points, 2)
+            t,
+            grades,
+            starters,
+            needs,
+            [s for s in surplus if s not in needs],
+            round(lu.points, 2),
+            overall,
         )
     return out
+
+
+def simulate_league(
+    players: Mapping[str, Mapping],
+    exclude: Iterable[str],
+    num_teams: int,
+    roster_positions: Sequence[str],
+) -> dict[str, list[str]]:
+    """A typical league for benchmarking a manual team: snake draft of the rest of the player pool
+    by rest-of-season value, with sensible caps (K/DEF only for their slots, limited QBs)."""
+    slots = [s for s in roster_positions if s in SLOT_ELIGIBILITY]
+    size = len([s for s in roster_positions if s != "IR"])
+    taken = set(exclude)
+    pool = sorted(
+        (
+            p
+            for p, v in players.items()
+            if p not in taken and v.get("position") in (*SKILL_POSITIONS, "K", "DEF")
+        ),
+        key=lambda p: -(players[p].get("ros_value_par") or 0.0),
+    )
+    caps = {
+        "K": slots.count("K"),
+        "DEF": slots.count("DEF"),
+        "QB": slots.count("QB") + (2 if "SUPER_FLEX" in slots else 1),
+    }
+    teams: dict[str, list[str]] = {f"sim-{i + 1}": [] for i in range(num_teams)}
+    order = list(teams)
+    used: set[str] = set()
+    for rnd in range(size):
+        for t in order if rnd % 2 == 0 else list(reversed(order)):
+            have = [players[p]["position"] for p in teams[t]]
+            for p in pool:
+                if p in used:
+                    continue
+                pos = players[p]["position"]
+                if pos in caps and have.count(pos) >= caps[pos]:
+                    continue
+                teams[t].append(p)
+                used.add(p)
+                break
+    return teams

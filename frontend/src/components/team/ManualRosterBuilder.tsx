@@ -5,7 +5,7 @@ import { useDeferredValue, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import type { PlayerRef } from '@/api'
-import { manualLeagueMutation, searchPlayersOptions } from '@/api/@tanstack/react-query.gen'
+import { manualLeagueMutation, searchPlayersOptions, updateRosterMutation } from '@/api/@tanstack/react-query.gen'
 import { ErrorState } from '@/components/common/states'
 import { PositionBadge } from '@/components/player/badges'
 import { Button } from '@/components/ui/button'
@@ -38,8 +38,20 @@ import {
 import { cn } from '@/lib/utils'
 import { useTeamStore } from '@/stores/team'
 
-interface Picked extends PlayerRef {
+export interface Picked extends PlayerRef {
   role: Role
+}
+
+export type Scoring = 'standard' | 'half_ppr' | 'ppr'
+
+/** Pre-filled values when editing an existing manual team. */
+export interface BuilderInitial {
+  teamId: string
+  name: string
+  numTeams: number
+  scoring: Scoring
+  shape: LineupShape
+  picked: Picked[]
 }
 
 const MAX_SLOT = 4
@@ -136,12 +148,13 @@ function PlayerRow({
   )
 }
 
-export function ManualRosterBuilder() {
-  const [name, setName] = useState('My team')
-  const [numTeams, setNumTeams] = useState('12')
-  const [scoring, setScoring] = useState<'standard' | 'half_ppr' | 'ppr'>('half_ppr')
-  const [shape, setShape] = useState<LineupShape>(LINEUP_PRESETS.standard.shape)
-  const [picked, setPicked] = useState<Picked[]>([])
+export function ManualRosterBuilder({ initial }: { initial?: BuilderInitial }) {
+  const editing = !!initial
+  const [name, setName] = useState(initial?.name ?? 'My team')
+  const [numTeams, setNumTeams] = useState(String(initial?.numTeams ?? 12))
+  const [scoring, setScoring] = useState<Scoring>(initial?.scoring ?? 'half_ppr')
+  const [shape, setShape] = useState<LineupShape>(initial?.shape ?? LINEUP_PRESETS.standard.shape)
+  const [picked, setPicked] = useState<Picked[]>(initial?.picked ?? [])
   const [q, setQ] = useState('')
   const deferredQ = useDeferredValue(q)
   const search = useQuery({
@@ -160,6 +173,17 @@ export function ManualRosterBuilder() {
       void navigate({ to: '/advisor' })
     },
   })
+  const update = useMutation({
+    ...updateRosterMutation(),
+    onSuccess: (ref) => {
+      setTeam({ teamId: ref.team_id, leagueId: ref.league_id, teamName: name, leagueName: 'Manual league', platform: 'manual' })
+      void qc.invalidateQueries()
+      toast.success('Team updated')
+      void navigate({ to: '/team' })
+    },
+  })
+  const saving = create.isPending || update.isPending
+  const saveError = create.error ?? update.error
 
   const slots = useMemo(() => startingSlots(shape), [shape])
   const starters = picked.filter((p) => p.role === 'starter')
@@ -206,17 +230,17 @@ export function ManualRosterBuilder() {
   const remove = (id: string) => setPicked(picked.filter((p) => p.player_id !== id))
 
   function submit() {
-    create.mutate({
-      body: {
-        name,
-        num_teams: Number(numTeams),
-        roster_positions: rosterPositions(shape),
-        scoring,
-        player_ids: picked.map((p) => p.player_id),
-        starters: starters.map((p) => p.player_id),
-        ir: ir.map((p) => p.player_id),
-      },
-    })
+    const body = {
+      name,
+      num_teams: Number(numTeams),
+      roster_positions: rosterPositions(shape),
+      scoring,
+      player_ids: picked.map((p) => p.player_id),
+      starters: starters.map((p) => p.player_id),
+      ir: ir.map((p) => p.player_id),
+    }
+    if (initial) update.mutate({ path: { team_id: initial.teamId }, body })
+    else create.mutate({ body })
   }
 
   const totalSpots = slots.length + shape.bench + shape.ir
@@ -224,7 +248,7 @@ export function ManualRosterBuilder() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Build your roster</CardTitle>
+        <CardTitle>{editing ? 'Edit your team' : 'Build your roster'}</CardTitle>
         <CardDescription>
           Works for ESPN, Yahoo or anything else. Set your league's lineup and bench depth, then add players. Without
           league rosters we can't see free agents or other teams, so waiver and trade-partner advice is limited.
@@ -364,14 +388,19 @@ export function ManualRosterBuilder() {
             ))}
           </ul>
         )}
-        {create.isError && <ErrorState error={create.error} />}
+        {saveError && <ErrorState error={saveError} />}
         <div className="flex items-center justify-end gap-3">
           <span className="text-xs text-muted-foreground">
             {picked.length}/{totalSpots} roster spots filled
           </span>
-          <Button disabled={picked.length < 5 || !check.ok || create.isPending} onClick={submit}>
-            {create.isPending && <Loader2 className="animate-spin" />}
-            Analyze my team
+          {editing && (
+            <Button variant="outline" onClick={() => void navigate({ to: '/team' })}>
+              Cancel
+            </Button>
+          )}
+          <Button disabled={picked.length < 5 || !check.ok || saving} onClick={submit}>
+            {saving && <Loader2 className="animate-spin" />}
+            {editing ? 'Save changes' : 'Analyze my team'}
           </Button>
         </div>
       </CardFooter>

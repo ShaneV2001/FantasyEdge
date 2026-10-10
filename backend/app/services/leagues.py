@@ -436,3 +436,58 @@ def league_id_for_team(con: duckdb.DuckDBPyConnection, team_id: str) -> str:
     if not row:
         raise KeyError(team_id)
     return row[0]
+
+
+def update_manual(
+    con: duckdb.DuckDBPyConnection,
+    team_id: str,
+    *,
+    name: str,
+    num_teams: int,
+    roster_positions: list[str],
+    scoring: str | dict[str, float],
+    player_ids: list[str],
+    starters: list[str] | None = None,
+    ir: list[str] | None = None,
+    trade_deadline_week: int | None = None,
+) -> tuple[str, str]:
+    """Replace a manual team's settings and roster (players, starters, bench, IR)."""
+    row = con.execute(
+        "SELECT l.league_id, l.platform FROM teams t JOIN leagues l USING (league_id) WHERE t.team_id = ?",
+        [team_id],
+    ).fetchone()
+    if not row:
+        raise KeyError(team_id)
+    league_id, platform = row
+    if platform != "manual":
+        raise ValueError(
+            f"{platform.title()} rosters sync from {platform.title()} — change them there, then press Update."
+        )
+    rules = PRESETS[scoring] if isinstance(scoring, str) else normalize(scoring)
+    slot_of = roster_slots(
+        con,
+        roster_positions=roster_positions,
+        player_ids=player_ids,
+        starters=starters or [],
+        ir=ir or [],
+    )
+    prof = ensure_profile(con, rules, f"Manual ({describe(rules)})")
+    now = _now()
+    con.execute(
+        """UPDATE leagues SET name = ?, num_teams = ?, roster_positions = ?, scoring_profile_id = ?,
+                  trade_deadline_week = ?, last_synced_at = ? WHERE league_id = ?""",
+        [name, num_teams, json.dumps(roster_positions), prof, trade_deadline_week, now, league_id],
+    )
+    con.execute("UPDATE teams SET team_name = ? WHERE team_id = ?", [name, team_id])
+    con.execute("DELETE FROM roster_spots WHERE team_id = ?", [team_id])
+    upsert(
+        con,
+        "roster_spots",
+        pl.DataFrame(
+            [
+                {"team_id": team_id, "player_id": p, "slot": slot_of[p], "synced_at": now}
+                for p in player_ids
+            ]
+        ),
+    )
+    return league_id, team_id

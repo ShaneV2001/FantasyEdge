@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetByesData, GetByesErrors, GetByesResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, RefreshData, RefreshErrors, RefreshResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses } from './types.gen';
+import type { ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetByesData, GetByesErrors, GetByesResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, RefreshData, RefreshErrors, RefreshResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -85,6 +85,20 @@ export const getRegression = <ThrowOnError extends boolean = false>(options: Opt
  * Week × lineup-slot grid of remaining byes with danger weeks.
  */
 export const getByes = <ThrowOnError extends boolean = false>(options: Options<GetByesData, ThrowOnError>): RequestResult<GetByesResponses, GetByesErrors, ThrowOnError> => (options.client ?? client).get<GetByesResponses, GetByesErrors, ThrowOnError>({ url: '/team/{team_id}/byes', ...options });
+
+/**
+ * Update Roster
+ *
+ * Edit a manual team: name, scoring, league size, lineup/bench/IR depth and players.
+ */
+export const updateRoster = <ThrowOnError extends boolean = false>(options: Options<UpdateRosterData, ThrowOnError>): RequestResult<UpdateRosterResponses, UpdateRosterErrors, ThrowOnError> => (options.client ?? client).put<UpdateRosterResponses, UpdateRosterErrors, ThrowOnError>({
+    url: '/team/{team_id}/roster',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Evaluate Trade

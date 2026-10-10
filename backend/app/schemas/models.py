@@ -80,6 +80,9 @@ class LeagueOut(BaseModel):
     num_teams: int
     roster_positions: list[str]
     scoring: str
+    scoring_preset: Literal["standard", "half_ppr", "ppr"] | None = Field(
+        None, description="Preset key when the rules match one exactly"
+    )
     trade_deadline_week: int | None
     deadline_passed: bool
     uses_faab: bool
@@ -158,6 +161,7 @@ class PositionGradeOut(BaseModel):
     teams: int
     grade: Literal["A", "B", "C", "D", "F"]
     delta_pct: float
+    z: float = Field(0.0, description="Standard deviations above the comparison-league average")
 
 
 class MarketInfo(BaseModel):
@@ -176,6 +180,7 @@ class TeamSummary(BaseModel):
     points_for: float
     starter_points: float
     grades: dict[str, PositionGradeOut]
+    overall_grade: PositionGradeOut | None = None
 
 
 class TeamOut(BaseModel):
@@ -186,6 +191,8 @@ class TeamOut(BaseModel):
     league: LeagueOut
     roster: list[RosterPlayer]
     grades: dict[str, PositionGradeOut]
+    overall_grade: PositionGradeOut | None = None
+    grade_basis: str = Field("", description="What the grades are compared against")
     needs: list[str]
     surplus: list[str]
     starter_points: float
@@ -215,7 +222,9 @@ class TradeOut(BaseModel):
     headline: str
     reasons: list[str]
     me: TradeSideOut
-    partner: TradeSideOut
+    partner: TradeSideOut | None = Field(
+        None, description="Null for a hypothetical trade with players not on a league roster"
+    )
     danger_weeks_before: int | None = None
     danger_weeks_after: int | None = None
     tags: list[str] = []
@@ -241,6 +250,8 @@ class AdviceOut(BaseModel):
     generated_at: datetime
     actions: list[ActionOut]
     grades: dict[str, PositionGradeOut]
+    overall_grade: PositionGradeOut | None = None
+    grade_basis: str = ""
     needs: list[str]
     deadline_passed: bool
     market: MarketInfo

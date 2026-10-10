@@ -274,14 +274,15 @@ CREATE TABLE sync_log (
 | GET | `/players/{id}?profile=` | Player detail: weekly history, usage trends, projection band, reasons |
 | POST | `/league/connect` `{platform, username}` | User's leagues for selection |
 | POST | `/league/{id}/select-team` `{external_roster_id}` | Marks `is_mine`, syncs |
-| POST | `/league/manual` `{name, num_teams, roster_positions, scoring, player_ids}` | Creates manual league/team |
-| GET | `/team/{id}` | Roster with values, positional strength vs league |
+| POST | `/league/manual` `{name, num_teams, roster_positions, scoring, player_ids, starters?, ir?}` | Creates manual league/team. `roster_positions` carries any bench (`BN`) / `IR` depth; `starters`/`ir` assign roles (validated against the slots) |
+| PUT | `/team/{id}/roster` (same body as `/league/manual`) | Edit a manual team: settings, players and starter/bench/IR roles. Sleeper teams sync from Sleeper instead |
+| GET | `/team/{id}` | Roster with values, grades by position + overall vs league (manual teams: vs a simulated league of the same size/lineup) |
 | GET | `/team/{id}/advice` | **Phase 1.** Ranked advisor feed: type, headline, reasons, urgency, confidence + team grade by position |
 | GET | `/team/{id}/regression` | **Phase 1.** Regression flags (TD over expected, efficiency z-scores, usage/production mismatch) for roster + league |
 | GET | `/team/{id}/byes` | **Phase 1.** Week-by-week bye grid, unfillable slots, danger weeks |
 | GET | `/team/{id}/startsit?week=` | Optimal lineup + alternatives |
 | GET | `/team/{id}/waivers` | Ranked adds, suggested drops, FAAB range |
-| POST | `/trade/evaluate` `{team_id, give[], receive[]}` | Value both sides, lineup delta ROS, verdict |
+| POST | `/trade/evaluate` `{team_id, give[], receive[]}` | Value both sides, lineup delta ROS, verdict. If `receive` players aren't on a league roster (manual teams, free agents, other leagues) it's a *hypothetical* trade and `partner` is null |
 | GET | `/trade/suggest?team_id=` | Mutually beneficial trade ideas |
 | GET | `/signals?profile=&pos=&dir=buy\|sell` | Buy-low / sell-high board |
 | POST | `/refresh` `{scope: league\|market\|all}` | Triggers sync jobs |

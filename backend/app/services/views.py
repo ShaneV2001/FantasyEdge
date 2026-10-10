@@ -6,12 +6,13 @@ from datetime import datetime
 
 from app.schemas import models as m
 from app.services.context import LeagueContext
+from scoring.rules import PRESETS, normalize
 from signals import advisor as adv
 from signals import trade as tr
 from signals.byes import RosterEntry, bye_grid
 from signals.lineup import starting_slots
 from signals.regression import TDOE_THRESHOLD, USAGE_SHIFT, Z_THRESHOLD, RegressionFlag
-from signals.team import RosMath, TeamProfile, team_profiles
+from signals.team import RosMath, TeamProfile, simulate_league, team_profiles
 
 MARKET_LABEL = {"fantasycalc": "FantasyCalc", "dynastyprocess": "DynastyProcess"}
 
@@ -32,12 +33,27 @@ def ros_math(ctx: LeagueContext) -> RosMath:
 
 
 def profiles(ctx: LeagueContext) -> dict[str, TeamProfile]:
+    """Grades vs the real league; a manual team (no league) is graded vs a simulated league."""
     if "profiles" not in ctx.memo:
+        slots = starting_slots(ctx.league.roster_positions)
         rosters = {t.team_id: t.player_ids for t in ctx.teams}
-        ctx.memo["profiles"] = team_profiles(
-            rosters, ctx.players, starting_slots(ctx.league.roster_positions)
-        )
+        if ctx.league.platform == "manual" or len(rosters) < 2:
+            mine = [p for t in ctx.teams for p in t.player_ids]
+            sim = simulate_league(
+                ctx.players, mine, max(ctx.league.num_teams - 1, 1), ctx.league.roster_positions
+            )
+            ctx.memo["profiles"] = team_profiles(
+                rosters | sim, ctx.players, slots, grade_only=rosters
+            )
+        else:
+            ctx.memo["profiles"] = team_profiles(rosters, ctx.players, slots)
     return ctx.memo["profiles"]
+
+
+def grade_basis(ctx: LeagueContext) -> str:
+    if ctx.league.platform == "manual" or len(ctx.teams) < 2:
+        return f"a simulated {ctx.league.num_teams}-team league with your lineup settings"
+    return f"the other {len(ctx.teams) - 1} teams in {ctx.league.name}"
 
 
 def market_label(ctx: LeagueContext) -> str:
@@ -106,6 +122,15 @@ def grades_out(prof: TeamProfile | None) -> dict[str, m.PositionGradeOut]:
     return {k: m.PositionGradeOut(**vars(g)) for k, g in prof.grades.items()}
 
 
+def overall_out(prof: TeamProfile | None) -> m.PositionGradeOut | None:
+    return m.PositionGradeOut(**vars(prof.overall)) if prof and prof.overall else None
+
+
+def scoring_preset(rules: dict[str, float]) -> str | None:
+    norm = normalize(rules)
+    return next((k for k, v in PRESETS.items() if normalize(v) == norm), None)
+
+
 def market_info(ctx: LeagueContext) -> m.MarketInfo:
     return m.MarketInfo(source=ctx.market_source, format=ctx.market_format, stale=ctx.market_stale)
 
@@ -121,6 +146,7 @@ def league_out(ctx: LeagueContext) -> m.LeagueOut:
         num_teams=lg.num_teams,
         roster_positions=lg.roster_positions,
         scoring=ctx.scoring_label,
+        scoring_preset=scoring_preset(lg.rules),
         trade_deadline_week=lg.trade_deadline_week,
         deadline_passed=ctx.deadline_passed,
         uses_faab=lg.uses_faab,
@@ -183,6 +209,7 @@ def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
             points_for=t.points_for,
             starter_points=profs[t.team_id].starter_points if t.team_id in profs else 0.0,
             grades=grades_out(profs.get(t.team_id)),
+            overall_grade=overall_out(profs.get(t.team_id)),
         )
         for t in ctx.teams
     ]
@@ -194,6 +221,8 @@ def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
         league=league_out(ctx),
         roster=roster,
         grades=grades_out(prof),
+        overall_grade=overall_out(prof),
+        grade_basis=grade_basis(ctx),
         needs=prof.needs if prof else [],
         surplus=prof.surplus if prof else [],
         starter_points=prof.starter_points if prof else 0.0,
@@ -361,7 +390,7 @@ def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
         headline=ev.headline,
         reasons=ev.reasons,
         me=side(ev.me),
-        partner=side(ev.partner),
+        partner=side(ev.partner) if ev.partner else None,
         danger_weeks_before=ev.danger_weeks_before,
         danger_weeks_after=ev.danger_weeks_after,
         tags=ev.tags,
@@ -374,19 +403,27 @@ def evaluate_trade(
     team = ctx.team(team_id)
     if not give and not receive:
         raise ValueError("pick at least one player to give or receive")
-    owners = {ctx.owner_of(p).team_id for p in receive if ctx.owner_of(p)}  # type: ignore[union-attr]
+    unknown = [p for p in [*give, *receive] if p not in ctx.players]
+    if unknown:
+        raise ValueError(f"unknown player(s): {', '.join(unknown[:3])}")
+    owned = [p for p in receive if ctx.owner_of(p)]
+    owners = {ctx.owner_of(p).team_id for p in owned}  # type: ignore[union-attr]
+    if owners == {team_id}:
+        raise ValueError("you already have a player you're trying to receive")
     if len(owners) > 1:
         raise ValueError("all received players must come from the same team")
-    if receive and not owners:
-        raise ValueError("received players must be on a league roster")
+    if owned and len(owned) != len(receive):
+        raise ValueError(
+            "mix of rostered and unrostered players: trade with one team, or make it fully hypothetical"
+        )
+    # Players on a league team -> two-sided trade; otherwise a hypothetical trade (manual teams,
+    # free agents, or players from another league) that only models your side.
     partner = ctx.team(owners.pop()) if owners else None
-    if partner is None:
-        raise ValueError("choose at least one player to receive so we know the trade partner")
     ev = tr.evaluate(
         ros_math(ctx),
         ctx.players,
         (team.team_id, team.player_ids),
-        (partner.team_id, partner.player_ids),
+        (partner.team_id, partner.player_ids) if partner else None,
         give,
         receive,
         viable_ppg=ctx.replacement_ppg,
@@ -491,6 +528,8 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
             for a in actions
         ],
         grades=grades_out(profs.get(team_id)),
+        overall_grade=overall_out(profs.get(team_id)),
+        grade_basis=grade_basis(ctx),
         needs=profs[team_id].needs if team_id in profs else [],
         deadline_passed=ctx.deadline_passed,
         market=market_info(ctx),

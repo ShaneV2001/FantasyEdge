@@ -3,9 +3,9 @@ from __future__ import annotations
 import duckdb
 from fastapi import APIRouter, Depends
 
-from app.deps import get_con
+from app.deps import get_con, write_lock
 from app.schemas import models as m
-from app.services import leagues, views
+from app.services import context, leagues, views
 from app.services.context import LeagueContext, get_context
 
 router = APIRouter(prefix="/team", tags=["team"])
@@ -39,3 +39,25 @@ def get_regression(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.Re
 def get_byes(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.ByesOut:
     """Week × lineup-slot grid of remaining byes with danger weeks."""
     return views.byes_view(ctx, team_id)
+
+
+@router.put("/{team_id}/roster", response_model=m.TeamRef)
+def update_roster(
+    team_id: str, body: m.ManualLeagueRequest, con: duckdb.DuckDBPyConnection = Depends(get_con)
+) -> m.TeamRef:
+    """Edit a manual team: name, scoring, league size, lineup/bench/IR depth and players."""
+    with write_lock:
+        league_id, _ = leagues.update_manual(
+            con,
+            team_id,
+            name=body.name,
+            num_teams=body.num_teams,
+            roster_positions=body.roster_positions,
+            scoring=body.scoring,
+            player_ids=body.player_ids,
+            starters=body.starters,
+            ir=body.ir,
+            trade_deadline_week=body.trade_deadline_week,
+        )
+    context.invalidate(league_id)
+    return m.TeamRef(team_id=team_id, league_id=league_id)

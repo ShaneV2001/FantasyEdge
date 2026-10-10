@@ -81,9 +81,9 @@ function Side({ side, title }: { side: TradeSideOut; title: string }) {
 export function TradeDetail({ trade }: { trade: TradeOut }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className={cn('grid gap-3', trade.partner && 'md:grid-cols-2')}>
         <Side side={trade.me} title="You" />
-        <Side side={trade.partner} title={trade.partner.team_name} />
+        {trade.partner && <Side side={trade.partner} title={trade.partner.team_name} />}
       </div>
       <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
         {trade.reasons.map((r) => (
@@ -115,7 +115,9 @@ export function TradeCard({ trade }: { trade: TradeOut }) {
             </Badge>
           ))}
         </CardTitle>
-        <CardDescription>with {trade.partner.team_name}</CardDescription>
+        <CardDescription>
+          {trade.partner ? `with ${trade.partner.team_name}` : 'Hypothetical trade — only your side is modelled'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <TradeDetail trade={trade} />

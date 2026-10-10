@@ -1,15 +1,21 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Lightbulb, Loader2, Scale } from 'lucide-react'
-import { useState } from 'react'
+import { Check, Lightbulb, Loader2, Plus, Scale } from 'lucide-react'
+import { useDeferredValue, useState } from 'react'
 
-import type { RosterPlayer } from '@/api'
-import { evaluateTradeMutation, getTeamOptions, suggestTradesOptions } from '@/api/@tanstack/react-query.gen'
+import type { PlayerRef, RosterPlayer } from '@/api'
+import {
+  evaluateTradeMutation,
+  getTeamOptions,
+  searchPlayersOptions,
+  suggestTradesOptions,
+} from '@/api/@tanstack/react-query.gen'
 import { EmptyState, ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
-import { PositionBadge } from '@/components/player/badges'
+import { PlayerChip, PositionBadge } from '@/components/player/badges'
 import { TradeCard } from '@/components/team/TradeCard'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fmtNum } from '@/lib/format'
@@ -56,7 +62,7 @@ export function TradePage() {
             </EmptyState>
           )}
           {ideas.data?.ideas.map((t) => (
-            <TradeCard key={t.headline + t.partner.team_id} trade={t} />
+            <TradeCard key={t.headline + (t.partner?.team_id ?? '')} trade={t} />
           ))}
         </TabsContent>
         <TabsContent value="analyzer" className="mt-4">
@@ -110,14 +116,90 @@ function PickList({
   )
 }
 
+const ANY = '__any__'
+
+/** Receive side for a hypothetical trade: search the whole player pool. */
+function AnyPlayerPicker({
+  exclude,
+  picked,
+  onAdd,
+  onRemove,
+}: {
+  exclude: Set<string>
+  picked: PlayerRef[]
+  onAdd: (p: PlayerRef) => void
+  onRemove: (id: string) => void
+}) {
+  const [q, setQ] = useState('')
+  const deferredQ = useDeferredValue(q)
+  const search = useQuery({
+    ...searchPlayersOptions({ query: { q: deferredQ, limit: 12 } }),
+    placeholderData: (prev) => prev,
+  })
+  const pickedIds = new Set(picked.map((p) => p.player_id))
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm font-medium">You get (any player)</span>
+      {picked.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {picked.map((p) => (
+            <button
+              key={p.player_id}
+              type="button"
+              onClick={() => onRemove(p.player_id)}
+              className="rounded-md ring-primary/40 hover:ring-1"
+              aria-label={`Remove ${p.name}`}
+            >
+              <PlayerChip player={p} className="bg-primary/10" />
+            </button>
+          ))}
+        </div>
+      )}
+      <Command shouldFilter={false} className="h-80 rounded-md border">
+        <CommandInput placeholder="Search players to receive…" value={q} onValueChange={setQ} />
+        <CommandList className="max-h-none">
+          <CommandEmpty>{search.isFetching ? 'Searching…' : 'No players found.'}</CommandEmpty>
+          <CommandGroup>
+            {(search.data ?? [])
+              .filter((p) => !exclude.has(p.player_id))
+              .map((p) => (
+                <CommandItem
+                  key={p.player_id}
+                  value={p.player_id}
+                  onSelect={() => (pickedIds.has(p.player_id) ? onRemove(p.player_id) : onAdd(p))}
+                >
+                  <PositionBadge position={p.position} />
+                  <span className="flex-1">{p.name}</span>
+                  <span className="text-xs text-muted-foreground">{p.nfl_team}</span>
+                  {pickedIds.has(p.player_id) ? (
+                    <Check className="text-primary" />
+                  ) : (
+                    <Plus className="text-muted-foreground" />
+                  )}
+                </CommandItem>
+              ))}
+          </CommandGroup>
+        </CommandList>
+      </Command>
+    </div>
+  )
+}
+
 function Analyzer({ teamId }: { teamId: string }) {
   const mine = useQuery(getTeamOptions({ path: { team_id: teamId } }))
-  const [partnerId, setPartnerId] = useState<string>('')
-  const partner = useQuery({ ...getTeamOptions({ path: { team_id: partnerId } }), enabled: !!partnerId })
+  const others = mine.data?.league_teams.filter((t) => !t.is_mine) ?? []
+  const [partnerChoice, setPartnerChoice] = useState<string>('')
+  // Manual teams have no league partners, so they start in hypothetical mode.
+  const partnerId = partnerChoice || (mine.data && others.length === 0 ? ANY : '')
+  const hypothetical = partnerId === ANY
+  const partner = useQuery({
+    ...getTeamOptions({ path: { team_id: partnerId } }),
+    enabled: !!partnerId && !hypothetical,
+  })
   const [give, setGive] = useState<Set<string>>(new Set())
   const [receive, setReceive] = useState<Set<string>>(new Set())
+  const [anyReceive, setAnyReceive] = useState<PlayerRef[]>([])
   const evaluate = useMutation(evaluateTradeMutation())
-  const others = mine.data?.league_teams.filter((t) => !t.is_mine) ?? []
 
   const toggle = (set: Set<string>, update: (s: Set<string>) => void, id: string) => {
     const next = new Set(set)
@@ -129,27 +211,28 @@ function Analyzer({ teamId }: { teamId: string }) {
 
   if (mine.isPending) return <ListSkeleton rows={2} height="h-40" />
   if (mine.isError) return <ErrorState error={mine.error} onRetry={() => void mine.refetch()} />
-  if (others.length === 0) {
-    return (
-      <EmptyState title="No trade partners">
-        This team isn't part of a synced league. Connect your Sleeper league to analyze trades.
-      </EmptyState>
-    )
-  }
+
+  const receiveIds = hypothetical ? anyReceive.map((p) => p.player_id) : [...receive]
+  const myIds = new Set(mine.data.roster.map((p) => p.player_id))
+  const nothingPicked = hypothetical ? give.size + receiveIds.length === 0 : receiveIds.length === 0
 
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle>Build a trade</CardTitle>
-          <CardDescription>Pick a partner, then the players going each way (up to 5 per side).</CardDescription>
+          <CardDescription>
+            Trade with a league team, or choose <b>Any player (hypothetical)</b> to test a deal for anyone: free
+            agents, players in another league, or a manually entered team. Up to 5 players per side.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Select
             value={partnerId}
             onValueChange={(v) => {
-              setPartnerId(v)
+              setPartnerChoice(v)
               setReceive(new Set())
+              setAnyReceive([])
               evaluate.reset()
             }}
           >
@@ -157,6 +240,7 @@ function Analyzer({ teamId }: { teamId: string }) {
               <SelectValue placeholder="Choose a trade partner" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={ANY}>Any player (hypothetical)</SelectItem>
               {others.map((t) => (
                 <SelectItem key={t.team_id} value={t.team_id}>
                   {t.team_name} · {t.owner_name}
@@ -171,7 +255,20 @@ function Analyzer({ teamId }: { teamId: string }) {
               picked={give}
               onToggle={(id) => toggle(give, setGive, id)}
             />
-            {partnerId ? (
+            {hypothetical ? (
+              <AnyPlayerPicker
+                exclude={myIds}
+                picked={anyReceive}
+                onAdd={(p) => {
+                  if (anyReceive.length < 5) setAnyReceive([...anyReceive, p])
+                  evaluate.reset()
+                }}
+                onRemove={(id) => {
+                  setAnyReceive(anyReceive.filter((p) => p.player_id !== id))
+                  evaluate.reset()
+                }}
+              />
+            ) : partnerId ? (
               partner.isPending ? (
                 <ListSkeleton rows={1} height="h-64" />
               ) : partner.data ? (
@@ -192,10 +289,8 @@ function Analyzer({ teamId }: { teamId: string }) {
           </div>
           <Button
             className="self-end"
-            disabled={receive.size === 0 || give.size > 5 || receive.size > 5 || evaluate.isPending}
-            onClick={() =>
-              evaluate.mutate({ body: { team_id: teamId, give: [...give], receive: [...receive] } })
-            }
+            disabled={nothingPicked || give.size > 5 || receiveIds.length > 5 || evaluate.isPending}
+            onClick={() => evaluate.mutate({ body: { team_id: teamId, give: [...give], receive: receiveIds } })}
           >
             {evaluate.isPending && <Loader2 className="animate-spin" />}
             Evaluate trade

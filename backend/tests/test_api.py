@@ -264,3 +264,88 @@ def test_manual_roster_with_bench_and_ir(client):
     too_many = body | {"player_ids": body["player_ids"] + [by_pos["WR"][4]]}
     r = tc.post("/league/manual", json=too_many)
     assert r.status_code == 422 and "bench" in r.json()["detail"]
+
+
+def _manual_team(tc, name="Editable"):
+    by_pos: dict[str, list[str]] = {}
+    for p in tc.get("/players", params={"limit": 100}).json():
+        by_pos.setdefault(p["position"], []).append(p["player_id"])
+    starters = [
+        by_pos["QB"][0],
+        *by_pos["RB"][:2],
+        *by_pos["WR"][:2],
+        by_pos["TE"][0],
+        by_pos["WR"][2],
+    ]
+    body = {
+        "name": name,
+        "num_teams": 10,
+        "roster_positions": ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "BN", "BN"],
+        "player_ids": [*starters, by_pos["RB"][2], by_pos["WR"][3]],
+        "starters": starters,
+    }
+    r = tc.post("/league/manual", json=body)
+    assert r.status_code == 200, r.text
+    return r.json()["team_id"], body, by_pos
+
+
+def test_manual_grades_use_simulated_league(client):
+    tc, _ = client
+    team_id, _, _ = _manual_team(tc)
+    team = tc.get(f"/team/{team_id}").json()
+    assert "simulated 10-team league" in team["grade_basis"]
+    assert team["overall_grade"]["teams"] == 10
+    assert all(g["teams"] == 10 for g in team["grades"].values())
+    # a team built from the top of the player pool should not grade as "average everywhere"
+    assert {g["grade"] for g in team["grades"].values()} != {"C"}
+
+
+def test_edit_manual_team(client):
+    tc, _ = client
+    team_id, body, by_pos = _manual_team(tc)
+    edited = body | {
+        "name": "Renamed",
+        "scoring": "ppr",
+        "roster_positions": body["roster_positions"] + ["BN", "IR"],  # deeper bench + IR
+        "player_ids": [*body["player_ids"], by_pos["TE"][1], by_pos["RB"][3]],
+        "ir": [by_pos["RB"][3]],
+    }
+    r = tc.put(f"/team/{team_id}/roster", json=edited)
+    assert r.status_code == 200, r.text
+    team = tc.get(f"/team/{team_id}").json()
+    assert team["team_name"] == "Renamed"
+    assert team["league"]["scoring_preset"] == "ppr"
+    assert team["league"]["roster_positions"].count("BN") == 3
+    slots = {p["player_id"]: p["slot"] for p in team["roster"]}
+    assert slots[by_pos["RB"][3]] == "ir" and slots[by_pos["TE"][1]] == "bench"
+
+    # invalid edit is rejected and leaves the team unchanged
+    bad = edited | {"roster_positions": ["QB", "RB", "BN"]}
+    assert tc.put(f"/team/{team_id}/roster", json=bad).status_code == 422
+    assert tc.get(f"/team/{team_id}").json()["team_name"] == "Renamed"
+
+
+def test_cannot_edit_sleeper_team(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    body = {"player_ids": ["x"], "roster_positions": ["QB"]}
+    r = tc.put(f"/team/{team_id}/roster", json=body)
+    assert r.status_code == 422 and "Sleeper" in r.json()["detail"]
+
+
+def test_hypothetical_trade_for_manual_team(client):
+    tc, _ = client
+    team_id, body, by_pos = _manual_team(tc)
+    give = [body["starters"][-1]]  # a WR
+    receive = [by_pos["WR"][6]]  # not on any roster
+    r = tc.post("/trade/evaluate", json={"team_id": team_id, "give": give, "receive": receive})
+    assert r.status_code == 200, r.text
+    ev = r.json()
+    assert ev["partner"] is None
+    assert ev["me"]["gives"][0]["player_id"] == give[0]
+    assert any("hypothetical" in reason for reason in ev["reasons"])
+    # receiving a player you already have is rejected
+    r = tc.post(
+        "/trade/evaluate", json={"team_id": team_id, "give": give, "receive": [body["starters"][0]]}
+    )
+    assert r.status_code == 422

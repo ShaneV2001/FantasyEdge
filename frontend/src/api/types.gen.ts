@@ -77,6 +77,11 @@ export type AdviceOut = {
     grades: {
         [key: string]: PositionGradeOut;
     };
+    overall_grade?: PositionGradeOut | null;
+    /**
+     * Grade Basis
+     */
+    grade_basis?: string;
     /**
      * Needs
      */
@@ -315,6 +320,12 @@ export type LeagueOut = {
      */
     scoring: string;
     /**
+     * Scoring Preset
+     *
+     * Preset key when the rules match one exactly
+     */
+    scoring_preset?: 'standard' | 'half_ppr' | 'ppr' | null;
+    /**
      * Trade Deadline Week
      */
     trade_deadline_week: number | null;
@@ -526,6 +537,12 @@ export type PositionGradeOut = {
      * Delta Pct
      */
     delta_pct: number;
+    /**
+     * Z
+     *
+     * Standard deviations above the comparison-league average
+     */
+    z?: number;
 };
 
 /**
@@ -858,6 +875,13 @@ export type TeamOut = {
     grades: {
         [key: string]: PositionGradeOut;
     };
+    overall_grade?: PositionGradeOut | null;
+    /**
+     * Grade Basis
+     *
+     * What the grades are compared against
+     */
+    grade_basis?: string;
     /**
      * Needs
      */
@@ -933,6 +957,7 @@ export type TeamSummary = {
     grades: {
         [key: string]: PositionGradeOut;
     };
+    overall_grade?: PositionGradeOut | null;
 };
 
 /**
@@ -970,7 +995,10 @@ export type TradeOut = {
      */
     reasons: Array<string>;
     me: TradeSideOut;
-    partner: TradeSideOut;
+    /**
+     * Null for a hypothetical trade with players not on a league roster
+     */
+    partner?: TradeSideOut | null;
     /**
      * Danger Weeks Before
      */
@@ -1288,6 +1316,36 @@ export type GetByesResponses = {
 };
 
 export type GetByesResponse = GetByesResponses[keyof GetByesResponses];
+
+export type UpdateRosterData = {
+    body: ManualLeagueRequest;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/roster';
+};
+
+export type UpdateRosterErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateRosterError = UpdateRosterErrors[keyof UpdateRosterErrors];
+
+export type UpdateRosterResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamRef;
+};
+
+export type UpdateRosterResponse = UpdateRosterResponses[keyof UpdateRosterResponses];
 
 export type EvaluateTradeData = {
     body: TradeEvaluateRequest;

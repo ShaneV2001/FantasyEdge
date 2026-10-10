@@ -42,7 +42,7 @@ class TradeSide:
 @dataclass
 class TradeEvaluation:
     me: TradeSide
-    partner: TradeSide
+    partner: TradeSide | None  # None = hypothetical trade (players not on a league roster)
     verdict: str  # accept | lean_accept | neutral | decline
     headline: str
     reasons: list[str]
@@ -92,32 +92,38 @@ def evaluate(
     math: RosMath,
     players: Mapping[str, Mapping],
     my_team: tuple[str, Sequence[str]],
-    partner: tuple[str, Sequence[str]],
+    partner: tuple[str, Sequence[str]] | None,
     give: Sequence[str],
     receive: Sequence[str],
     viable_ppg: Mapping[str, float] | None = None,
     market_label: str = "Market",
 ) -> TradeEvaluation:
+    """Score a trade for both sides; with partner=None only your side is computed
+    (a hypothetical deal, e.g. for a manual team or a player from another league)."""
     my_id, my_roster = my_team
-    their_id, their_roster = partner
     if not set(give) <= set(my_roster):
         raise ValueError("you can only give players on your roster")
-    if not set(receive) <= set(their_roster):
+    if set(receive) & set(my_roster):
+        raise ValueError("you already have a player you're trying to receive")
+    if partner is not None and not set(receive) <= set(partner[1]):
         raise ValueError("you can only receive players on the partner's roster")
 
     my_after = [p for p in my_roster if p not in give] + list(receive)
-    their_after = [p for p in their_roster if p not in receive] + list(give)
     me = TradeSide(
         my_id, list(give), list(receive),
         math.ros_lineup_points(my_roster), math.ros_lineup_points(my_after),
         _sum(players, give, "ros_value_par") or 0.0, _sum(players, receive, "ros_value_par") or 0.0,
         _sum(players, give, "market_value"), _sum(players, receive, "market_value"),
     )  # fmt: skip
-    them = TradeSide(
-        their_id, list(receive), list(give),
-        math.ros_lineup_points(their_roster), math.ros_lineup_points(their_after),
-        me.model_value_in, me.model_value_out, me.market_value_in, me.market_value_out,
-    )  # fmt: skip
+    them = None
+    if partner is not None:
+        their_id, their_roster = partner
+        their_after = [p for p in their_roster if p not in receive] + list(give)
+        them = TradeSide(
+            their_id, list(receive), list(give),
+            math.ros_lineup_points(their_roster), math.ros_lineup_points(their_after),
+            me.model_value_in, me.model_value_out, me.market_value_in, me.market_value_out,
+        )  # fmt: skip
 
     d = me.lineup_delta
     if d >= ACCEPT_GAIN:
@@ -129,10 +135,14 @@ def evaluate(
     else:
         verdict = "decline"
 
-    reasons = [
-        f"Your starting lineup {'gains' if d >= 0 else 'loses'} {abs(d):.1f} projected points "
-        f"rest of season; theirs {'gains' if them.lineup_delta >= 0 else 'loses'} {abs(them.lineup_delta):.1f}."
-    ]
+    mine_txt = f"Your starting lineup {'gains' if d >= 0 else 'loses'} {abs(d):.1f} projected points rest of season"
+    if them is not None:
+        theirs = (
+            f"theirs {'gains' if them.lineup_delta >= 0 else 'loses'} {abs(them.lineup_delta):.1f}"
+        )
+        reasons = [f"{mine_txt}; {theirs}."]
+    else:
+        reasons = [f"{mine_txt} (hypothetical trade: the other side isn't modelled)."]
     reasons.append(
         f"Model value (points above replacement): you give {me.model_value_out:.0f}, get {me.model_value_in:.0f}."
     )

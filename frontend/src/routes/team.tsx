@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { Pencil } from 'lucide-react'
 
 import { getRegressionOptions, getTeamOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
@@ -7,6 +9,7 @@ import { RegressionList } from '@/components/team/RegressionList'
 import { RosterTable } from '@/components/team/RosterTable'
 import { TeamGrades } from '@/components/team/TeamGrades'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fmtNum } from '@/lib/format'
@@ -28,11 +31,26 @@ export function TeamPage() {
             : 'Loading roster…'
         }
         actions={
-          data?.market.source && (
-            <Badge variant="outline" title="Market values source">
-              Market: {data.market.source === 'fantasycalc' ? 'FantasyCalc' : data.market.source}
-              {data.market.stale && ' (fallback)'}
-            </Badge>
+          data && (
+            <>
+              {data.market.source && (
+                <Badge variant="outline" title="Market values source">
+                  Market: {data.market.source === 'fantasycalc' ? 'FantasyCalc' : data.market.source}
+                  {data.market.stale && ' (fallback)'}
+                </Badge>
+              )}
+              {data.league.platform === 'manual' ? (
+                <Button asChild size="sm">
+                  <Link to="/team/edit">
+                    <Pencil /> Edit team
+                  </Link>
+                </Button>
+              ) : (
+                <Badge variant="secondary" title="Roster changes come from Sleeper — use Update in the sidebar">
+                  Synced from Sleeper
+                </Badge>
+              )}
+            </>
           )
         }
       />
@@ -40,7 +58,7 @@ export function TeamPage() {
       {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
       {data && (
         <>
-          <TeamGrades grades={data.grades} needs={data.needs} />
+          <TeamGrades grades={data.grades} overall={data.overall_grade} basis={data.grade_basis} needs={data.needs} />
           <div className="grid gap-6 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <CardHeader>

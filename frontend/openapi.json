@@ -314,6 +314,59 @@
         }
       }
     },
+    "/team/{team_id}/roster": {
+      "put": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Update Roster",
+        "description": "Edit a manual team: name, scoring, league size, lineup/bench/IR depth and players.",
+        "operationId": "update_roster",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualLeagueRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamRef"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/trade/evaluate": {
       "post": {
         "tags": [
@@ -700,6 +753,21 @@
             "type": "object",
             "title": "Grades"
           },
+          "overall_grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PositionGradeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade_basis": {
+            "type": "string",
+            "title": "Grade Basis",
+            "default": ""
+          },
           "needs": {
             "items": {
               "type": "string"
@@ -1047,6 +1115,23 @@
           "scoring": {
             "type": "string",
             "title": "Scoring"
+          },
+          "scoring_preset": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "standard",
+                  "half_ppr",
+                  "ppr"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scoring Preset",
+            "description": "Preset key when the rules match one exactly"
           },
           "trade_deadline_week": {
             "anyOf": [
@@ -1468,6 +1553,12 @@
           "delta_pct": {
             "type": "number",
             "title": "Delta Pct"
+          },
+          "z": {
+            "type": "number",
+            "title": "Z",
+            "description": "Standard deviations above the comparison-league average",
+            "default": 0.0
           }
         },
         "type": "object",
@@ -2070,6 +2161,22 @@
             "type": "object",
             "title": "Grades"
           },
+          "overall_grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PositionGradeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade_basis": {
+            "type": "string",
+            "title": "Grade Basis",
+            "description": "What the grades are compared against",
+            "default": ""
+          },
           "needs": {
             "items": {
               "type": "string"
@@ -2174,6 +2281,16 @@
             },
             "type": "object",
             "title": "Grades"
+          },
+          "overall_grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PositionGradeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2248,7 +2365,15 @@
             "$ref": "#/components/schemas/TradeSideOut"
           },
           "partner": {
-            "$ref": "#/components/schemas/TradeSideOut"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeSideOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for a hypothetical trade with players not on a league roster"
           },
           "danger_weeks_before": {
             "anyOf": [
@@ -2286,8 +2411,7 @@
           "verdict",
           "headline",
           "reasons",
-          "me",
-          "partner"
+          "me"
         ],
         "title": "TradeOut"
       },

@@ -52,8 +52,8 @@ export function AdvisorPage() {
       />
       {advice.isPending && (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {Array.from({ length: 4 }, (_, i) => (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            {Array.from({ length: 5 }, (_, i) => (
               <Skeleton key={i} className="h-[76px] rounded-xl" />
             ))}
           </div>
@@ -64,8 +64,13 @@ export function AdvisorPage() {
       {advice.data && (
         <>
           <section className="flex flex-col gap-2">
-            <h2 className="text-sm font-medium text-muted-foreground">Team grade by position vs your league</h2>
-            <TeamGrades grades={advice.data.grades} needs={advice.data.needs} />
+            <h2 className="text-sm font-medium text-muted-foreground">Team grade</h2>
+            <TeamGrades
+              grades={advice.data.grades}
+              overall={advice.data.overall_grade}
+              basis={advice.data.grade_basis}
+              needs={advice.data.needs}
+            />
           </section>
           {(advice.data.notes ?? []).map((n) => (
             <Alert key={n}>
