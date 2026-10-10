@@ -10,6 +10,7 @@ from ingest.market_values import (
     FantasyCalcSource,
     MarketFormat,
     get_market_values,
+    market_format_for,
     parse_fantasycalc,
 )
 from ingest.sleeper import parse_players
@@ -72,3 +73,10 @@ def test_internal_ids_prefer_gsis():
 
 def test_dp_ids_url_constant():
     assert DP_IDS_URL.endswith("db_playerids.csv")
+
+
+def test_market_format_for_league():
+    sf = ["QB", "RB", "WR", "TE", "FLEX", "SUPER_FLEX", "BN"]
+    assert market_format_for(sf, 10, 1.0, "dynasty").key == "dynasty_2qb_10_ppr1"
+    assert market_format_for(["QB", "RB"], 12, 0.5, "keeper").key == "redraft_1qb_12_ppr0.5"
+    assert market_format_for(["QB", "QB", "RB"], 12, 0.0).num_qbs == 2

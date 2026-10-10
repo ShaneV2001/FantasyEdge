@@ -409,3 +409,23 @@ def test_failed_players_sync_keeps_previous_players(client, monkeypatch):
     with pytest.raises(Exception, match="NOT NULL"):
         players_sync(con, deps._clients)
     assert con.execute("SELECT count(*) FROM players").fetchone()[0] == before
+
+
+def test_dynasty_league_uses_dynasty_market_values(client):
+    tc, router = client
+    raw = load_json("sleeper_league.json")
+    raw["settings"]["type"] = 2
+    router.get(f"{SL}/league/{LEAGUE}").mock(return_value=httpx.Response(200, json=raw))
+    leagues_raw = load_json("sleeper_leagues.json")
+    for lg in leagues_raw:
+        lg.setdefault("settings", {})["type"] = 2
+    router.get(url__regex=rf"{SL}/user/u0/leagues/nfl/\d+").mock(
+        return_value=httpx.Response(200, json=leagues_raw)
+    )
+    team_id = connect_and_pick(tc)
+    league_id = f"sl-{LEAGUE}"
+    assert context.load_league(deps._con, league_id).market_format.is_dynasty
+    r = tc.post("/refresh", json={"scope": "market", "league_id": league_id})
+    assert r.status_code == 200, r.text
+    assert any("dynasty_" in d for d in r.json()["detail"]), r.json()
+    assert tc.get(f"/team/{team_id}").status_code == 200

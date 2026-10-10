@@ -76,3 +76,10 @@ def test_client_raises_source_unavailable_without_cache(tmp_path):
     client = SleeperClient(CachedHttp(tmp_path, min_interval_s=0), BASE)
     with pytest.raises(SourceUnavailable):
         client.user("nobody")
+
+
+@pytest.mark.parametrize("kind, expected", [(0, "redraft"), (1, "keeper"), (2, "dynasty")])
+def test_parse_league_type(kind, expected):
+    raw = load_json("sleeper_league.json")
+    raw["settings"]["type"] = kind
+    assert parse_league(raw).league_type == expected

@@ -66,6 +66,10 @@ class SleeperClient:
 # ───────── pure parsers ─────────
 
 
+# Sleeper `settings.type`
+LEAGUE_TYPES = {0: "redraft", 1: "keeper", 2: "dynasty"}
+
+
 @dataclass
 class LeagueInfo:
     external_id: str
@@ -78,6 +82,7 @@ class LeagueInfo:
     uses_faab: bool
     faab_budget: int | None
     playoff_week_start: int | None
+    league_type: str = "redraft"
     status: str = ""
     avatar: str | None = None
     extra: dict = field(default_factory=dict)
@@ -100,7 +105,10 @@ def parse_league(raw: dict) -> LeagueInfo:
         trade_deadline_week=deadline,
         uses_faab=waiver_type == 2,
         faab_budget=int(budget) if budget is not None and waiver_type == 2 else None,
-        playoff_week_start=settings.get("playoff_week_start") or None,
+        playoff_week_start=int(settings["playoff_week_start"])
+        if settings.get("playoff_week_start")
+        else None,
+        league_type=LEAGUE_TYPES.get(int(settings.get("type") or 0), "redraft"),
         status=raw.get("status") or "",
         avatar=raw.get("avatar"),
     )

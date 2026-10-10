@@ -14,6 +14,7 @@ import polars as pl
 from app.errors import InvalidInput, NotFound
 from db.conn import log_sync, query_df, replace_where, transaction, upsert
 from ingest import sleeper as sl
+from ingest.market_values import market_format_for
 from ingest.run import Clients, market_sync
 from scoring.rules import PRESETS, describe, from_sleeper, normalize, profile_id
 from signals.lineup import NON_STARTING, SLOT_ELIGIBILITY, fit_to_slots, starting_slots
@@ -170,6 +171,7 @@ def _write_sleeper_league(
                     "uses_faab": info.uses_faab,
                     "faab_budget": info.faab_budget,
                     "playoff_week_start": info.playoff_week_start,
+                    "league_type": info.league_type,
                     "last_synced_at": now,
                 }
             ],
@@ -254,10 +256,9 @@ def _sync_transactions(
 def _ensure_market(
     con: duckdb.DuckDBPyConnection, c: Clients, rules: dict, info: sl.LeagueInfo
 ) -> None:
-    from ingest.market_values import MarketFormat
-
-    sf = "SUPER_FLEX" in info.roster_positions or info.roster_positions.count("QB") > 1
-    fmt = MarketFormat(info.num_teams, 2 if sf else 1, normalize(rules)["rec"])
+    fmt = market_format_for(
+        info.roster_positions, info.num_teams, normalize(rules)["rec"], info.league_type
+    )
     have = con.execute(
         "SELECT count(*) FROM market_values WHERE format = ? AND snapshot_date = ?",
         [fmt.key, date.today()],
@@ -400,6 +401,7 @@ def create_manual(
                     "uses_faab": False,
                     "faab_budget": None,
                     "playoff_week_start": 15,
+                    "league_type": "redraft",
                     "last_synced_at": now,
                 }
             ],

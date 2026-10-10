@@ -11,6 +11,7 @@ from app.schemas import models as m
 from app.services import context, leagues
 from ingest import run as jobs
 from ingest.http import SourceUnavailable
+from ingest.market_values import MarketFormat
 from ingest.run import Clients
 
 router = APIRouter(tags=["meta"])
@@ -68,11 +69,12 @@ def refresh(
             else:
                 detail.append("league: manual league, nothing to sync")
         if body.scope in ("market", "all"):
-            try:
-                detail.append(f"market: {jobs.market_sync(con, c)}")
-            except SourceUnavailable as exc:
-                ok = False
-                detail.append(f"market failed: {exc.detail}")
+            for fmt in _market_formats(con, body.league_id):
+                try:
+                    detail.append(f"market: {jobs.market_sync(con, c, fmt)}")
+                except SourceUnavailable as exc:
+                    ok = False
+                    detail.append(f"market {fmt.key} failed: {exc.detail}")
         if body.scope == "all":
             for name, job in (
                 ("players", jobs.players_sync),
@@ -93,6 +95,17 @@ def refresh(
         ).fetchone()
         synced = row[0] if row else None
     return m.RefreshOut(scope=body.scope, ok=ok, detail=detail, last_synced_at=synced)
+
+
+def _market_formats(con: duckdb.DuckDBPyConnection, league_id: str | None) -> list[MarketFormat]:
+    """The league's own market format, or every stored league's (default format if none)."""
+    ids = (
+        [league_id]
+        if league_id
+        else [r[0] for r in con.execute("SELECT league_id FROM leagues").fetchall()]
+    )
+    formats = {f.key: f for f in (context.load_league(con, i).market_format for i in ids)}
+    return list(formats.values()) or [MarketFormat()]
 
 
 @router.get("/players", response_model=list[m.PlayerRef], tags=["players"])

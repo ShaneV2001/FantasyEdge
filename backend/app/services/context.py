@@ -16,7 +16,7 @@ import polars as pl
 
 from app.errors import NotFound, NotReady
 from db.conn import query_df
-from ingest.market_values import MarketFormat
+from ingest.market_values import MarketFormat, market_format_for
 from projections.base import LeagueShape, ProjectionInputs, run
 from projections.baseline import BaselineEngine
 from projections.norms import norms_window, position_rates
@@ -47,11 +47,13 @@ class LeagueRow:
     faab_budget: int | None
     playoff_week_start: int | None
     last_synced_at: datetime | None
+    league_type: str = "redraft"
 
     @property
     def market_format(self) -> MarketFormat:
-        sf = "SUPER_FLEX" in self.roster_positions or self.roster_positions.count("QB") > 1
-        return MarketFormat(self.num_teams, 2 if sf else 1, normalize(self.rules)["rec"])
+        return market_format_for(
+            self.roster_positions, self.num_teams, normalize(self.rules)["rec"], self.league_type
+        )
 
     @property
     def last_week(self) -> int:
@@ -154,6 +156,7 @@ def load_league(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueRow:
         faab_budget=r["faab_budget"],
         playoff_week_start=r["playoff_week_start"],
         last_synced_at=r["last_synced_at"],
+        league_type=r.get("league_type") or "redraft",
     )
 
 

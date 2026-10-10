@@ -9,7 +9,10 @@ from __future__ import annotations
 
 BASELINE_VERSION = 1
 
-MIGRATIONS: list[tuple[int, str]] = []
+MIGRATIONS: list[tuple[int, str]] = [
+    # v2: redraft / keeper / dynasty, so dynasty leagues get dynasty market values
+    (2, "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS league_type VARCHAR DEFAULT 'redraft'"),
+]
 
 
 def latest_version() -> int:

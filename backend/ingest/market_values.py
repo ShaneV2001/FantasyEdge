@@ -47,6 +47,15 @@ class MarketFormat:
         return f"{kind}_{self.num_qbs}qb_{self.num_teams}_ppr{ppr}"
 
 
+def market_format_for(
+    roster_positions: list[str], num_teams: int, ppr: float, league_type: str = "redraft"
+) -> MarketFormat:
+    """The market-value format matching a league: superflex if it can start 2 QBs, dynasty
+    values only for dynasty leagues (keeper leagues trade like redraft)."""
+    sf = "SUPER_FLEX" in roster_positions or roster_positions.count("QB") > 1
+    return MarketFormat(num_teams, 2 if sf else 1, ppr, is_dynasty=league_type == "dynasty")
+
+
 class MarketValueSource(Protocol):
     name: str
 
