@@ -14,7 +14,7 @@ import duckdb
 import polars as pl
 
 from app.config import Settings, get_settings
-from db.conn import connect, log_sync, query_df, replace_where, upsert
+from db.conn import connect, log_sync, query_df, replace_where, transaction, upsert
 from ingest import idmap, nflverse, sleeper
 from ingest.http import CachedHttp, SourceUnavailable
 from ingest.market_values import (
@@ -69,8 +69,9 @@ def players_sync(con: duckdb.DuckDBPyConnection, c: Clients, force: bool = False
         "injury_status",
         pl.lit(_now()).alias("updated_at"),
     )
-    n = replace_where(con, "players", df, "TRUE", [])
-    log_sync(con, "sleeper_players", "ok", f"{n} players")
+    with transaction(con):  # full replace: all-or-nothing so a failed insert keeps the old table
+        n = replace_where(con, "players", df, "TRUE", [])
+        log_sync(con, "sleeper_players", "ok", f"{n} players")
     return n
 
 
@@ -79,10 +80,11 @@ def stats_sync(con: duckdb.DuckDBPyConnection, c: Clients) -> dict[str, int]:
     seasons = list(range(first, last + 1))
     tables = nflverse.load_all(seasons, c.id_map())
     counts = {}
-    for table, df in tables.items():
-        con.execute(f"DELETE FROM {table} WHERE season BETWEEN ? AND ?", [first, last])
-        counts[table] = upsert(con, table, df)
-    log_sync(con, "nflverse", "ok", ", ".join(f"{k}={v}" for k, v in counts.items()))
+    with transaction(con):  # every table or none: downloads are done, only writes happen here
+        for table, df in tables.items():
+            con.execute(f"DELETE FROM {table} WHERE season BETWEEN ? AND ?", [first, last])
+            counts[table] = upsert(con, table, df)
+        log_sync(con, "nflverse", "ok", ", ".join(f"{k}={v}" for k, v in counts.items()))
     return counts
 
 
@@ -138,8 +140,9 @@ def trending_sync(con: duckdb.DuckDBPyConnection, c: Clients, hours: int = 24) -
             pl.lit(_now()).alias("fetched_at"),
         )
     )
-    replace_where(con, "trending", df, "lookback_hours = ?", [hours])
-    log_sync(con, "sleeper_trending", "ok", f"{df.height} rows")
+    with transaction(con):
+        replace_where(con, "trending", df, "lookback_hours = ?", [hours])
+        log_sync(con, "sleeper_trending", "ok", f"{df.height} rows")
     return df.height
 
 

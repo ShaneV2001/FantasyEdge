@@ -12,7 +12,7 @@ import duckdb
 import polars as pl
 
 from app.errors import InvalidInput, NotFound
-from db.conn import log_sync, query_df, replace_where, upsert
+from db.conn import log_sync, query_df, replace_where, transaction, upsert
 from ingest import sleeper as sl
 from ingest.run import Clients, market_sync
 from scoring.rules import PRESETS, describe, from_sleeper, normalize, profile_id
@@ -123,17 +123,34 @@ def sync_sleeper_league(
     )
     info = sl.parse_league(raw)
     rules = from_sleeper(info.scoring_settings)
-    prof = ensure_profile(con, rules, f"{info.name} ({describe(rules)})")
     league_id = sleeper_league_id(external_id)
-    prev_mine = con.execute(
-        "SELECT external_roster_id FROM teams WHERE league_id = ? AND is_mine", [league_id]
-    ).fetchone()
-
+    # Fetch everything before touching the store so a network failure can't leave it half-written.
     rosters = sl.parse_rosters(
         c.sleeper.rosters(external_id, force=force),
         c.sleeper.league_users(external_id, force=force),
         info.faab_budget,
     )
+    with transaction(con):
+        _write_sleeper_league(con, external_id, league_id, info, rules, rosters)
+    _sync_transactions(con, c, external_id, league_id, force)
+    _ensure_market(con, c, rules, info)
+    log_sync(con, f"league:{league_id}", "ok", f"{len(rosters)} rosters")
+    return rosters
+
+
+def _write_sleeper_league(
+    con: duckdb.DuckDBPyConnection,
+    external_id: str,
+    league_id: str,
+    info: sl.LeagueInfo,
+    rules: dict[str, float],
+    rosters: list[sl.RosterInfo],
+) -> None:
+    """League row, teams and roster spots for one Sleeper league (caller wraps in a transaction)."""
+    prof = ensure_profile(con, rules, f"{info.name} ({describe(rules)})")
+    prev_mine = con.execute(
+        "SELECT external_roster_id FROM teams WHERE league_id = ? AND is_mine", [league_id]
+    ).fetchone()
     now = _now()
     upsert(
         con,
@@ -208,11 +225,6 @@ def sync_sleeper_league(
     )
     if spot_rows:
         upsert(con, "roster_spots", pl.DataFrame(spot_rows).unique(["team_id", "player_id"]))
-
-    _sync_transactions(con, c, external_id, league_id, force)
-    _ensure_market(con, c, rules, info)
-    log_sync(con, f"league:{league_id}", "ok", f"{len(rosters)} rosters")
-    return rosters
 
 
 def _sync_transactions(

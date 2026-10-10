@@ -11,8 +11,9 @@ from fastapi.testclient import TestClient
 from app import deps
 from app.config import Settings
 from app.main import app
-from app.services import context, views
+from app.services import context, leagues, views
 from db.conn import connect, upsert
+from ingest import run as run_jobs
 from ingest.http import CachedHttp
 from ingest.idmap import DP_IDS_URL, attach_internal_ids, parse_id_map
 from ingest.market_values import DP_VALUES_URL
@@ -363,3 +364,48 @@ def test_hypothetical_trade_for_manual_team(client):
         "/trade/evaluate", json={"team_id": team_id, "give": give, "receive": [body["starters"][0]]}
     )
     assert r.status_code == 422
+
+
+def _counts(con, league_id: str) -> tuple[int, int]:
+    teams = con.execute("SELECT count(*) FROM teams WHERE league_id = ?", [league_id]).fetchone()
+    spots = con.execute(
+        "SELECT count(*) FROM roster_spots JOIN teams USING (team_id) WHERE league_id = ?",
+        [league_id],
+    ).fetchone()
+    return teams[0], spots[0]
+
+
+def test_failed_league_sync_keeps_previous_rosters(client, monkeypatch):
+    tc, _ = client
+    connect_and_pick(tc)
+    league_id = f"sl-{LEAGUE}"
+    con = deps._con
+    before = _counts(con, league_id)
+    assert before[0] == 4 and before[1] > 0
+
+    real_upsert = leagues.upsert
+
+    def failing_upsert(con, table, df):
+        if table == "roster_spots":
+            raise RuntimeError("disk full")
+        return real_upsert(con, table, df)
+
+    monkeypatch.setattr(leagues, "upsert", failing_upsert)
+    with TestClient(app, raise_server_exceptions=False) as raw:
+        r = raw.post("/refresh", json={"scope": "league", "league_id": league_id})
+    assert r.status_code == 500
+    assert _counts(con, league_id) == before
+
+
+def test_failed_players_sync_keeps_previous_players(client, monkeypatch):
+    con = deps._con
+    before = con.execute("SELECT count(*) FROM players").fetchone()[0]
+    real = run_jobs.idmap.attach_internal_ids
+
+    def broken_ids(players, id_map):  # NOT NULL violation on insert, after the delete ran
+        return real(players, id_map).with_columns(pl.lit(None, pl.Utf8).alias("full_name"))
+
+    monkeypatch.setattr(run_jobs.idmap, "attach_internal_ids", broken_ids)
+    with pytest.raises(Exception, match="NOT NULL"):
+        players_sync(con, deps._clients)
+    assert con.execute("SELECT count(*) FROM players").fetchone()[0] == before
