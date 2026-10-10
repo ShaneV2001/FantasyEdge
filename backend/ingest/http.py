@@ -53,7 +53,7 @@ class CachedResponse:
     stale: bool = False
 
     def json(self) -> Any:
-        return json.loads(self.body)
+        return json.loads(self.body) if self.body.strip() else None
 
     @property
     def text(self) -> str:
