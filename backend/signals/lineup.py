@@ -1,7 +1,9 @@
 """Lineup slot eligibility and an optimal-lineup solver.
 
-Greedy over slots from most to least restrictive, picking the best eligible remaining player.
-For nested flex structures (QB/RB/WR/TE ⊂ FLEX ⊂ SUPER_FLEX) this is optimal.
+When every pair of slot eligibility sets is nested or disjoint (QB/RB/WR/TE ⊂ FLEX ⊂ SUPER_FLEX),
+filling slots from most to least restrictive with the best eligible remaining player is optimal.
+Overlapping-but-not-nested flexes (W/R next to W/T) break that, so those lineups are solved
+exactly as an assignment problem.
 """
 
 from __future__ import annotations
@@ -57,8 +59,15 @@ def _slot_order(slots: Sequence[str]) -> list[int]:
     return sorted(range(len(slots)), key=lambda i: (len(SLOT_ELIGIBILITY[slots[i]]), i))
 
 
+def _is_laminar(slots: Sequence[str]) -> bool:
+    sets = list({SLOT_ELIGIBILITY[s] for s in slots})
+    return all(a <= b or b <= a or not (a & b) for i, a in enumerate(sets) for b in sets[i + 1 :])
+
+
 def optimal_lineup(players: Iterable[LineupPlayer], slots: Sequence[str]) -> Lineup:
     pool = sorted(players, key=lambda p: -p.points)
+    if not _is_laminar(slots):
+        return _assignment_lineup(pool, slots)
     used: set[str] = set()
     filled: list[LineupPlayer | None] = [None] * len(slots)
     for i in _slot_order(slots):
@@ -69,6 +78,74 @@ def optimal_lineup(players: Iterable[LineupPlayer], slots: Sequence[str]) -> Lin
                 used.add(p.player_id)
                 break
     return Lineup(list(zip(slots, filled, strict=True)))
+
+
+_INELIGIBLE = 1e9
+_FILL_BONUS = 1e-6  # prefer starting a 0-point player over leaving a slot empty
+
+
+def _assignment_lineup(pool: Sequence[LineupPlayer], slots: Sequence[str]) -> Lineup:
+    """Exact max-points lineup via the Hungarian algorithm (slots × candidates + empty seats)."""
+    # Only a position's top-k players can start, k = number of slots that accept it.
+    room = {
+        pos: sum(pos in SLOT_ELIGIBILITY[s] for s in slots) for pos in {p.position for p in pool}
+    }
+    cands: list[LineupPlayer] = []
+    for p in pool:  # sorted best first
+        if room.get(p.position, 0) > 0:
+            cands.append(p)
+            room[p.position] -= 1
+    n = len(slots)
+    cost = [
+        [
+            -(p.points + _FILL_BONUS) if p.position in SLOT_ELIGIBILITY[s] else _INELIGIBLE
+            for p in cands
+        ]
+        + [0.0] * n  # one "leave empty" seat per slot
+        for s in slots
+    ]
+    cols = _hungarian(cost)
+    filled = [cands[c] if c < len(cands) else None for c in cols]
+    return Lineup(list(zip(slots, filled, strict=True)))
+
+
+def _hungarian(cost: Sequence[Sequence[float]]) -> list[int]:
+    """Min-cost assignment of every row to a distinct column (rows <= cols). O(rows² · cols)."""
+    n, m = len(cost), len(cost[0])
+    inf = float("inf")
+    u, v = [0.0] * (n + 1), [0.0] * (m + 1)
+    match, way = [0] * (m + 1), [0] * (m + 1)  # match[col] = row (1-based), 0 = free
+    for row in range(1, n + 1):
+        match[0], j0 = row, 0
+        minv, used = [inf] * (m + 1), [False] * (m + 1)
+        while True:
+            used[j0] = True
+            i0, delta, j1 = match[j0], inf, 0
+            for j in range(1, m + 1):
+                if not used[j]:
+                    cur = cost[i0 - 1][j - 1] - u[i0] - v[j]
+                    if cur < minv[j]:
+                        minv[j], way[j] = cur, j0
+                    if minv[j] < delta:
+                        delta, j1 = minv[j], j
+            for j in range(m + 1):
+                if used[j]:
+                    u[match[j]] += delta
+                    v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if match[j0] == 0:
+                break
+        while j0:
+            j1 = way[j0]
+            match[j0] = match[j1]
+            j0 = j1
+    out = [0] * n
+    for j in range(1, m + 1):
+        if match[j]:
+            out[match[j] - 1] = j - 1
+    return out
 
 
 def lineup_points(
