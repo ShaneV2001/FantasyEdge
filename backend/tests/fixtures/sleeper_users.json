@@ -1,0 +1,30 @@
+[
+ {
+  "user_id": "u0",
+  "display_name": "AlphaManager",
+  "metadata": {
+   "team_name": "Team Alpha"
+  }
+ },
+ {
+  "user_id": "u1",
+  "display_name": "BravoManager",
+  "metadata": {
+   "team_name": "Team Bravo"
+  }
+ },
+ {
+  "user_id": "u2",
+  "display_name": "CharlieManager",
+  "metadata": {
+   "team_name": "Team Charlie"
+  }
+ },
+ {
+  "user_id": "u3",
+  "display_name": "DeltaManager",
+  "metadata": {
+   "team_name": "Team Delta"
+  }
+ }
+]

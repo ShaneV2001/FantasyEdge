@@ -105,6 +105,7 @@ CREATE TABLE players (
   years_exp      INTEGER,
   status         VARCHAR,               -- Active / IR / FA ...
   depth_chart_order INTEGER,
+  injury_status  VARCHAR,               -- Sleeper injury_status: Questionable / Out / IR ...
   updated_at     TIMESTAMP
 );
 
@@ -126,6 +127,7 @@ CREATE TABLE player_week_stats (
   targets INTEGER, receptions INTEGER, rec_yds INTEGER, rec_td INTEGER,
   air_yards INTEGER, target_share DOUBLE, air_yards_share DOUBLE, wopr DOUBLE,
   rz_carries INTEGER, rz_targets INTEGER, gl_carries INTEGER,
+  rz_td INTEGER,                                   -- rushing+receiving TDs on red-zone plays
   fumbles_lost INTEGER, two_pt INTEGER,
   epa_total DOUBLE,
   PRIMARY KEY (player_id, season, week)
@@ -208,6 +210,7 @@ CREATE TABLE leagues (
   roster_positions JSON,                       -- ["QB","RB","RB","WR","WR","TE","FLEX","BN",...]
   scoring_profile_id VARCHAR,
   trade_deadline_week INTEGER, uses_faab BOOLEAN, faab_budget INTEGER,
+  playoff_week_start INTEGER,
   last_synced_at TIMESTAMP
 );
 
@@ -238,9 +241,23 @@ CREATE TABLE saved_trades (
   trade_id VARCHAR PRIMARY KEY, league_id VARCHAR, created_at TIMESTAMP,
   give JSON, receive JSON, result JSON
 );
+
+-- ───────── Ops ─────────
+CREATE TABLE sync_log (
+  source VARCHAR PRIMARY KEY,                  -- 'sleeper_players' | 'nflverse' | 'market' | 'league:<id>'
+  last_synced_at TIMESTAMP,
+  status VARCHAR,                              -- 'ok' | 'stale' | 'error'
+  detail VARCHAR
+);
 ```
 
 **Bye weeks** come from `nfl_games`: a team's bye is the regular-season week with no game row. Advisor output, regression flags and bye grids are computed on request from these tables (cheap at single-league scale), not stored.
+
+**Schema additions (Phase 1)** — additive only, no column renamed or removed:
+- `players.injury_status`: Sleeper's injury designation, used for availability in projections and bye/lineup math.
+- `player_week_stats.rz_td`: TDs scored on red-zone plays, derived from play-by-play. Needed to compute positional red-zone TD rates for *TD over expected*. `routes` stays NULL (no free source).
+- `leagues.playoff_week_start`: from Sleeper settings; bounds the fantasy season for bye planning and playoff-schedule strength.
+- `sync_log`: last sync time and status per source, served by `/meta/status`.
 
 **Key decisions**
 - Projections are keyed by **scoring profile** so the same player has different values in PPR vs half-PPR leagues.
