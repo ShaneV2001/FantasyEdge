@@ -6,7 +6,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import duckdb
 import polars as pl
@@ -88,8 +88,16 @@ def connect_sleeper(
     season = int(state.get("league_season") or state["season"])
     out = []
     for raw in c.sleeper.leagues(user["user_id"], season):
+        # Only what the picker needs: the full sync (rosters, transactions, market values) runs
+        # when a team is selected, so users in many leagues don't wait for all of them.
         info = sl.parse_league(raw)
-        rosters = sync_sleeper_league(con, c, info.external_id, raw_league=raw)
+        rosters = sl.parse_rosters(
+            c.sleeper.rosters(info.external_id),
+            c.sleeper.league_users(info.external_id),
+            info.faab_budget,
+        )
+        with transaction(con):
+            _upsert_sleeper_league(con, info, from_sleeper(info.scoring_settings), synced_at=None)
         out.append(
             LeagueChoice(
                 league_id=sleeper_league_id(info.external_id),
@@ -139,20 +147,21 @@ def sync_sleeper_league(
     return rosters
 
 
-def _write_sleeper_league(
+def _upsert_sleeper_league(
     con: duckdb.DuckDBPyConnection,
-    external_id: str,
-    league_id: str,
     info: sl.LeagueInfo,
     rules: dict[str, float],
-    rosters: list[sl.RosterInfo],
+    synced_at: datetime | None,
 ) -> None:
-    """League row, teams and roster spots for one Sleeper league (caller wraps in a transaction)."""
+    """Scoring profile + league row. `synced_at=None` keeps the previous sync time (a league
+    listed at connect isn't synced until a team is picked)."""
     prof = ensure_profile(con, rules, f"{info.name} ({describe(rules)})")
-    prev_mine = con.execute(
-        "SELECT external_roster_id FROM teams WHERE league_id = ? AND is_mine", [league_id]
-    ).fetchone()
-    now = _now()
+    league_id = sleeper_league_id(info.external_id)
+    if synced_at is None:
+        row = con.execute(
+            "SELECT last_synced_at FROM leagues WHERE league_id = ?", [league_id]
+        ).fetchone()
+        synced_at = row[0] if row else None
     upsert(
         con,
         "leagues",
@@ -161,7 +170,7 @@ def _write_sleeper_league(
                 {
                     "league_id": league_id,
                     "platform": "sleeper",
-                    "external_id": external_id,
+                    "external_id": info.external_id,
                     "season": info.season,
                     "name": info.name,
                     "num_teams": info.num_teams,
@@ -172,16 +181,65 @@ def _write_sleeper_league(
                     "faab_budget": info.faab_budget,
                     "playoff_week_start": info.playoff_week_start,
                     "league_type": info.league_type,
-                    "last_synced_at": now,
+                    "last_synced_at": synced_at,
                 }
             ],
             schema_overrides={
                 "trade_deadline_week": pl.Int32,
                 "faab_budget": pl.Int32,
                 "playoff_week_start": pl.Int32,
+                "last_synced_at": pl.Datetime("us"),
             },
         ),
     )
+
+
+SYNC_MAX_AGE = timedelta(minutes=10)
+
+
+def ensure_synced(
+    con: duckdb.DuckDBPyConnection, c: Clients, league_id: str, max_age: timedelta = SYNC_MAX_AGE
+) -> bool:
+    """Full-sync a Sleeper league if it was only listed at connect (or is stale). True if synced."""
+    row = con.execute(
+        "SELECT platform, external_id FROM leagues WHERE league_id = ?", [league_id]
+    ).fetchone()
+    if row is None:
+        raise NotFound("league", f"League not found: {league_id}")
+    platform, external_id = row
+    if platform != "sleeper" or not needs_sync(con, league_id, max_age):
+        return False
+    sync_sleeper_league(con, c, external_id)
+    return True
+
+
+def needs_sync(con: duckdb.DuckDBPyConnection, league_id: str, max_age: timedelta) -> bool:
+    """True when a Sleeper league has never been fully synced or its last sync is too old."""
+    row = con.execute(
+        """SELECT l.last_synced_at, (SELECT count(*) FROM teams t WHERE t.league_id = l.league_id)
+           FROM leagues l WHERE l.league_id = ?""",
+        [league_id],
+    ).fetchone()
+    if row is None:
+        raise NotFound("league", f"League not found: {league_id}")
+    synced_at, n_teams = row
+    return not n_teams or synced_at is None or _now() - synced_at > max_age
+
+
+def _write_sleeper_league(
+    con: duckdb.DuckDBPyConnection,
+    external_id: str,
+    league_id: str,
+    info: sl.LeagueInfo,
+    rules: dict[str, float],
+    rosters: list[sl.RosterInfo],
+) -> None:
+    """League row, teams and roster spots for one Sleeper league (caller wraps in a transaction)."""
+    prev_mine = con.execute(
+        "SELECT external_roster_id FROM teams WHERE league_id = ? AND is_mine", [league_id]
+    ).fetchone()
+    now = _now()
+    _upsert_sleeper_league(con, info, rules, synced_at=now)
     all_ids = sleeper_to_internal(con, [p for r in rosters for p in r.players])
     team_rows, spot_rows = [], []
     for r in rosters:

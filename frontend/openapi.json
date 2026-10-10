@@ -12,7 +12,7 @@
           "league"
         ],
         "summary": "Connect League",
-        "description": "Look up a Sleeper user's leagues for the current season and sync each one.",
+        "description": "Look up a Sleeper user's leagues and teams for the current season (no full sync yet).",
         "operationId": "connect_league",
         "requestBody": {
           "content": {
@@ -54,6 +54,7 @@
           "league"
         ],
         "summary": "Select Team",
+        "description": "Pick your team; syncs the league's rosters, transactions and market values if needed.",
         "operationId": "select_team",
         "parameters": [
           {

@@ -9,7 +9,7 @@ import type { ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, Eval
 /**
  * Connect League
  *
- * Look up a Sleeper user's leagues for the current season and sync each one.
+ * Look up a Sleeper user's leagues and teams for the current season (no full sync yet).
  */
 export const connectLeagueMutation = (options?: Partial<Options<ConnectLeagueData>>): UseMutationOptions<ConnectLeagueResponse, ConnectLeagueError, Options<ConnectLeagueData>> => {
     const mutationOptions: UseMutationOptions<ConnectLeagueResponse, ConnectLeagueError, Options<ConnectLeagueData>> = {
@@ -27,6 +27,8 @@ export const connectLeagueMutation = (options?: Partial<Options<ConnectLeagueDat
 
 /**
  * Select Team
+ *
+ * Pick your team; syncs the league's rosters, transactions and market values if needed.
  */
 export const selectTeamMutation = (options?: Partial<Options<SelectTeamData>>): UseMutationOptions<SelectTeamResponse, SelectTeamError, Options<SelectTeamData>> => {
     const mutationOptions: UseMutationOptions<SelectTeamResponse, SelectTeamError, Options<SelectTeamData>> = {

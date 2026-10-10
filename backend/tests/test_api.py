@@ -459,3 +459,33 @@ def test_unknown_rostered_player_stays_visible(client):
         json={"team_id": team_id, "give": ["sl:99999999"], "receive": []},
     )
     assert r.status_code == 200, r.text
+
+
+def test_connect_lists_leagues_without_full_sync(client):
+    tc, router = client
+    r = tc.post("/league/connect", json={"username": "alphamanager"})
+    assert r.status_code == 200, r.text
+    lg = r.json()["leagues"][0]
+    assert len(lg["teams"]) == 4 and any(t["is_user"] for t in lg["teams"])
+    con = deps._con
+    assert _counts(con, lg["league_id"]) == (0, 0)
+    assert con.execute("SELECT count(*) FROM market_values").fetchone()[0] == 0
+    tx = [c for c in router.calls if "/transactions/" in str(c.request.url)]
+    assert tx == []
+
+    mine = next(t for t in lg["teams"] if t["is_user"])
+    r = tc.post(
+        f"/league/{lg['league_id']}/select-team",
+        json={"external_roster_id": mine["external_roster_id"]},
+    )
+    assert r.status_code == 200, r.text
+    teams, spots = _counts(con, lg["league_id"])
+    assert teams == 4 and spots > 0
+    assert con.execute("SELECT count(*) FROM market_values").fetchone()[0] > 0
+    # picking again right away doesn't re-sync
+    n_calls = len(router.calls)
+    tc.post(
+        f"/league/{lg['league_id']}/select-team",
+        json={"external_roster_id": mine["external_roster_id"]},
+    )
+    assert len(router.calls) == n_calls

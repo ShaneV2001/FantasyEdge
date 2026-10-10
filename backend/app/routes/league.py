@@ -18,7 +18,7 @@ def connect_league(
     con: duckdb.DuckDBPyConnection = Depends(get_con),
     c: Clients = Depends(get_clients),
 ) -> m.ConnectResponse:
-    """Look up a Sleeper user's leagues for the current season and sync each one."""
+    """Look up a Sleeper user's leagues and teams for the current season (no full sync yet)."""
     with write_lock:
         choices = leagues.connect_sleeper(con, c, body.username)
     for ch in choices:
@@ -37,9 +37,14 @@ def connect_league(
 
 @router.post("/{league_id}/select-team", response_model=m.TeamRef)
 def select_team(
-    league_id: str, body: m.SelectTeamRequest, con: duckdb.DuckDBPyConnection = Depends(get_con)
+    league_id: str,
+    body: m.SelectTeamRequest,
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+    c: Clients = Depends(get_clients),
 ) -> m.TeamRef:
+    """Pick your team; syncs the league's rosters, transactions and market values if needed."""
     with write_lock:
+        leagues.ensure_synced(con, c, league_id)
         team_id = leagues.select_team(con, league_id, body.external_roster_id)
     context.invalidate(league_id)
     return m.TeamRef(team_id=team_id, league_id=league_id)

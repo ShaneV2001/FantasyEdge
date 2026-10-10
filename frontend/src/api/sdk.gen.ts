@@ -21,7 +21,7 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 /**
  * Connect League
  *
- * Look up a Sleeper user's leagues for the current season and sync each one.
+ * Look up a Sleeper user's leagues and teams for the current season (no full sync yet).
  */
 export const connectLeague = <ThrowOnError extends boolean = false>(options: Options<ConnectLeagueData, ThrowOnError>): RequestResult<ConnectLeagueResponses, ConnectLeagueErrors, ThrowOnError> => (options.client ?? client).post<ConnectLeagueResponses, ConnectLeagueErrors, ThrowOnError>({
     url: '/league/connect',
@@ -34,6 +34,8 @@ export const connectLeague = <ThrowOnError extends boolean = false>(options: Opt
 
 /**
  * Select Team
+ *
+ * Pick your team; syncs the league's rosters, transactions and market values if needed.
  */
 export const selectTeam = <ThrowOnError extends boolean = false>(options: Options<SelectTeamData, ThrowOnError>): RequestResult<SelectTeamResponses, SelectTeamErrors, ThrowOnError> => (options.client ?? client).post<SelectTeamResponses, SelectTeamErrors, ThrowOnError>({
     url: '/league/{league_id}/select-team',
