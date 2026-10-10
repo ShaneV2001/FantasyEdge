@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -35,9 +36,26 @@ def _resolve(path: str) -> Path:
     return p if p.is_absolute() else (REPO_ROOT / p).resolve()
 
 
+# The next season's schedule is published in May; from June on, "current" means the coming season.
+SEASON_ROLLOVER_MONTH = 6
+
+
+def default_seasons(today: date) -> tuple[int, int]:
+    """(previous, current) NFL season: the prior season supplies norms early in the year."""
+    current = today.year if today.month >= SEASON_ROLLOVER_MONTH else today.year - 1
+    return current - 1, current
+
+
+def seasons_from_env(value: str | None, today: date) -> tuple[int, int]:
+    if not value:
+        return default_seasons(today)
+    first, last = (int(x) for x in value.split(","))
+    return first, last
+
+
 @lru_cache
 def get_settings() -> Settings:
-    first, last = (int(x) for x in os.getenv("FF_SEASONS", "2025,2026").split(","))
+    first, last = seasons_from_env(os.getenv("FF_SEASONS"), date.today())
     return Settings(
         data_dir=_resolve(os.getenv("FF_DATA_DIR", "./data")),
         seasons=(first, last),
