@@ -37,23 +37,53 @@ Every number in ff-edge comes from a formula you can read and change. The consta
 top of each module, and nothing is hidden inside a model.
 
 ### League-aware scoring
-Your Sleeper `scoring_settings` (PPR level, TE premium, passing TD value, etc.) are read directly, and
-every historical stat line is re-scored under those rules. The same player has a different value in a
-PPR league than in a standard one. Manual leagues can pick Standard, Half-PPR or PPR.
+Your Sleeper `scoring_settings` are read directly and every historical stat line is re-scored under
+them, so the same player has a different value in a PPR league than in a standard one. A setting your
+league doesn't list is worth 0, as it is on Sleeper. Supported: passing, rushing and receiving yards,
+TDs and receptions; TE/RB/WR reception bonuses; interceptions and pick-sixes; sacks taken; fumbles
+and fumbles lost; first downs; 2-point conversions; the 100/200/300/400-yard and 25-completion
+bonuses; kicking by distance, FG yards, misses and PATs; and team defense (sacks, takeaways, TDs,
+safeties, blocked kicks, points- and yards-allowed brackets). Other keys are ignored and logged.
+Manual leagues can pick Standard, Half-PPR or PPR (with Sleeper's standard K/DEF scoring).
 
 ### Phase 1 projection
 ```
-projected PPG = 0.5 × last-3-game PPG + 0.3 × season PPG + 0.2 × usage-implied PPG
+projected PPG = 0.5 × season PPG + 0.5 × usage-implied PPG
 ```
 - **Usage-implied PPG** = recent targets, carries and pass attempts × the positional league-average
   points per opportunity, plus expected touchdowns from where the opportunities happened (red zone
   vs. elsewhere).
-- Early in the season (< 4 games), season PPG is blended with last season's.
+- Early in the season (< 8 games), season PPG is blended with last season's.
+- **Kickers and defenses** have no usage model. Their weekly scoring is mostly noise, so each one's
+  average is pulled strongly toward the positional average (as if it had 128 extra average games).
+- The weights were chosen by the backtest below. The original blend also used last-3-game PPG
+  (0.5 last 3 / 0.3 season / 0.2 usage), but recent form made projections worse.
 - **Rest-of-season points** = projected PPG × the games left, skipping the bye, games already played
   this week, and expected missed time (Out this week; IR/PUP assumed out 4 more weeks).
 - **ROS value** = points above replacement at the player's position, for your league size and
   lineup slots (FLEX and SUPER_FLEX are counted as a position mix).
 - A 10th–90th percentile band comes from each player's week-to-week volatility.
+
+### Accuracy (walk-forward backtest)
+`python tasks.py backtest` replays the 2023–2025 seasons: for every week, each engine projects using
+only earlier games, then is scored against what happened. Fantasy-relevant players are the top
+QB24 / RB60 / WR60 / TE24 / K16 / DEF16 projected each week; MAE is against each player's average
+over the next 4 games, half-PPR.
+
+| Position | ff-edge baseline | Season PPG | Last 3 games |
+|---|---|---|---|
+| QB | **4.28** | 4.62 | 5.29 |
+| RB | **3.85** | 4.06 | 4.54 |
+| WR | **3.73** | 4.20 | 4.58 |
+| TE | **3.08** | 3.27 | 3.82 |
+| K | **2.26** | 3.23 | 3.48 |
+| DEF | **2.46** | 3.14 | 3.49 |
+| All | **3.50** | 3.91 | 4.37 |
+
+The weights were tuned on 2023–24 and checked on 2025 (4-week MAE 4.08 → 3.76 on that held-out
+season). The 10th–90th percentile band holds 79% of next-game scores (target 80%). Kicker and
+defense projections only match a flat positional average: their week-to-week scoring barely
+predicts itself, so real per-team edges need matchup data. Results are stored in `model_runs`.
 
 ### Regression flags
 | Signal | Rule | Example message |
@@ -61,6 +91,13 @@ projected PPG = 0.5 × last-3-game PPG + 0.3 × season PPG + 0.2 × usage-implie
 | TD over expected | Expected TDs = red-zone opportunities × positional red-zone TD rate + other opportunities × non-red-zone rate. A gap of **≥ +2** means "due to cool off"; **≤ −2** means "due to bounce back". | "5 TDs on 11 red-zone touches (72 total opportunities); expected ~2.2. Likely to slow down." |
 | Efficiency outliers | Yards per carry (≥ 30 carries), yards per target and catch rate (≥ 20 targets), and fantasy points per opportunity, as z-scores against positional norms. **\|z\| ≥ 1.5** is flagged. | "6.2 yards per carry vs RB norm 4.2 (z = +2.2, 87 carries). Expect it to drift down." |
 | Usage vs production | Share of team opportunities over the last 4 games vs points scored. Rising usage with falling points means production should catch up; falling usage with steady points is a warning sign. | "Opportunity share up from 15% to 30% over the last 4 games while points went 9.0 → 4.0." |
+
+**How well they work** (`python -m models.run regression-eval`, weeks 6–14 of 2023–2025): each
+flagged player's next-4-week PPG change is compared with unflagged players at the same position and
+a similar PPG, so ordinary regression to the mean isn't credited to the flag. **Sell-high flags
+work:** flagged players fell a further 1.1 (efficiency), 1.4 (TD over expected) and 1.6 (usage)
+points per game, beating similar players 61–67% of the time. **Buy-low flags are no better than a
+coin flip** (46–50%, about 0 PPG of lift), so treat them as context rather than a reason to trade.
 
 ### Bye-week planner
 Bye weeks come straight from the NFL schedule: a team's bye is the week it has no game. For every
@@ -109,6 +146,8 @@ python tasks.py dev     # API on http://localhost:8000, web app on http://localh
 | `python tasks.py test` | `ruff` lint/format check, `pytest` (offline, recorded fixtures), frontend tests |
 | `python tasks.py api` / `web` | Run the API or the web app on its own |
 | `python tasks.py gen-api` | Regenerate the typed TypeScript client from the API's OpenAPI schema |
+| `python tasks.py backtest` | Walk-forward accuracy of every projection engine (downloads 4 seasons once, cached in `data/backtest/`) |
+| `cd backend && uv run python -m models.run regression-eval` / `tune` | Check the regression flags; search weights and thresholds against a held-out season |
 
 If you have `make`, the same targets work as `make setup`, `make data`, `make dev`, `make test`.
 
@@ -128,9 +167,10 @@ the Advisor page opens. The **Update** button in the sidebar re-pulls rosters an
 backend/
   app/          FastAPI app, Pydantic schemas, services (league sync, cached league context)
   ingest/       sleeper.py, nflverse.py, market_values.py, idmap.py, http.py (retry + cache)
-  db/           DuckDB schema
+  db/           DuckDB schema (v1 baseline) + ordered migrations
   scoring/      league scoring rules → fantasy points
-  projections/  engine interface, phase-1 baseline, positional norms
+  projections/  engine interface, phase-1 baseline, naive comparison engines, positional norms
+  models/       walk-forward backtest, regression-flag evaluation, tuning CLI
   signals/      regression, byes, lineup optimizer, team grades, trades, advisor
   tests/        unit + API tests on recorded fixtures (no live network calls)
 frontend/       Vite + React + TypeScript + shadcn/ui, TanStack Router/Query, Zustand, Recharts

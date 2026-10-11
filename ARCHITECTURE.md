@@ -259,6 +259,14 @@ CREATE TABLE sync_log (
 - `leagues.playoff_week_start`: from Sleeper settings; bounds the fantasy season for bye planning and playoff-schedule strength.
 - `sync_log`: last sync time and status per source, served by `/meta/status`.
 
+**Schema additions (Sprints 1–2)**: applied by ordered migrations (`backend/db/migrations.py`).
+`schema.sql` is frozen as version 1, and `schema_version` records what a store has applied, so an
+existing `ff.duckdb` picks up new columns when it is opened.
+- v2 `leagues.league_type`: redraft / keeper / dynasty (from Sleeper `settings.type`); dynasty leagues use dynasty market values.
+- v3 `player_week_stats`: `pass_fd`, `rush_fd`, `rec_fd`, `fumbles`, `sacks_taken`, `pass_int_td` (from play-by-play), and `pass_2pt` / `rush_2pt` / `rec_2pt`. Older `two_pt` totals are still scored.
+- v4 `player_week_stats`: kicking (`fgm_0_19` … `fgm_60p`, `fgmiss`, `fgm_yds`, `xpm`, `xpmiss`) and team defense (`def_sack`, `def_int`, `def_fum_rec`, `def_ff`, `def_td`, `def_st_td`, `def_safe`, `def_blk_kick`, `def_2pt`, `pts_allow`, `yds_allow`). DEF rows use player_id `sl:<TEAM>`, Sleeper's DEF id.
+- `model_runs` now holds walk-forward backtest results: one row per engine, with metrics by position for all players and the fantasy-relevant subset. The `projections` table is not written yet (Phase 2).
+
 **Key decisions**
 - Projections are keyed by **scoring profile** so the same player has different values in PPR vs half-PPR leagues.
 - `player_week_features` row for week *W* may only use data from weeks < *W* (enforced by a test).
