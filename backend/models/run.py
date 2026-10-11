@@ -1,6 +1,7 @@
 """Model evaluation CLI.
 
     python -m models.run backtest [--seasons 2023,2024,2025] [--scoring half_ppr|ppr|standard]
+    python -m models.run regression-eval [--seasons ...]
 
 Downloads (once, then cached) the seasons plus the season before the first, runs the walk-forward
 backtest for every engine, prints a comparison and records one `model_runs` row per engine.
@@ -21,6 +22,7 @@ from app.config import get_settings
 from db.conn import connect, upsert
 from models.backtest import metrics, metrics_json, walk_forward
 from models.data import load_seasons
+from models.regression_eval import flag_outcomes, summarize
 from projections.baseline import BaselineEngine
 from projections.simple import Last3Engine, SeasonPpgEngine
 from scoring.rules import PRESETS
@@ -108,15 +110,37 @@ def cmd_backtest(args: argparse.Namespace) -> None:
     store_runs(rows, backtest_dir())
 
 
+def cmd_regression_eval(args: argparse.Namespace) -> None:
+    seasons = _seasons(args.seasons)
+    stats, _ = load_seasons([seasons[0] - 1, *seasons], backtest_dir(), args.refresh)
+    summary = summarize(flag_outcomes(stats, PRESETS[args.scoring], seasons))
+    print(f"\nRegression flags, seasons {seasons}, weeks 6-14, {args.scoring} scoring")
+    print("move = next-4-week PPG minus season-to-date PPG; lift = move beyond what similar")
+    print("unflagged players did, in the flagged direction (PPG); hit_adj 0.5 = coin flip\n")
+    print(f"{'flag':<18}{'dir':>5}{'n':>7}{'hit_raw':>9}{'hit_adj':>9}{'lift':>7}")
+    for r in summary.iter_rows(named=True):
+        print(
+            f"{r['kind']:<18}{r['direction']:>+5}{r['n']:>7}{r['hit_raw']:>9.0%}"
+            f"{r['hit_adj']:>9.0%}{r['lift']:>7.2f}"
+        )
+
+
+def _common(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--seasons", help="comma-separated target seasons (default: last three)")
+    p.add_argument("--scoring", choices=sorted(PRESETS), default="half_ppr")
+    p.add_argument("--refresh", action="store_true", help="re-download cached seasons")
+
+
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     p = argparse.ArgumentParser(prog="python -m models.run")
     sub = p.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("backtest", help="walk-forward accuracy of every projection engine")
-    b.add_argument("--seasons", help="comma-separated target seasons (default: last three)")
-    b.add_argument("--scoring", choices=sorted(PRESETS), default="half_ppr")
-    b.add_argument("--refresh", action="store_true", help="re-download cached seasons")
+    _common(b)
     b.set_defaults(fn=cmd_backtest)
+    r = sub.add_parser("regression-eval", help="do regression flags predict regression?")
+    _common(r)
+    r.set_defaults(fn=cmd_regression_eval)
     args = p.parse_args(argv)
     args.fn(args)
 

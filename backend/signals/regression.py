@@ -26,6 +26,23 @@ FLAG_SCALES = {
 }
 
 
+@dataclass(frozen=True)
+class RegressionConfig:
+    """Flag thresholds (the backtest's regression-eval searches these)."""
+
+    tdoe_threshold: float = TDOE_THRESHOLD
+    z_threshold: float = Z_THRESHOLD
+    usage_shift: float = USAGE_SHIFT
+
+    @property
+    def scales(self) -> dict[str, float]:
+        return {
+            "td_over_expected": self.tdoe_threshold,
+            "efficiency": self.z_threshold,
+            "usage_mismatch": self.usage_shift,
+        }
+
+
 @dataclass
 class RegressionFlag:
     player_id: str
@@ -317,6 +334,7 @@ class RegressionReport:
     tdoe: pl.DataFrame  # per player season totals + expected_td/tdoe
     efficiency_z: pl.DataFrame
     usage: pl.DataFrame
+    config: RegressionConfig = field(default_factory=RegressionConfig)
 
     def for_player(self, player_id: str) -> list[RegressionFlag]:
         return [f for f in self.flags if f.player_id == player_id]
@@ -325,18 +343,29 @@ class RegressionReport:
         """Signed strength: >0 expect better production, <0 expect worse."""
         s = 0.0
         for f in self.for_player(player_id):
-            mag = min(abs(f.value) / FLAG_SCALES[f.kind], 2.0)  # 1.0 at threshold, capped at 2
+            mag = min(
+                abs(f.value) / self.config.scales[f.kind], 2.0
+            )  # 1.0 at threshold, capped at 2
             s += f.direction * FLAG_WEIGHTS[f.kind] * mag
         return round(s, 2)
 
 
 def build_report(
-    stats: pl.DataFrame, rates: dict[str, PositionRates], season: int, through_week: int
+    stats: pl.DataFrame,
+    rates: dict[str, PositionRates],
+    season: int,
+    through_week: int,
+    config: RegressionConfig | None = None,
 ) -> RegressionReport:
+    cfg = config or RegressionConfig()
     totals = season_totals(stats, season, through_week)
     prior = season_totals(stats, season - 1, 99)
     with_tdoe = td_over_expected(totals, rates)
-    eff_flags, z_df = efficiency_flags(totals, prior if prior.height else None)
+    eff_flags, z_df = efficiency_flags(
+        totals, prior if prior.height else None, z_threshold=cfg.z_threshold
+    )
     trends = usage_trends(stats, season, through_week)
-    flags = tdoe_flags(with_tdoe) + eff_flags + usage_flags(trends)
-    return RegressionReport(flags, with_tdoe, z_df, trends)
+    flags = (
+        tdoe_flags(with_tdoe, cfg.tdoe_threshold) + eff_flags + usage_flags(trends, cfg.usage_shift)
+    )
+    return RegressionReport(flags, with_tdoe, z_df, trends, cfg)
