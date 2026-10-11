@@ -9,7 +9,8 @@ import { makeStaleTeamHandler } from '@/lib/stale-team'
 import { router } from '@/router'
 import './index.css'
 
-const onStaleTeam = makeStaleTeamHandler(() => void router.navigate({ to: '/connect' }))
+const staleTeam = makeStaleTeamHandler(() => router.navigate({ to: '/connect' }))
+const onStaleTeam = (err: unknown) => void staleTeam(err)
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({ onError: onStaleTeam }),

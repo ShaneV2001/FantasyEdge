@@ -23,11 +23,21 @@ export function isStaleTeamError(err: unknown): boolean {
  * local database was reset) is forgotten and the user is sent back to Connect, instead of every
  * page showing a "not found" error.
  */
-export function makeStaleTeamHandler(goToConnect: () => void) {
-  return (err: unknown) => {
-    if (!isStaleTeamError(err)) return
-    useTeamStore.getState().clear()
-    toast.info('Your saved team no longer exists', { description: 'Connect your team again to continue.' })
-    goToConnect()
+export function makeStaleTeamHandler(goToConnect: () => Promise<void> | void) {
+  let handling = false
+  return async (err: unknown) => {
+    if (handling || !isStaleTeamError(err)) return
+    handling = true // several queries for the same team fail at once; react to the first
+    toast.info('Your saved team no longer exists', {
+      id: 'stale-team',
+      description: 'Connect your team again to continue.',
+    })
+    try {
+      // Leave the team pages before forgetting the team: they read it while still mounted.
+      await goToConnect()
+      useTeamStore.getState().clear()
+    } finally {
+      handling = false
+    }
   }
 }
