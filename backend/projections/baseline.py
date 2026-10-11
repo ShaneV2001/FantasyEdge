@@ -1,10 +1,15 @@
 """Phase-1 transparent projection.
 
-    ppg = 0.5 × last-3-game PPG + 0.3 × season PPG + 0.2 × usage-implied PPG
+    ppg = 0.5 × season PPG + 0.5 × usage-implied PPG
+
+* Weights come from the walk-forward backtest (`python -m models.run tune`): tuned on 2023-24,
+  they cut fantasy-relevant 4-week MAE on the held-out 2025 season from 4.08 (the original
+  0.5 last-3 / 0.3 season / 0.2 usage blend) to 3.76. Recent form (last 3 games) is still
+  computed and shown, but adding it made projections worse.
 
 * usage-implied PPG = opportunities over the last 4 games × positional league-average points per
   opportunity (targets, carries, pass attempts) + expected TDs from red-zone/non-RZ opportunities.
-* Early season (< 4 games) the season PPG is shrunk toward last season's PPG.
+* Early season (< 8 games) the season PPG is shrunk toward last season's PPG.
 * p10/p90 = ppg ∓ 1.28 × weekly std-dev (shrunk toward a positional prior).
 """
 
@@ -18,8 +23,8 @@ from projections.base import ProjectionInputs
 from projections.norms import expected_td_expr, norms_window, position_rates
 from scoring.rules import normalize
 
-W_L3, W_SEASON, W_USAGE = 0.5, 0.3, 0.2
-SHRINK_GAMES = 4
+W_L3, W_SEASON, W_USAGE = 0.0, 0.5, 0.5
+SHRINK_GAMES = 8
 # K/DEF: weekly scoring is mostly noise (2023-25 weekly Spearman ~0.05), so a team's average is
 # pulled toward the positional average as if it had this many extra average games. 128 was the
 # best training value in the backtest and ties a flat positional average on 2025, while

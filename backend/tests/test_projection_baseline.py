@@ -52,12 +52,20 @@ def test_history_excludes_future_weeks(inputs):
 
 
 def test_weighted_ppg_formula(inputs):
-    df = BaselineEngine().per_game(inputs)
+    df = BaselineEngine(w_l3=0.5, w_season=0.3, w_usage=0.2, shrink_games=4).per_game(inputs)
     a = df.filter(pl.col("player_id") == "A").row(0, named=True)
     # L3 = 2.5 + 10 = 12.5 ; season (6 games, no shrink) = mean(7.5x3, 12.5x3) = 10
     assert a["l3_ppg"] == pytest.approx(12.5)
     assert a["season_ppg"] == pytest.approx(10.0)
     assert a["ppg"] == pytest.approx(0.5 * 12.5 + 0.3 * 10 + 0.2 * a["usage_ppg"], abs=0.02)
+
+
+def test_default_weights_shrink_early_season_toward_last_year(inputs):
+    df = BaselineEngine().per_game(inputs)
+    a = df.filter(pl.col("player_id") == "A").row(0, named=True)
+    # 6 games this season (avg 10) + 2 of last season's 8.5 PPG (8-game shrink)
+    assert a["season_ppg"] == pytest.approx((6 * 10 + 2 * 8.5) / 8, abs=0.01)
+    assert a["ppg"] == pytest.approx(0.5 * a["season_ppg"] + 0.5 * a["usage_ppg"], abs=0.02)
     assert a["p10"] < a["ppg"] < a["p90"]
 
 
