@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import polars as pl
 
 from projections.base import ProjectionInputs
@@ -53,29 +55,59 @@ def usage_points_expr(inputs: ProjectionInputs, hist: pl.DataFrame) -> pl.Expr:
     )
 
 
+def history_frame(inputs: ProjectionInputs) -> pl.DataFrame:
+    return history_before(inputs.stats, inputs.season, inputs.week).sort(
+        ["player_id", "season", "week"]
+    )
+
+
+def history_aggs(season: int) -> list[pl.Expr]:
+    """Per-player summaries every engine shares (expects rows sorted by season, week)."""
+    s = season
+    return [
+        pl.col("position").last(),
+        pl.col("fp").tail(3).mean().alias("l3_ppg"),
+        pl.col("fp").filter(pl.col("season") == s).mean().alias("cur_ppg"),
+        (pl.col("season") == s).sum().cast(pl.Int64).alias("games_played"),
+        pl.col("fp").filter(pl.col("season") == s - 1).mean().alias("prior_ppg"),
+        (pl.col("season") == s - 1).sum().cast(pl.Int64).alias("prior_games"),
+        pl.col("fp").tail(8).std().alias("sd_raw"),
+        pl.col("fp").tail(8).len().alias("n_sd"),
+    ]
+
+
+def add_band(agg: pl.DataFrame) -> pl.DataFrame:
+    """p10/p90 = ppg ∓ 1.28 × recent weekly std-dev shrunk toward a positional prior."""
+    prior_sd = 0.45 * pl.col("ppg") + 1.5
+    n = (pl.col("n_sd") - 1).clip(lower_bound=0)
+    sd = ((n * pl.col("sd_raw").fill_null(0) ** 2 + 4 * prior_sd**2) / (n + 4)).sqrt()
+    return agg.with_columns(sd.alias("sd")).with_columns(
+        (pl.col("ppg") - Z90 * pl.col("sd")).clip(lower_bound=0).alias("p10"),
+        (pl.col("ppg") + Z90 * pl.col("sd")).alias("p90"),
+    )
+
+
+@dataclass(frozen=True)
 class BaselineEngine:
-    run_id = "baseline-v1"
+    """Weighted blend of recent form, season PPG and usage-implied PPG (weights are tunable so
+    the backtest can search them; the defaults are what the app runs)."""
+
+    w_l3: float = W_L3
+    w_season: float = W_SEASON
+    w_usage: float = W_USAGE
+    shrink_games: int = SHRINK_GAMES
+    run_id: str = "baseline-v1"
 
     def per_game(self, inputs: ProjectionInputs) -> pl.DataFrame:
-        s, w = inputs.season, inputs.week
-        hist = history_before(inputs.stats, s, w)
-        hist = hist.with_columns(usage_points_expr(inputs, hist).alias("usage_fp")).sort(
-            ["player_id", "season", "week"]
-        )
+        s = inputs.season
+        hist = history_frame(inputs)
+        hist = hist.with_columns(usage_points_expr(inputs, hist).alias("usage_fp"))
         agg = hist.group_by("player_id").agg(
-            pl.col("position").last(),
-            pl.col("fp").tail(3).mean().alias("l3_ppg"),
-            pl.col("fp").filter(pl.col("season") == s).mean().alias("cur_ppg"),
-            (pl.col("season") == s).sum().cast(pl.Int64).alias("games_played"),
-            pl.col("fp").filter(pl.col("season") == s - 1).mean().alias("prior_ppg"),
-            (pl.col("season") == s - 1).sum().cast(pl.Int64).alias("prior_games"),
-            pl.col("usage_fp").tail(4).mean().alias("usage_ppg"),
-            pl.col("fp").tail(8).std().alias("sd_raw"),
-            pl.col("fp").tail(8).len().alias("n_sd"),
+            *history_aggs(s), pl.col("usage_fp").tail(4).mean().alias("usage_ppg")
         )
-        k = (SHRINK_GAMES - pl.col("games_played")).clip(lower_bound=0)
+        k = (self.shrink_games - pl.col("games_played")).clip(lower_bound=0)
         season_ppg = (
-            pl.when(pl.col("prior_ppg").is_null() | (pl.col("prior_games") < SHRINK_GAMES))
+            pl.when(pl.col("prior_ppg").is_null() | (pl.col("prior_games") < self.shrink_games))
             .then(pl.col("cur_ppg"))
             .when(pl.col("cur_ppg").is_null())
             .then(pl.col("prior_ppg"))
@@ -85,26 +117,17 @@ class BaselineEngine:
             )
         )
         agg = agg.with_columns(season_ppg.alias("season_ppg"))
+        form = self.w_l3 * pl.col("l3_ppg") + self.w_season * pl.col("season_ppg").fill_null(
+            pl.col("l3_ppg")
+        )
+        # No usage model for this player (e.g. K/DEF): spread its weight over the other two.
         agg = agg.with_columns(
-            (
-                W_L3 * pl.col("l3_ppg")
-                + W_SEASON * pl.col("season_ppg").fill_null(pl.col("l3_ppg"))
-                + W_USAGE * pl.col("usage_ppg")
-            ).alias("ppg")
+            pl.when(pl.col("usage_ppg").is_null())
+            .then(form / (self.w_l3 + self.w_season))
+            .otherwise(form + self.w_usage * pl.col("usage_ppg"))
+            .alias("ppg")
         )
-        prior_sd = 0.45 * pl.col("ppg") + 1.5
-        sd = (
-            (
-                (pl.col("n_sd") - 1).clip(lower_bound=0) * pl.col("sd_raw").fill_null(0) ** 2
-                + 4 * prior_sd**2
-            )
-            / ((pl.col("n_sd") - 1).clip(lower_bound=0) + 4)
-        ).sqrt()
-        agg = agg.with_columns(sd.alias("sd")).with_columns(
-            (pl.col("ppg") - Z90 * pl.col("sd")).clip(lower_bound=0).alias("p10"),
-            (pl.col("ppg") + Z90 * pl.col("sd")).alias("p90"),
-            pl.lit("baseline").alias("method"),
-        )
+        agg = add_band(agg).with_columns(pl.lit("baseline").alias("method"))
         projected = agg.select(
             "player_id", "ppg", "p10", "p90", "l3_ppg", "season_ppg", "usage_ppg",
             "games_played", "method",

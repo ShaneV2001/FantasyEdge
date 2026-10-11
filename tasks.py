@@ -1,6 +1,6 @@
 """Cross-platform task runner (the Makefile delegates here so Windows works without `make`).
 
-Usage: python tasks.py <setup|data|dev|api|web|test|lint|fmt|gen-api|train>
+Usage: python tasks.py <setup|data|dev|api|web|test|lint|fmt|gen-api|backtest|train>
 """
 
 from __future__ import annotations
@@ -86,6 +86,10 @@ def gen_api() -> None:
     run([*pnpm(), "run", "gen-api"], FRONTEND)
 
 
+def backtest() -> None:
+    run(["uv", "run", "python", "-m", "models.run", "backtest"], BACKEND)
+
+
 def train() -> None:
     print("Model training arrives in Phase 2 (Model v1).")
 
@@ -100,6 +104,7 @@ TASKS = {
     "lint": lint,
     "fmt": fmt,
     "gen-api": gen_api,
+    "backtest": backtest,
     "train": train,
 }
 
