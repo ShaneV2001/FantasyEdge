@@ -1,6 +1,11 @@
 import polars as pl
 
-from ingest.nflverse import red_zone_from_pbp, transform_schedule
+from ingest.nflverse import (
+    build_player_week_stats,
+    pick_sixes_from_pbp,
+    red_zone_from_pbp,
+    transform_schedule,
+)
 from tests.conftest import load_parquet
 
 
@@ -71,3 +76,42 @@ def test_transform_schedule_filters_postseason():
     )
     out = transform_schedule(raw)
     assert out.height == 1 and out["home_team"][0] == "LAR"
+
+
+def test_pick_sixes_charge_the_passer():
+    pbp = pl.DataFrame(
+        {
+            "season_type": ["REG", "REG", "REG", "POST"],
+            "season": [2026] * 4,
+            "week": [1, 1, 2, 19],
+            "interception": [1, 1, 0, 1],
+            "return_touchdown": [1, 0, 1, 1],
+            "passer_player_id": ["Q", "Q", "Q", "Q"],
+        }
+    )
+    out = pick_sixes_from_pbp(pbp)
+    assert out.select("player_id", "week", "pass_int_td").rows() == [("Q", 1, 1)]
+
+
+def test_weekly_stats_split_two_pointers_and_first_downs():
+    raw = pl.DataFrame(
+        {
+            "season_type": ["REG"], "position": ["QB"], "player_id": ["Q"], "season": [2026],
+            "week": [1], "game_id": ["g"], "team": ["LA"], "opponent_team": ["SF"],
+            "attempts": [30], "completions": [20], "passing_yards": [250], "passing_tds": [2],
+            "passing_interceptions": [1], "carries": [3], "rushing_yards": [12],
+            "rushing_tds": [0], "targets": [0], "receptions": [0], "receiving_yards": [0],
+            "receiving_tds": [0], "receiving_air_yards": [0], "target_share": [None],
+            "air_yards_share": [None], "wopr": [None], "rushing_fumbles_lost": [0],
+            "receiving_fumbles_lost": [0], "sack_fumbles_lost": [1], "passing_2pt_conversions": [1],
+            "rushing_2pt_conversions": [1], "receiving_2pt_conversions": [0], "passing_epa": [1.0],
+            "rushing_epa": [0.0], "receiving_epa": [0.0], "passing_first_downs": [11],
+            "rushing_first_downs": [1], "receiving_first_downs": [0], "rushing_fumbles": [0],
+            "receiving_fumbles": [0], "sack_fumbles": [2], "sacks_suffered": [3],
+        }
+    )  # fmt: skip
+    row = build_player_week_stats(raw, None, None).row(0, named=True)
+    assert row["team"] == "LAR"
+    assert (row["pass_2pt"], row["rush_2pt"], row["two_pt"]) == (1, 1, 2)
+    assert (row["pass_fd"], row["rush_fd"], row["sacks_taken"], row["fumbles"]) == (11, 1, 3, 2)
+    assert row["pass_int_td"] == 0

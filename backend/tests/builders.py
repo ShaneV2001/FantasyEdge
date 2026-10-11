@@ -12,6 +12,8 @@ INT_COLS = {
     "pass_att", "pass_cmp", "pass_yds", "pass_td", "interceptions", "carries", "rush_yds",
     "rush_td", "targets", "receptions", "rec_yds", "rec_td", "air_yards", "rz_carries",
     "rz_targets", "gl_carries", "rz_td", "fumbles_lost", "two_pt", "snaps", "routes",
+    "pass_fd", "rush_fd", "rec_fd", "fumbles", "sacks_taken", "pass_int_td",
+    "pass_2pt", "rush_2pt", "rec_2pt",
 }  # fmt: skip
 
 

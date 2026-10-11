@@ -1,6 +1,7 @@
+import polars as pl
 import pytest
 
-from scoring.rules import HALF_PPR, PRESETS, describe, from_sleeper, profile_id
+from scoring.rules import DEFAULTS, HALF_PPR, PRESETS, describe, from_sleeper, normalize, profile_id
 from tests.builders import stat_row, stats_frame
 from tests.conftest import load_json
 
@@ -42,3 +43,68 @@ def test_from_sleeper_and_profile_id_stable():
     assert describe(rules) == "Half PPR"
     assert profile_id(rules) == profile_id(dict(HALF_PPR))
     assert profile_id(PRESETS["ppr"]) != profile_id(HALF_PPR)
+
+
+def _fp(rules, **stats):
+    pos = stats.pop("position", "WR")
+    return stats_frame([stat_row("x", pos, 2026, 1, **stats)], rules)["fp"][0]
+
+
+def test_sleeper_missing_keys_score_zero():
+    # A league that lists no reception points is standard scoring, not half PPR.
+    rules = from_sleeper({"rec_yd": 0.1, "rec_td": 6})
+    assert rules["rec"] == 0 and rules["pass_td"] == 0
+    assert _fp(rules, receptions=5, rec_yds=50) == pytest.approx(5.0)
+
+
+def test_empty_sleeper_settings_fall_back_to_half_ppr():
+    assert from_sleeper({}) == DEFAULTS
+
+
+def test_full_default_settings_match_half_ppr():
+    rules = from_sleeper(load_json("sleeper_scoring_full.json"))
+    assert profile_id(rules) == profile_id(HALF_PPR)
+
+
+@pytest.mark.parametrize(
+    "rule, stats, expected",
+    [
+        ({"rec_fd": 0.5}, dict(rec_fd=4), 2.0),
+        ({"rush_fd": 1}, dict(position="RB", rush_fd=3), 3.0),
+        ({"pass_fd": 0.25}, dict(position="QB", pass_fd=8), 2.0),
+        ({"pass_int_td": -2}, dict(position="QB", interceptions=1, pass_int_td=1), -2.0),
+        ({"pass_sack": -0.5}, dict(position="QB", sacks_taken=4), -2.0),
+        ({"fum": -1}, dict(fumbles=2, fumbles_lost=1), -2.0),
+        ({"pass_inc": -0.5, "pass_att": 0.1}, dict(position="QB", pass_att=30, pass_cmp=20), -2.0),
+        ({"bonus_rush_yd_100": 3}, dict(position="RB", rush_yds=99), 0.0),
+        ({"bonus_rush_yd_100": 3, "bonus_rush_yd_200": 3}, dict(position="RB", rush_yds=210), 6.0),
+        ({"bonus_rec_yd_100": 2}, dict(rec_yds=100), 2.0),
+        ({"bonus_pass_yd_300": 2, "bonus_pass_yd_400": 3}, dict(position="QB", pass_yds=301), 2.0),
+        ({"bonus_pass_cmp_25": 1}, dict(position="QB", pass_cmp=25, pass_att=30), 1.0),
+        ({"bonus_rush_rec_yd_100": 2}, dict(position="RB", rush_yds=60, rec_yds=45), 2.0),
+        ({"pass_2pt": 2}, dict(position="QB", two_pt=1, pass_2pt=1), 2.0),
+        ({"rec_2pt": 2, "rush_2pt": 1}, dict(two_pt=1, rec_2pt=1), 2.0),
+    ],
+)
+def test_each_extra_rule(rule, stats, expected):
+    only = dict.fromkeys(DEFAULTS, 0.0) | rule  # isolate the rule under test
+    assert _fp(only, **stats) == pytest.approx(expected)
+
+
+def test_legacy_two_pt_profile_and_rows():
+    old = normalize({"two_pt": 3.0})
+    assert old["pass_2pt"] == old["rush_2pt"] == old["rec_2pt"] == 3.0
+    # rows ingested before the split only carry two_pt: scored at the rush/rec rate
+    assert _fp(HALF_PPR, two_pt=1) == pytest.approx(2.0)
+
+
+def test_score_tolerates_rows_without_new_columns():
+    from scoring.rules import score
+    from tests.conftest import load_parquet
+
+    stats = (
+        load_parquet("player_week_stats.parquet")
+        .head(50)
+        .with_columns(pl.lit("WR").alias("position"))
+    )
+    assert score(stats, HALF_PPR)["fp"].null_count() == 0

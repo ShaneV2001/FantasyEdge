@@ -28,6 +28,8 @@ STATS_COLUMNS = [
     "air_yards", "target_share", "air_yards_share", "wopr",
     "rz_carries", "rz_targets", "gl_carries", "rz_td",
     "fumbles_lost", "two_pt", "epa_total",
+    "pass_fd", "rush_fd", "rec_fd", "fumbles", "sacks_taken", "pass_int_td",
+    "pass_2pt", "rush_2pt", "rec_2pt",
 ]  # fmt: skip
 
 
@@ -37,6 +39,11 @@ def norm_team(col: str) -> pl.Expr:
 
 def _num(col: str) -> pl.Expr:
     return pl.col(col).fill_null(0)
+
+
+def _opt(df: pl.DataFrame, col: str) -> pl.Expr:
+    """A count column that older nflverse releases (and test fixtures) may not have."""
+    return _num(col) if col in df.columns else pl.lit(0)
 
 
 def transform_weekly_stats(stats: pl.DataFrame) -> pl.DataFrame:
@@ -78,6 +85,16 @@ def transform_weekly_stats(stats: pl.DataFrame) -> pl.DataFrame:
         .cast(pl.Int32)
         .alias("two_pt"),
         (_num("passing_epa") + _num("rushing_epa") + _num("receiving_epa")).alias("epa_total"),
+        _opt(df, "passing_first_downs").cast(pl.Int32).alias("pass_fd"),
+        _opt(df, "rushing_first_downs").cast(pl.Int32).alias("rush_fd"),
+        _opt(df, "receiving_first_downs").cast(pl.Int32).alias("rec_fd"),
+        (_opt(df, "rushing_fumbles") + _opt(df, "receiving_fumbles") + _opt(df, "sack_fumbles"))
+        .cast(pl.Int32)
+        .alias("fumbles"),
+        _opt(df, "sacks_suffered").cast(pl.Int32).alias("sacks_taken"),
+        _opt(df, "passing_2pt_conversions").cast(pl.Int32).alias("pass_2pt"),
+        _opt(df, "rushing_2pt_conversions").cast(pl.Int32).alias("rush_2pt"),
+        _opt(df, "receiving_2pt_conversions").cast(pl.Int32).alias("rec_2pt"),
     )
 
 
@@ -126,6 +143,21 @@ def red_zone_from_pbp(pbp: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def pick_sixes_from_pbp(pbp: pl.DataFrame) -> pl.DataFrame:
+    """Interceptions returned for a touchdown, charged to the passer (Sleeper `pass_int_td`)."""
+    return (
+        pbp.filter(
+            (pl.col("season_type") == "REG")
+            & (pl.col("interception").fill_null(0) == 1)
+            & (pl.col("return_touchdown").fill_null(0) == 1)
+            & pl.col("passer_player_id").is_not_null()
+        )
+        .group_by(pl.col("passer_player_id").alias("player_id"), "season", "week")
+        .agg(pl.len().cast(pl.Int32).alias("pass_int_td"))
+        .with_columns(pl.col("season").cast(pl.Int32), pl.col("week").cast(pl.Int32))
+    )
+
+
 def snaps_by_gsis(snaps: pl.DataFrame, id_map: pl.DataFrame) -> pl.DataFrame:
     xwalk = id_map.select("pfr_id", "gsis_id").drop_nulls().unique("pfr_id")
     return (
@@ -149,9 +181,10 @@ def build_player_week_stats(
     keys = ["player_id", "season", "week"]
     if pbp is not None:
         base = base.join(red_zone_from_pbp(pbp), on=keys, how="left")
+        base = base.join(pick_sixes_from_pbp(pbp), on=keys, how="left")
     if snaps is not None:
         base = base.join(snaps, on=keys, how="left")
-    for col in ("rz_carries", "rz_targets", "gl_carries", "rz_td"):
+    for col in ("rz_carries", "rz_targets", "gl_carries", "rz_td", "pass_int_td"):
         if col not in base.columns:
             base = base.with_columns(pl.lit(0, pl.Int32).alias(col))
         base = base.with_columns(pl.col(col).fill_null(0))

@@ -12,6 +12,19 @@ BASELINE_VERSION = 1
 MIGRATIONS: list[tuple[int, str]] = [
     # v2: redraft / keeper / dynasty, so dynasty leagues get dynasty market values
     (2, "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS league_type VARCHAR DEFAULT 'redraft'"),
+    # v3: stats for full Sleeper scoring (first downs, fumbles, sacks, pick-sixes, 2-pt by type)
+    (
+        3,
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS pass_fd INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rush_fd INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rec_fd INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS fumbles INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS sacks_taken INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS pass_int_td INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS pass_2pt INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rush_2pt INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rec_2pt INTEGER;",
+    ),
 ]
 
 
