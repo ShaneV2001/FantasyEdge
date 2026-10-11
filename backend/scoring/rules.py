@@ -44,7 +44,29 @@ EXTRA_KEYS: tuple[str, ...] = (
     "bonus_rush_rec_yd_100", "bonus_rush_rec_yd_200",
 )  # fmt: skip
 
-DEFAULTS: dict[str, float] = HALF_PPR | dict.fromkeys(EXTRA_KEYS, 0.0)
+# Sleeper's standard kicker and team-defense scoring (used when a league gives no settings).
+KICKING: dict[str, float] = {
+    "fgm_0_19": 3.0, "fgm_20_29": 3.0, "fgm_30_39": 3.0, "fgm_40_49": 4.0, "fgm_50p": 5.0,
+    "fgm_50_59": 0.0, "fgm_60p": 0.0, "fgm": 0.0, "fgm_yds": 0.0,
+    "fgmiss": -1.0, "xpm": 1.0, "xpmiss": -1.0,
+}  # fmt: skip
+PTS_ALLOW = (  # (rule key, lowest points allowed in the bracket)
+    ("pts_allow_0", 0), ("pts_allow_1_6", 1), ("pts_allow_7_13", 7), ("pts_allow_14_20", 14),
+    ("pts_allow_21_27", 21), ("pts_allow_28_34", 28), ("pts_allow_35p", 35),
+)  # fmt: skip
+YDS_ALLOW = (
+    ("yds_allow_0_100", 0), ("yds_allow_100_199", 100), ("yds_allow_200_299", 200),
+    ("yds_allow_300_349", 300), ("yds_allow_350_399", 350), ("yds_allow_400_449", 400),
+    ("yds_allow_450_499", 450), ("yds_allow_500_549", 500), ("yds_allow_550p", 550),
+)  # fmt: skip
+DEFENSE: dict[str, float] = {
+    "sack": 1.0, "int": 2.0, "fum_rec": 2.0, "ff": 0.0, "def_td": 6.0, "def_st_td": 6.0,
+    "safe": 2.0, "blk_kick": 2.0, "def_2pt": 2.0,
+    "pts_allow_0": 10.0, "pts_allow_1_6": 7.0, "pts_allow_7_13": 4.0, "pts_allow_14_20": 1.0,
+    "pts_allow_21_27": 0.0, "pts_allow_28_34": -1.0, "pts_allow_35p": -4.0,
+} | {k: 0.0 for k, _ in YDS_ALLOW}  # fmt: skip
+
+DEFAULTS: dict[str, float] = HALF_PPR | dict.fromkeys(EXTRA_KEYS, 0.0) | KICKING | DEFENSE
 RULE_KEYS: tuple[str, ...] = tuple(DEFAULTS)
 
 PRESETS: dict[str, dict[str, float]] = {
@@ -59,6 +81,10 @@ STAT_COLUMNS: tuple[str, ...] = (
     "carries", "rush_yds", "rush_td", "receptions", "rec_yds", "rec_td",
     "fumbles", "fumbles_lost", "pass_fd", "rush_fd", "rec_fd",
     "two_pt", "pass_2pt", "rush_2pt", "rec_2pt",
+    "fgm_0_19", "fgm_20_29", "fgm_30_39", "fgm_40_49", "fgm_50_59", "fgm_60p", "fgmiss",
+    "fgm_yds", "xpm", "xpmiss",
+    "def_sack", "def_int", "def_fum_rec", "def_ff", "def_td", "def_st_td", "def_safe",
+    "def_blk_kick", "def_2pt",
 )  # fmt: skip
 
 _warned: set[str] = set()
@@ -161,13 +187,70 @@ def points_expr(rules: dict[str, float]) -> pl.Expr:
         + _at_least(_c("rec_yds"), 200) * r["bonus_rec_yd_200"]
         + _at_least(scrimmage, 100) * r["bonus_rush_rec_yd_100"]
         + _at_least(scrimmage, 200) * r["bonus_rush_rec_yd_200"]
+        + kicking_points(r)
+        + defense_points(r)
+    )
+
+
+def kicking_points(r: dict[str, float]) -> pl.Expr:
+    fg50, fg60 = _c("fgm_50_59"), _c("fgm_60p")
+    made = _c("fgm_0_19") + _c("fgm_20_29") + _c("fgm_30_39") + _c("fgm_40_49") + fg50 + fg60
+    return (
+        _c("fgm_0_19") * r["fgm_0_19"]
+        + _c("fgm_20_29") * r["fgm_20_29"]
+        + _c("fgm_30_39") * r["fgm_30_39"]
+        + _c("fgm_40_49") * r["fgm_40_49"]
+        + (fg50 + fg60) * r["fgm_50p"]
+        + fg50 * r["fgm_50_59"]
+        + fg60 * r["fgm_60p"]
+        + made * r["fgm"]
+        + _c("fgm_yds") * r["fgm_yds"]
+        + _c("fgmiss") * r["fgmiss"]
+        + _c("xpm") * r["xpm"]
+        + _c("xpmiss") * r["xpmiss"]
+    )
+
+
+def _bracket(value: pl.Expr, brackets: tuple[tuple[str, int], ...], r: dict[str, float]) -> pl.Expr:
+    """Points for the bracket `value` falls in (brackets sorted by lower bound)."""
+    expr = pl.lit(0.0)
+    for key, low in brackets:  # later (higher) brackets override earlier ones
+        expr = pl.when(value >= low).then(pl.lit(r[key])).otherwise(expr)
+    return expr
+
+
+def defense_points(r: dict[str, float]) -> pl.Expr:
+    """Team-defense scoring; points/yards-allowed brackets only for DEF rows that have them."""
+    is_def = pl.col("position") == "DEF"
+    allowed = pl.when(is_def & pl.col("pts_allow").is_not_null()).then(
+        _bracket(pl.col("pts_allow"), PTS_ALLOW, r)
+    ).otherwise(0.0) + pl.when(is_def & pl.col("yds_allow").is_not_null()).then(
+        _bracket(pl.col("yds_allow"), YDS_ALLOW, r)
+    ).otherwise(0.0)
+    return (
+        _c("def_sack") * r["sack"]
+        + _c("def_int") * r["int"]
+        + _c("def_fum_rec") * r["fum_rec"]
+        + _c("def_ff") * r["ff"]
+        + _c("def_td") * r["def_td"]
+        + _c("def_st_td") * r["def_st_td"]
+        + _c("def_safe") * r["safe"]
+        + _c("def_blk_kick") * r["blk_kick"]
+        + _c("def_2pt") * r["def_2pt"]
+        + allowed
     )
 
 
 def with_stat_columns(stats: pl.DataFrame) -> pl.DataFrame:
-    """Add any stat column the rules read but `stats` lacks (older rows/fixtures) as 0."""
-    missing = [c for c in STAT_COLUMNS if c not in stats.columns]
-    return stats.with_columns(pl.lit(0, pl.Int32).alias(c) for c in missing) if missing else stats
+    """Add any stat column the rules read but `stats` lacks (older rows/fixtures): counts as 0,
+    points/yards allowed as null (no bracket unless the game was actually recorded)."""
+    missing = [pl.lit(0, pl.Int32).alias(c) for c in STAT_COLUMNS if c not in stats.columns]
+    missing += [
+        pl.lit(None, pl.Int32).alias(c)
+        for c in ("pts_allow", "yds_allow")
+        if c not in stats.columns
+    ]
+    return stats.with_columns(missing) if missing else stats
 
 
 def score(stats: pl.DataFrame, rules: dict[str, float]) -> pl.DataFrame:

@@ -4,17 +4,12 @@ from __future__ import annotations
 
 import polars as pl
 
-from ingest.nflverse import STATS_COLUMNS
+from ingest.nflverse import INT_STATS, STATS_COLUMNS
 from scoring.rules import HALF_PPR, score
 from signals.schedule import Schedule
 
-INT_COLS = {
-    "pass_att", "pass_cmp", "pass_yds", "pass_td", "interceptions", "carries", "rush_yds",
-    "rush_td", "targets", "receptions", "rec_yds", "rec_td", "air_yards", "rz_carries",
-    "rz_targets", "gl_carries", "rz_td", "fumbles_lost", "two_pt", "snaps", "routes",
-    "pass_fd", "rush_fd", "rec_fd", "fumbles", "sacks_taken", "pass_int_td",
-    "pass_2pt", "rush_2pt", "rec_2pt",
-}  # fmt: skip
+# every integer stat defaults to 0; points/yards allowed stay null unless a DEF row sets them
+INT_COLS = INT_STATS - {"pts_allow", "yds_allow"}
 
 
 def stat_row(player_id: str, position: str, season: int, week: int, team: str = "AAA", **kw):
@@ -31,6 +26,8 @@ def stat_row(player_id: str, position: str, season: int, week: int, team: str = 
         "air_yards_share": None,
         "wopr": None,
         "epa_total": 0.0,
+        "pts_allow": None,
+        "yds_allow": None,
     }
     row.update(kw)
     return row

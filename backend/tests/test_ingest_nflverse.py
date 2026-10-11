@@ -4,7 +4,9 @@ from ingest.nflverse import (
     build_player_week_stats,
     pick_sixes_from_pbp,
     red_zone_from_pbp,
+    transform_kicker_stats,
     transform_schedule,
+    transform_team_defense,
 )
 from tests.conftest import load_parquet
 
@@ -115,3 +117,46 @@ def test_weekly_stats_split_two_pointers_and_first_downs():
     assert (row["pass_2pt"], row["rush_2pt"], row["two_pt"]) == (1, 1, 2)
     assert (row["pass_fd"], row["rush_fd"], row["sacks_taken"], row["fumbles"]) == (11, 1, 3, 2)
     assert row["pass_int_td"] == 0
+
+
+def test_kicker_transform_maps_sleeper_terms():
+    raw = pl.DataFrame(
+        {
+            "season_type": ["REG", "REG"], "position": ["K", "WR"], "player_id": ["k1", "w1"],
+            "season": [2026, 2026], "week": [3, 3], "game_id": ["g", "g"],
+            "team": ["LA", "LA"], "opponent_team": ["SF", "SF"],
+            "fg_made_40_49": [2, 0], "fg_made_60_": [1, 0], "fg_missed": [1, 0],
+            "fg_made_distance": [152, 0], "pat_made": [3, 0], "pat_missed": [0, 0],
+        }
+    )  # fmt: skip
+    out = transform_kicker_stats(raw)
+    assert out.height == 1
+    row = out.row(0, named=True)
+    assert row["team"] == "LAR" and row["opponent"] == "SF"
+    assert (row["fgm_40_49"], row["fgm_60p"], row["fgmiss"], row["fgm_yds"], row["xpm"]) == (
+        2, 1, 1, 152, 3,
+    )  # fmt: skip
+    assert row["fgm_0_19"] == 0  # column absent in this release → 0
+
+
+def test_team_defense_joins_opponent_score_and_yards():
+    team = pl.DataFrame(
+        {
+            "season_type": ["REG", "REG"], "season": [2026, 2026], "week": [1, 1],
+            "game_id": ["g1", "g1"], "team": ["LA", "SF"], "opponent_team": ["SF", "LA"],
+            "def_sacks": [4, 1], "def_interceptions": [1, 0], "fumble_recovery_opp": [1, 0],
+            "def_tds": [1, 0], "special_teams_tds": [0, 1], "def_safeties": [0, 0],
+            "def_fg_blocks": [1, 0], "def_punt_blocks": [0, 0], "def_pat_blocks": [0, 0],
+            "passing_yards": [250, 180], "sack_yards_lost": [5, 30], "rushing_yards": [120, 60],
+        }
+    )  # fmt: skip
+    games = pl.DataFrame(
+        {"season": [2026], "week": [1], "home_team": ["LAR"], "away_team": ["SF"],
+         "home_score": [27], "away_score": [10]}
+    )  # fmt: skip
+    rows = {r["player_id"]: r for r in transform_team_defense(team, games).iter_rows(named=True)}
+    rams = rows["sl:LAR"]
+    assert rams["pts_allow"] == 10  # SF scored 10
+    assert rams["yds_allow"] == 180 - 30 + 60  # SF's net yards
+    assert (rams["def_sack"], rams["def_int"], rams["def_td"], rams["def_blk_kick"]) == (4, 1, 1, 1)
+    assert rows["sl:SF"]["pts_allow"] == 27 and rows["sl:SF"]["def_st_td"] == 1

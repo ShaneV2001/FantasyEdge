@@ -30,7 +30,13 @@ STATS_COLUMNS = [
     "fumbles_lost", "two_pt", "epa_total",
     "pass_fd", "rush_fd", "rec_fd", "fumbles", "sacks_taken", "pass_int_td",
     "pass_2pt", "rush_2pt", "rec_2pt",
+    "fgm_0_19", "fgm_20_29", "fgm_30_39", "fgm_40_49", "fgm_50_59", "fgm_60p", "fgmiss",
+    "fgm_yds", "xpm", "xpmiss",
+    "def_sack", "def_int", "def_fum_rec", "def_ff", "def_td", "def_st_td", "def_safe",
+    "def_blk_kick", "def_2pt", "pts_allow", "yds_allow",
 ]  # fmt: skip
+
+SKILL = ("QB", "RB", "WR", "TE")
 
 
 def norm_team(col: str) -> pl.Expr:
@@ -48,9 +54,7 @@ def _opt(df: pl.DataFrame, col: str) -> pl.Expr:
 
 def transform_weekly_stats(stats: pl.DataFrame) -> pl.DataFrame:
     """nflverse `load_player_stats` (week level) → player_week_stats columns (no RZ/snaps yet)."""
-    df = stats.filter(
-        (pl.col("season_type") == "REG") & pl.col("position").is_in(["QB", "RB", "WR", "TE"])
-    )
+    df = stats.filter((pl.col("season_type") == "REG") & pl.col("position").is_in(SKILL))
     return df.select(
         pl.col("player_id"),
         pl.col("season").cast(pl.Int32),
@@ -95,6 +99,84 @@ def transform_weekly_stats(stats: pl.DataFrame) -> pl.DataFrame:
         _opt(df, "passing_2pt_conversions").cast(pl.Int32).alias("pass_2pt"),
         _opt(df, "rushing_2pt_conversions").cast(pl.Int32).alias("rush_2pt"),
         _opt(df, "receiving_2pt_conversions").cast(pl.Int32).alias("rec_2pt"),
+    )
+
+
+def _game_keys(df: pl.DataFrame) -> list[pl.Expr]:
+    return [
+        pl.col("season").cast(pl.Int32),
+        pl.col("week").cast(pl.Int32),
+        pl.col("game_id"),
+        norm_team("team").alias("team"),
+        norm_team("opponent_team").alias("opponent"),
+    ]
+
+
+KICKING = (
+    ("fg_made_0_19", "fgm_0_19"), ("fg_made_20_29", "fgm_20_29"),
+    ("fg_made_30_39", "fgm_30_39"), ("fg_made_40_49", "fgm_40_49"),
+    ("fg_made_50_59", "fgm_50_59"), ("fg_made_60_", "fgm_60p"),
+    ("fg_missed", "fgmiss"), ("fg_made_distance", "fgm_yds"),
+    ("pat_made", "xpm"), ("pat_missed", "xpmiss"),
+)  # fmt: skip
+
+
+def transform_kicker_stats(stats: pl.DataFrame) -> pl.DataFrame:
+    """Kickers' weekly lines (nflverse player stats) in Sleeper's kicking stat terms."""
+    df = stats.filter((pl.col("season_type") == "REG") & (pl.col("position") == "K"))
+    return df.select(
+        pl.col("player_id"),
+        *_game_keys(df),
+        *[_opt(df, src).cast(pl.Int32).alias(dst) for src, dst in KICKING],
+    )
+
+
+def defense_id(team: pl.Expr) -> pl.Expr:
+    """Team defenses use Sleeper's DEF player id (the team code) under the internal sl: prefix."""
+    return pl.lit("sl:") + team
+
+
+def transform_team_defense(team_stats: pl.DataFrame, games: pl.DataFrame) -> pl.DataFrame:
+    """One DEF row per team-game: takeaways and scores from nflverse team stats; points and
+    (net) yards allowed from the opponent's score and offensive line."""
+    df = team_stats.filter(pl.col("season_type") == "REG")
+    own = df.select(
+        *_game_keys(df),
+        _opt(df, "def_sacks").cast(pl.Int32).alias("def_sack"),
+        _opt(df, "def_interceptions").cast(pl.Int32).alias("def_int"),
+        _opt(df, "fumble_recovery_opp").cast(pl.Int32).alias("def_fum_rec"),
+        _opt(df, "def_fumbles_forced").cast(pl.Int32).alias("def_ff"),
+        _opt(df, "def_tds").cast(pl.Int32).alias("def_td"),
+        _opt(df, "special_teams_tds").cast(pl.Int32).alias("def_st_td"),
+        _opt(df, "def_safeties").cast(pl.Int32).alias("def_safe"),
+        (_opt(df, "def_fg_blocks") + _opt(df, "def_punt_blocks") + _opt(df, "def_pat_blocks"))
+        .cast(pl.Int32)
+        .alias("def_blk_kick"),
+        _opt(df, "def_2pt_made").cast(pl.Int32).alias("def_2pt"),
+    )
+    offense = df.select(
+        pl.col("season").cast(pl.Int32),
+        pl.col("week").cast(pl.Int32),
+        norm_team("team").alias("opponent"),
+        (_opt(df, "passing_yards") - _opt(df, "sack_yards_lost") + _opt(df, "rushing_yards"))
+        .cast(pl.Int32)
+        .alias("yds_allow"),
+    )
+    scores = pl.concat(
+        [
+            games.select("season", "week", pl.col("home_team").alias("team"),
+                         pl.col("away_score").alias("pts_allow")),
+            games.select("season", "week", pl.col("away_team").alias("team"),
+                         pl.col("home_score").alias("pts_allow")),
+        ]
+    ).with_columns(
+        pl.col("season").cast(pl.Int32), pl.col("week").cast(pl.Int32),
+        pl.col("pts_allow").cast(pl.Int32),
+    )  # fmt: skip
+    return (
+        own.join(offense, on=["season", "week", "opponent"], how="left")
+        .join(scores, on=["season", "week", "team"], how="left")
+        .with_columns(defense_id(pl.col("team")).alias("player_id"))
     )
 
 
@@ -191,7 +273,31 @@ def build_player_week_stats(
     for col, dtype in (("snaps", pl.Int32), ("snap_pct", pl.Float64), ("routes", pl.Int32)):
         if col not in base.columns:
             base = base.with_columns(pl.lit(None, dtype).alias(col))
-    return base.select(STATS_COLUMNS).unique(keys, keep="last")
+    return with_stats_columns(base).unique(keys, keep="last")
+
+
+INT_STATS = {c for c in STATS_COLUMNS if c not in {"player_id", "game_id", "team", "opponent"}}
+FLOAT_STATS = {"snap_pct", "target_share", "air_yards_share", "wopr", "epa_total"}
+
+
+def with_stats_columns(df: pl.DataFrame) -> pl.DataFrame:
+    """Select STATS_COLUMNS, adding any a partial frame (kickers, defenses) lacks as null."""
+
+    def dtype(c: str) -> pl.DataType:
+        return pl.Float64 if c in FLOAT_STATS else pl.Int32 if c in INT_STATS else pl.Utf8
+
+    missing = [pl.lit(None, dtype(c)).alias(c) for c in STATS_COLUMNS if c not in df.columns]
+    return df.with_columns(missing).select(STATS_COLUMNS)
+
+
+def build_kicker_and_defense(
+    stats: pl.DataFrame, team_stats: pl.DataFrame | None, games: pl.DataFrame
+) -> pl.DataFrame:
+    """K and DEF rows in player_week_stats shape (no snaps/usage columns)."""
+    frames = [with_stats_columns(transform_kicker_stats(stats))]
+    if team_stats is not None:
+        frames.append(with_stats_columns(transform_team_defense(team_stats, games)))
+    return pl.concat(frames).unique(["player_id", "season", "week"], keep="last")
 
 
 def transform_schedule(sched: pl.DataFrame) -> pl.DataFrame:
@@ -232,12 +338,14 @@ def load_all(seasons: list[int], id_map: pl.DataFrame) -> dict[str, pl.DataFrame
     import nflreadpy as nfl
 
     stats = nfl.load_player_stats(seasons, summary_level="week")
+    team_stats = nfl.load_team_stats(seasons, summary_level="week")
     pbp = nfl.load_pbp(seasons)
     snaps = nfl.load_snap_counts(seasons)
-    sched = nfl.load_schedules(seasons)
+    games = transform_schedule(nfl.load_schedules(seasons))
     inj = nfl.load_injuries(seasons)
+    skill = build_player_week_stats(stats, pbp, snaps_by_gsis(snaps, id_map))
     return {
-        "player_week_stats": build_player_week_stats(stats, pbp, snaps_by_gsis(snaps, id_map)),
-        "nfl_games": transform_schedule(sched),
+        "player_week_stats": pl.concat([skill, build_kicker_and_defense(stats, team_stats, games)]),
+        "nfl_games": games,
         "injuries": transform_injuries(inj),
     }

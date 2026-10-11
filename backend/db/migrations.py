@@ -25,6 +25,31 @@ MIGRATIONS: list[tuple[int, str]] = [
         "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rush_2pt INTEGER;"
         "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rec_2pt INTEGER;",
     ),
+    # v4: kicker and team-defense stat lines (DEF rows are keyed sl:<TEAM>)
+    (
+        4,
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS fgm_0_19 INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS fgm_20_29 INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS fgm_30_39 INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS fgm_40_49 INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS fgm_50_59 INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS fgm_60p INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS fgmiss INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS fgm_yds INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS xpm INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS xpmiss INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS def_sack INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS def_int INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS def_fum_rec INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS def_ff INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS def_td INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS def_st_td INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS def_safe INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS def_blk_kick INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS def_2pt INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS pts_allow INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS yds_allow INTEGER;",
+    ),
 ]
 
 

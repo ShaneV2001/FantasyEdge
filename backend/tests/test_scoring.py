@@ -41,7 +41,9 @@ def test_from_sleeper_and_profile_id_stable():
     rules = from_sleeper(load_json("sleeper_league.json")["scoring_settings"])
     assert rules["rec"] == 0.5 and rules["pass_td"] == 4
     assert describe(rules) == "Half PPR"
-    assert profile_id(rules) == profile_id(dict(HALF_PPR))
+    assert {k: rules[k] for k in HALF_PPR} == HALF_PPR  # offense matches half PPR exactly…
+    assert rules["xpm"] == 0 and rules["sack"] == 0  # …and unlisted K/DEF keys score nothing
+    assert profile_id(rules) == profile_id(dict(rules))
     assert profile_id(PRESETS["ppr"]) != profile_id(HALF_PPR)
 
 
@@ -108,3 +110,41 @@ def test_score_tolerates_rows_without_new_columns():
         .with_columns(pl.lit("WR").alias("position"))
     )
     assert score(stats, HALF_PPR)["fp"].null_count() == 0
+
+
+def _k_or_def(rules, position, **stats):
+    return stats_frame([stat_row("x", position, 2026, 1, **stats)], rules)["fp"][0]
+
+
+def test_kicker_line_with_sleeper_defaults():
+    # 2 short FGs (3 each), one 45-yarder (4), one 52-yarder (5), a miss (-1), 3 PATs (3), 1 missed PAT
+    pts = _k_or_def(HALF_PPR, "K", fgm_20_29=1, fgm_30_39=1, fgm_40_49=1, fgm_50_59=1,
+                    fgmiss=1, xpm=3, xpmiss=1)  # fmt: skip
+    assert pts == pytest.approx(3 + 3 + 4 + 5 - 1 + 3 - 1)
+
+
+def test_kicker_distance_scoring():
+    rules = dict.fromkeys(DEFAULTS, 0.0) | {"fgm_yds": 0.1, "fgm": 1.0, "fgm_60p": 2.0}
+    assert _k_or_def(rules, "K", fgm_30_39=1, fgm_60p=1, fgm_yds=95) == pytest.approx(9.5 + 2 + 2)
+
+
+@pytest.mark.parametrize(
+    "pts_allow, bracket_pts",
+    [(0, 10), (1, 7), (6, 7), (7, 4), (13, 4), (14, 1), (20, 1), (21, 0), (27, 0), (28, -1),
+     (34, -1), (35, -4), (52, -4)],
+)  # fmt: skip
+def test_points_allowed_brackets(pts_allow, bracket_pts):
+    assert _k_or_def(HALF_PPR, "DEF", pts_allow=pts_allow, yds_allow=320) == bracket_pts
+
+
+def test_defense_line_and_yards_brackets():
+    rules = HALF_PPR | {"yds_allow_300_349": -1.0}
+    pts = _k_or_def(rules, "DEF", def_sack=3, def_int=2, def_fum_rec=1, def_td=1, def_safe=1,
+                    def_blk_kick=1, def_st_td=1, pts_allow=10, yds_allow=310)  # fmt: skip
+    assert pts == pytest.approx(3 + 4 + 2 + 6 + 2 + 2 + 6 + 4 - 1)
+
+
+def test_brackets_only_apply_to_recorded_defense_games():
+    # a WR (or a DEF row without a score) never earns shutout points
+    assert _k_or_def(HALF_PPR, "WR") == 0
+    assert _k_or_def(HALF_PPR, "DEF", def_sack=2) == 2

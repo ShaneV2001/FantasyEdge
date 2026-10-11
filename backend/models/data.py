@@ -17,7 +17,8 @@ from signals.schedule import Schedule, build_schedule
 
 log = logging.getLogger("ff_edge.backtest")
 
-FANTASY_POSITIONS = ("QB", "RB", "WR", "TE")
+FANTASY_POSITIONS = ("QB", "RB", "WR", "TE", "K")
+CACHE_VERSION = 2  # bump when the cached frame's columns change (v2: kickers and defenses)
 
 
 def _positions(raw_stats: pl.DataFrame) -> pl.DataFrame:
@@ -28,10 +29,26 @@ def _positions(raw_stats: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def build_season(raw_stats: pl.DataFrame, pbp: pl.DataFrame | None) -> pl.DataFrame:
+def build_season(
+    raw_stats: pl.DataFrame,
+    pbp: pl.DataFrame | None,
+    team_stats: pl.DataFrame | None = None,
+    games: pl.DataFrame | None = None,
+) -> pl.DataFrame:
     """player_week_stats rows (no snaps: the projections don't use them) plus `position`."""
     weekly = nflverse.build_player_week_stats(raw_stats, pbp, None)
-    return weekly.join(_positions(raw_stats), on="player_id", how="inner")
+    if games is not None:
+        weekly = pl.concat(
+            [weekly, nflverse.build_kicker_and_defense(raw_stats, team_stats, games)]
+        )
+    positions = _positions(raw_stats)
+    defenses = (
+        weekly.filter(pl.col("player_id").str.starts_with("sl:"))
+        .select("player_id")
+        .unique()
+        .with_columns(pl.lit("DEF").alias("position"))
+    )
+    return weekly.join(pl.concat([positions, defenses]), on="player_id", how="inner")
 
 
 def _download(season: int) -> tuple[pl.DataFrame, pl.DataFrame]:
@@ -39,9 +56,10 @@ def _download(season: int) -> tuple[pl.DataFrame, pl.DataFrame]:
 
     log.info("downloading nflverse %d (player stats, play-by-play, schedule)…", season)
     raw = nfl.load_player_stats([season], summary_level="week")
+    team = nfl.load_team_stats([season], summary_level="week")
     pbp = nfl.load_pbp([season])
     games = nflverse.transform_schedule(nfl.load_schedules([season]))
-    return build_season(raw, pbp), games
+    return build_season(raw, pbp, team, games), games
 
 
 def load_seasons(
@@ -52,7 +70,7 @@ def load_seasons(
     stats, schedules = [], {}
     for season in seasons:
         s_path, g_path = (
-            cache_dir / f"{season}_stats.parquet",
+            cache_dir / f"{season}_stats_v{CACHE_VERSION}.parquet",
             cache_dir / f"{season}_games.parquet",
         )
         if refresh or not (s_path.exists() and g_path.exists()):

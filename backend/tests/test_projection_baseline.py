@@ -89,3 +89,30 @@ def test_replacement_ranks_count_flex_shares():
     assert ranks["RB"] == 26  # (2 + 0.45 + 0.05) x 10 = 25 starters
     assert ranks["TE"] == 12  # (1 + 0.10) x 10 = 11 starters
     assert "K" not in ranks
+
+
+def test_defenses_project_from_their_own_games():
+    rows = [
+        stat_row(f"sl:{t}", "DEF", 2026, w, t, def_sack=s, pts_allow=p, yds_allow=300)
+        for t, s, p in (("AAA", 5, 3), ("BBB", 1, 31))
+        for w in range(1, 7)
+    ]
+    rows += [stat_row("k", "K", 2026, w, "AAA", fgm_30_39=2, xpm=2) for w in range(1, 7)]
+    players = _players(
+        [("sl:AAA", "DEF", "AAA", None, None), ("sl:BBB", "DEF", "BBB", None, None),
+         ("k", "K", "AAA", None, None)]
+    )  # fmt: skip
+    sched = schedule(["AAA", "BBB"], completed_through=6)
+    inp = ProjectionInputs(stats_frame(rows), players, sched, HALF_PPR, 2026, 7)
+    raw = BaselineEngine(no_usage_prior_games=0).per_game(inp)
+    df = {r["player_id"]: r for r in raw.iter_rows(named=True)}
+    assert df["sl:AAA"]["ppg"] == pytest.approx(5 + 7)  # 5 sacks + 1-6 pts allowed bracket
+    assert df["sl:BBB"]["ppg"] == pytest.approx(1 - 1)  # 1 sack + 28-34 bracket
+    assert df["k"]["ppg"] == pytest.approx(8.0) and df["k"]["method"] == "baseline"
+    assert df["k"]["usage_ppg"] is None
+    # with the default shrinkage both defenses move toward the DEF average (6) but keep order
+    shrunk = {
+        r["player_id"]: r["ppg"] for r in BaselineEngine().per_game(inp).iter_rows(named=True)
+    }
+    assert 6 < shrunk["sl:AAA"] < 12 and 0 < shrunk["sl:BBB"] < 6
+    assert shrunk["sl:AAA"] - 6 == pytest.approx(6 * 6 / (6 + 128), abs=0.01)

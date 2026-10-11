@@ -20,6 +20,11 @@ from scoring.rules import normalize
 
 W_L3, W_SEASON, W_USAGE = 0.5, 0.3, 0.2
 SHRINK_GAMES = 4
+# K/DEF: weekly scoring is mostly noise (2023-25 weekly Spearman ~0.05), so a team's average is
+# pulled toward the positional average as if it had this many extra average games. 128 was the
+# best training value in the backtest and ties a flat positional average on 2025, while
+# still following the league's own K/DEF scoring.
+NO_USAGE_PRIOR_GAMES = 128
 Z90 = 1.2816
 DEFAULT_PPG = {"K": 8.0, "DEF": 7.0}
 
@@ -46,13 +51,15 @@ def usage_points_expr(inputs: ProjectionInputs, hist: pl.DataFrame) -> pl.Expr:
             expr = pl.when(pl.col("position") == pos).then(getattr(pr, attr)).otherwise(expr)
         return expr
 
-    return (
+    usage = (
         pl.col("targets").fill_null(0) * per_pos("fp_per_target")
         + pl.col("carries").fill_null(0) * per_pos("fp_per_carry")
         + pl.col("pass_att").fill_null(0) * per_pos("fp_per_att")
         + pl.col("pass_att").fill_null(0) * per_pos("pass_td_rate") * r["pass_td"]
         + expected_td_expr(rates) * td_pts
     )
+    # Only positions with an opportunity model (not K/DEF) get a usage-implied estimate.
+    return pl.when(pl.col("position").is_in(list(rates))).then(usage)
 
 
 def history_frame(inputs: ProjectionInputs) -> pl.DataFrame:
@@ -96,7 +103,24 @@ class BaselineEngine:
     w_season: float = W_SEASON
     w_usage: float = W_USAGE
     shrink_games: int = SHRINK_GAMES
+    no_usage_prior_games: float = NO_USAGE_PRIOR_GAMES
     run_id: str = "baseline-v1"
+
+    def _shrink_no_usage(self, agg: pl.DataFrame, hist: pl.DataFrame) -> pl.DataFrame:
+        """Pull K/DEF (no usage model) toward their positional average by sample size."""
+        k = self.no_usage_prior_games
+        pos_mean = hist.group_by("position").agg(pl.col("fp").mean().alias("pos_mean"))
+        n = pl.col("games_played") + pl.col("prior_games")
+        return (
+            agg.join(pos_mean, on="position", how="left")
+            .with_columns(
+                pl.when(pl.col("usage_ppg").is_null() & pl.col("pos_mean").is_not_null())
+                .then((n * pl.col("ppg") + k * pl.col("pos_mean")) / (n + k))
+                .otherwise(pl.col("ppg"))
+                .alias("ppg")
+            )
+            .drop("pos_mean")
+        )
 
     def per_game(self, inputs: ProjectionInputs) -> pl.DataFrame:
         s = inputs.season
@@ -127,6 +151,7 @@ class BaselineEngine:
             .otherwise(form + self.w_usage * pl.col("usage_ppg"))
             .alias("ppg")
         )
+        agg = self._shrink_no_usage(agg, hist)
         agg = add_band(agg).with_columns(pl.lit("baseline").alias("method"))
         projected = agg.select(
             "player_id", "ppg", "p10", "p90", "l3_ppg", "season_ppg", "usage_ppg",
