@@ -2,6 +2,7 @@
 
     python -m models.run backtest [--seasons 2023,2024,2025] [--scoring half_ppr|ppr|standard]
     python -m models.run regression-eval [--seasons ...]
+    python -m models.run tune [--seasons ...]   (last season is the holdout)
 
 Downloads (once, then cached) the seasons plus the season before the first, runs the walk-forward
 backtest for every engine, prints a comparison and records one `model_runs` row per engine.
@@ -23,6 +24,7 @@ from db.conn import connect, upsert
 from models.backtest import metrics, metrics_json, walk_forward
 from models.data import load_seasons
 from models.regression_eval import flag_outcomes, summarize
+from models.tune import tune_thresholds, tune_weights
 from projections.baseline import BaselineEngine
 from projections.simple import Last3Engine, SeasonPpgEngine
 from scoring.rules import PRESETS
@@ -125,6 +127,31 @@ def cmd_regression_eval(args: argparse.Namespace) -> None:
         )
 
 
+def cmd_tune(args: argparse.Namespace) -> None:
+    seasons = _seasons(args.seasons)
+    train, valid = seasons[:-1], seasons[-1:]
+    rules = PRESETS[args.scoring]
+    stats, schedules = load_seasons([seasons[0] - 1, *seasons], backtest_dir(), args.refresh)
+
+    print(f"\nTuning on {train}, validating on {valid} ({args.scoring})")
+    w = tune_weights(stats, schedules, rules, train, valid)
+    d, b = BaselineEngine(), w.best
+    print("\nBaseline weights (4-week MAE, fantasy-relevant players; lower is better)")
+    print(f"  default  l3={d.w_l3} season={d.w_season} usage={d.w_usage} shrink={d.shrink_games}")
+    print(f"  best     l3={b.w_l3} season={b.w_season} usage={b.w_usage} shrink={b.shrink_games}")
+    print(f"  train    {w.train_default:.3f} -> {w.train_best:.3f}")
+    print(
+        f"  holdout  {w.valid_default:.3f} -> {w.valid_best:.3f}  ({'better' if w.improves else 'not better'})"
+    )
+
+    print("\nFlag thresholds (total excess PPG = lift x flags; higher is better)")
+    for r in tune_thresholds(stats, rules, train, valid):
+        (vd, nd), (vb, nb) = r["valid_default"], r["valid_best"]
+        print(f"  {r['kind']:<17} {r['field']}: default {r['default']} -> best {r['best']}")
+        print(f"    train by value: {r['train']}")
+        print(f"    holdout: default {vd:.1f} ({nd} flags) vs best {vb:.1f} ({nb} flags)")
+
+
 def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--seasons", help="comma-separated target seasons (default: last three)")
     p.add_argument("--scoring", choices=sorted(PRESETS), default="half_ppr")
@@ -141,6 +168,9 @@ def main(argv: list[str] | None = None) -> None:
     r = sub.add_parser("regression-eval", help="do regression flags predict regression?")
     _common(r)
     r.set_defaults(fn=cmd_regression_eval)
+    t = sub.add_parser("tune", help="search baseline weights and flag thresholds (holdout-checked)")
+    _common(t)
+    t.set_defaults(fn=cmd_tune)
     args = p.parse_args(argv)
     args.fn(args)
 
