@@ -12,6 +12,7 @@ from signals.byes import ByeWeekRow
 from signals.lineup import SLOT_ELIGIBILITY, fit_to_slots
 from signals.team import RosMath, TeamProfile
 from signals.trade import TradeEvaluation
+from signals.verdict import GAP_MIN_POINTS, GAP_MIN_SHARE
 from signals.verdict import threshold as verdict_threshold
 
 URGENCY_WEIGHT = {
@@ -65,6 +66,12 @@ class AdvisorInputs:
     regression_messages: Mapping[str, list[str]]
     market_label: str = "Market"
     playoff_label: str = "weeks 15-17"
+    waiver_min_gain: float = WAIVER_MIN_GAIN
+    start_sit_min_gain: float = START_SIT_MIN_GAIN
+    easy_schedule: float = EASY_SCHEDULE
+    tough_schedule: float = TOUGH_SCHEDULE
+    gap_min_points: float = GAP_MIN_POINTS
+    gap_min_share: float = GAP_MIN_SHARE
 
 
 def _name(players: Mapping[str, Mapping], pid: str) -> str:
@@ -108,7 +115,7 @@ def lineup_actions(inp: AdvisorInputs) -> list[Action]:
                 break
     for add, drop in pairs:
         gain = pts[add] - pts[drop]
-        if gain < START_SIT_MIN_GAIN:
+        if gain < inp.start_sit_min_gain:
             continue
         a, d = inp.players[add], inp.players[drop]
         reasons = [f"Projected {pts[add]:.1f} vs {pts[drop]:.1f} points this week (+{gain:.1f})."]
@@ -116,7 +123,7 @@ def lineup_actions(inp: AdvisorInputs) -> list[Action]:
             reasons.append(f"{d['name']} is on bye in week {inp.week}.")
         elif d.get("injury_status"):
             reasons.append(f"{d['name']} is listed {d['injury_status']}.")
-        if a.get("ease_next4") and a["ease_next4"] >= EASY_SCHEDULE:
+        if a.get("ease_next4") and a["ease_next4"] >= inp.easy_schedule:
             reasons.append(f"{a['name']} has a favourable matchup.")
         actions.append(
             Action("Lineup", f"Start {a['name']} over {d['name']}", reasons, "this_week",
@@ -177,12 +184,15 @@ def _best_fa_for_slots(inp: AdvisorInputs, labels: Sequence[str], week: int) -> 
     return max(cands, key=lambda p: inp.players[p].get("ppg") or 0, default=None)
 
 
-def _gap_confidence(p: Mapping) -> str:
+def _gap_confidence(p: Mapping, inp: AdvisorInputs) -> str:
     """How far past the buy/sell line the value gap is."""
     gap, implied = p.get("value_gap"), p.get("market_implied_points")
     if gap is None or not implied:
         return "low"
-    ratio = abs(gap) / verdict_threshold(implied)
+    t = verdict_threshold(implied, inp.gap_min_points, inp.gap_min_share)
+    if t <= 0:
+        return "high"  # any nonzero gap is past a zero line
+    ratio = abs(gap) / t
     return "high" if ratio >= 2 else "medium" if ratio >= 1.4 else "low"
 
 
@@ -203,14 +213,14 @@ def sell_actions(inp: AdvisorInputs) -> list[Action]:
         bye = p.get("bye_week")
         if bye is not None and inp.week <= bye <= inp.week + 3:
             reasons.append(f"Bye in week {bye} is coming up.")
-        if p.get("ease_playoffs") and p["ease_playoffs"] <= TOUGH_SCHEDULE:
+        if p.get("ease_playoffs") and p["ease_playoffs"] <= inp.tough_schedule:
             reasons.append(
                 f"Tough fantasy-playoff schedule, {inp.playoff_label} "
                 f"(index {p['ease_playoffs']:.2f})."
             )
         actions.append(
             Action("Sell", f"Sell high on {p['name']}", reasons, trade_urgency(inp),
-                   _gap_confidence(p), _gap_impact(p), [pid])
+                   _gap_confidence(p, inp), _gap_impact(p), [pid])
         )  # fmt: skip
     return actions
 
@@ -238,14 +248,14 @@ def buy_actions(inp: AdvisorInputs) -> list[Action]:
             reasons.append(f"Fills your weakest spot: {p['position']}.")
             if prof and p["position"] in prof.surplus:
                 reasons.append(f"{inp.team_names[tid]} has {p['position']} depth to spare.")
-            if p.get("ease_playoffs") and p["ease_playoffs"] >= EASY_SCHEDULE:
+            if p.get("ease_playoffs") and p["ease_playoffs"] >= inp.easy_schedule:
                 reasons.append(
                     f"Easy fantasy-playoff schedule, {inp.playoff_label} "
                     f"(index {p['ease_playoffs']:.2f})."
                 )
             actions.append(
                 Action("Buy", f"Buy {p['name']} ({inp.team_names[tid]})", reasons,
-                       trade_urgency(inp), _gap_confidence(p), _gap_impact(p), [pid], tid)
+                       trade_urgency(inp), _gap_confidence(p, inp), _gap_impact(p), [pid], tid)
             )  # fmt: skip
     return actions
 
@@ -291,7 +301,7 @@ def waiver_actions(inp: AdvisorInputs) -> list[Action]:
             continue
         b = inp.players[best]
         gain = (b.get("ppg") or 0) - worst_starter
-        if gain < WAIVER_MIN_GAIN:
+        if gain < inp.waiver_min_gain:
             continue
         reasons = [
             f"Projects {b['ppg']:.1f} ppg vs your weakest {pos} starter at {worst_starter:.1f}."

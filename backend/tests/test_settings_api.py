@@ -109,3 +109,10 @@ def test_verdict_settings_change_buy_targets(client):  # noqa: F811
     for p in pos.values():
         for tier in ("starter", "depth"):
             assert sum(r["tier"] == tier for r in p["buy"]) <= 3
+
+
+def test_zero_gap_settings_do_not_break_advice(client):  # noqa: F811
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    assert tc.put("/settings", json={"gap_min_points": 0, "gap_min_share": 0}).status_code == 200
+    assert tc.get(f"/team/{team_id}/advice").status_code == 200

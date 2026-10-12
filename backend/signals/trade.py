@@ -99,6 +99,8 @@ def evaluate(
     receive: Sequence[str],
     viable_ppg: Mapping[str, float] | None = None,
     market_label: str = "Market",
+    accept_gain: float = ACCEPT_GAIN,
+    lean_gain: float = LEAN_GAIN,
 ) -> TradeEvaluation:
     """Score a trade for both sides; with partner=None only your side is computed
     (a hypothetical deal, e.g. for a manual team or a player from another league)."""
@@ -128,11 +130,11 @@ def evaluate(
         )  # fmt: skip
 
     d = me.lineup_delta
-    if d >= ACCEPT_GAIN:
+    if d >= accept_gain:
         verdict = "accept"
-    elif d >= LEAN_GAIN:
+    elif d >= lean_gain:
         verdict = "lean_accept"
-    elif d > -LEAN_GAIN:
+    elif d > -lean_gain:
         verdict = "neutral"
     else:
         verdict = "decline"
@@ -194,6 +196,8 @@ def suggest(
     min_gain: float = 1.0,
     max_evals_per_partner: int = 150,
     market_label: str = "Market",
+    accept_gain: float = ACCEPT_GAIN,
+    lean_gain: float = LEAN_GAIN,
 ) -> list[TradeEvaluation]:
     """1-for-1 and 2-for-1 (both directions) deals where *both* lineups gain ROS points."""
     my_id, my_roster = my_team
@@ -243,7 +247,15 @@ def suggest(
         partner_hits.sort(key=lambda x: -(min(x[0], x[1]) + 0.5 * x[0]))
         for md, td, g, r in partner_hits[: MAX_PER_PARTNER * 3]:
             ev = evaluate(
-                math, players, my_team, (their_id, their_roster), g, r, market_label=market_label
+                math,
+                players,
+                my_team,
+                (their_id, their_roster),
+                g,
+                r,
+                market_label=market_label,
+                accept_gain=accept_gain,
+                lean_gain=lean_gain,
             )
             ev.score = round(min(md, td) + 0.5 * md, 2)
             ev.tags = [f"{len(g)}-for-{len(r)}"]

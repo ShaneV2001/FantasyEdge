@@ -109,3 +109,11 @@ def test_trade_advice_hidden_after_deadline(league):
     feed = adv.build_feed(inp)
     assert any(a.type == "Trade" for a in feed) and any(a.type == "Sell" for a in feed)
     assert all(a.urgency == "before_deadline" for a in feed if a.type in ("Trade", "Sell", "Buy"))
+
+
+def test_trade_verdict_lines_are_parameters(league):
+    players, rosters, math = league
+    args = (math, players, ("A", rosters["A"]), ("B", rosters["B"]), ["a_rb4"], ["b_wr4"])
+    assert evaluate(*args).verdict == "accept"  # A gains 78 ROS points (see test above)
+    assert evaluate(*args, accept_gain=100.0, lean_gain=50.0).verdict == "lean_accept"
+    assert evaluate(*args, accept_gain=1000.0, lean_gain=999.0).verdict == "neutral"

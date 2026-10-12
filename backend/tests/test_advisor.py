@@ -64,3 +64,31 @@ def test_advisor_follows_the_verdict_not_raw_flags():
     sells = adv.sell_actions(inp)
     assert [a.player_ids for a in sells] == [["b"]]
     assert sells[0].reasons[0] == "overvalued by 30 points." and sells[0].confidence == "high"
+
+
+def test_start_sit_minimum_gain_is_a_setting():
+    players = {
+        "qb": P("QB", "QB", 20),
+        "rb1": P("RB One", "RB", 15),
+        "rb2": P("RB Two", "RB", 6),
+        "rb3": P("RB Three", "RB", 14),
+        "k": P("Kicker", "K", 8),
+    }
+    sched = schedule(["AAA"], weeks=17)
+    inp = _inputs(players, list(players), ["qb", "rb1", "rb2", "k"], sched)
+    assert any(a.headline == "Start RB Three over RB Two" for a in adv.lineup_actions(inp))
+    inp.start_sit_min_gain = 100.0
+    assert not adv.lineup_actions(inp)
+
+
+def test_gap_confidence_follows_gap_settings_and_survives_zero():
+    players = {"qb": P("QB", "QB", 20)}
+    inp = _inputs(players, list(players), [], schedule(["AAA"], weeks=17))
+
+    def conf(gap):
+        return adv._gap_confidence({"value_gap": gap, "market_implied_points": 100.0}, inp)
+
+    assert (conf(25.0), conf(15.0), conf(5.0)) == ("high", "medium", "low")
+    inp.gap_min_points = 0.0
+    inp.gap_min_share = 0.0
+    assert conf(5.0) == "high"

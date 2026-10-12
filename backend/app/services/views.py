@@ -439,6 +439,8 @@ def evaluate_trade(
             receive,
             viable_ppg=ctx.replacement_ppg,
             market_label=market_label(ctx),
+            accept_gain=ctx.tuning.trade_accept_gain,
+            lean_gain=ctx.tuning.trade_lean_gain,
         )
     except ValueError as exc:  # signals/ stays app-agnostic and raises plain ValueError
         raise InvalidInput(str(exc)) from exc
@@ -460,6 +462,8 @@ def trade_ideas(ctx: LeagueContext, team_id: str) -> list[tr.TradeEvaluation]:
                 others,
                 use_market=ctx.market_source is not None,
                 market_label=market_label(ctx),
+                accept_gain=ctx.tuning.trade_accept_gain,
+                lean_gain=ctx.tuning.trade_lean_gain,
             )
     return ctx.memo[key]
 
@@ -500,6 +504,12 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
         regression_messages=msgs,
         market_label=market_label(ctx),
         playoff_label=ctx.league.playoff_label,
+        waiver_min_gain=ctx.tuning.waiver_min_gain,
+        start_sit_min_gain=ctx.tuning.start_sit_min_gain,
+        easy_schedule=ctx.tuning.easy_schedule,
+        tough_schedule=ctx.tuning.tough_schedule,
+        gap_min_points=ctx.tuning.gap_min_points,
+        gap_min_share=ctx.tuning.gap_min_share,
     )
     actions = adv.build_feed(inp)
     names = {t.team_id: t.team_name for t in ctx.teams}
