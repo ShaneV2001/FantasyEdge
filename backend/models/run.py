@@ -25,7 +25,7 @@ from db.conn import connect, upsert
 from models.backtest import metrics, metrics_json, walk_forward
 from models.data import load_seasons
 from models.regression_eval import flag_outcomes, summarize
-from models.tune import tune_matchups, tune_thresholds, tune_weights
+from models.tune import tune_matchups, tune_regression, tune_thresholds, tune_weights
 from projections.baseline import BaselineEngine
 from projections.simple import Last3Engine, SeasonPpgEngine
 from scoring.rules import PRESETS
@@ -172,6 +172,20 @@ def cmd_tune_matchups(args: argparse.Namespace) -> None:
         print(f"     best on train {r['best_train']:g} -> chosen {r['chosen']:g}\n")
 
 
+def cmd_tune_regression(args: argparse.Namespace) -> None:
+    seasons = _seasons(args.seasons)
+    train, valid = seasons[:-1], seasons[-1:]
+    stats, schedules = load_seasons([seasons[0] - 1, *seasons], backtest_dir(), args.refresh)
+    r = tune_regression(stats, schedules, PRESETS[args.scoring], train, valid)
+    print(f"Regression flags in the projection: 4-week MAE (relevant), tuned on {train}")
+    for (sell, buy), mae in sorted(r["train"].items()):
+        print(f"  beta_sell={sell:<5} beta_buy={buy:<5} train {mae:.4f}")
+    print(
+        f"best on train {r['best']}; holdout {valid}: none {r['valid_default']:.4f} "
+        f"-> best {r['valid_best']:.4f}; chosen {r['chosen']}"
+    )
+
+
 def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--seasons", help="comma-separated target seasons (default: last three)")
     p.add_argument("--scoring", choices=sorted(PRESETS), default="half_ppr")
@@ -194,6 +208,9 @@ def main(argv: list[str] | None = None) -> None:
     mt = sub.add_parser("tune-matchups", help="how much each position should follow its schedule")
     _common(mt)
     mt.set_defaults(fn=cmd_tune_matchups)
+    tr = sub.add_parser("tune-regression", help="how much regression flags should move projections")
+    _common(tr)
+    tr.set_defaults(fn=cmd_tune_regression)
     args = p.parse_args(argv)
     args.fn(args)
 

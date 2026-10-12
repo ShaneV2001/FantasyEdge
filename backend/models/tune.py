@@ -182,3 +182,38 @@ def tune_matchups(
             }
         )
     return rows
+
+
+REG_BETA_SELL = (0.0, 0.25, 0.5, 0.75, 1.0)
+REG_BETA_BUY = (0.0, 0.25, 0.5)
+
+
+def tune_regression(
+    stats: pl.DataFrame,
+    schedules: Mapping[int, Schedule],
+    rules: dict[str, float],
+    train: Sequence[int],
+    valid: Sequence[int],
+) -> dict:
+    """(beta_sell, beta_buy) with the lowest train 4-week MAE (fantasy-relevant), with holdout."""
+    from projections.regression_adj import RegressionAdjusted
+
+    grid = {
+        (s, b): relevant_mae4(
+            RegressionAdjusted(BaselineEngine(), s, b), stats, schedules, rules, train
+        )
+        for s in REG_BETA_SELL
+        for b in REG_BETA_BUY
+    }
+    best = min(grid, key=grid.get)
+    valid_default = relevant_mae4(BaselineEngine(), stats, schedules, rules, valid)
+    valid_best = relevant_mae4(
+        RegressionAdjusted(BaselineEngine(), *best), stats, schedules, rules, valid
+    )
+    return {
+        "train": grid,
+        "best": best,
+        "valid_default": valid_default,
+        "valid_best": valid_best,
+        "chosen": best if valid_best < valid_default else (0.0, 0.0),
+    }

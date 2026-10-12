@@ -66,3 +66,25 @@ def test_wrapper_uses_only_history_and_this_weeks_opponent():
     assert MatchupAdjusted(BaselineEngine(), {"WR": 0.0}).per_game(inp)["ppg"].to_list() == (
         BaselineEngine().per_game(inp)["ppg"].to_list()
     )
+
+
+def test_regression_adjustment_shifts_by_score(monkeypatch):
+    from projections.regression_adj import RegressionAdjusted
+
+    rows = [stat_row(p, "WR", 2026, w, "AAA", rec_yds=100) for p in ("a", "b") for w in range(1, 5)]
+    players = pl.DataFrame(
+        {"player_id": ["a", "b"], "position": ["WR", "WR"], "nfl_team": ["AAA", "AAA"],
+         "injury_status": [None, None], "status": [None, None]}
+    )  # fmt: skip
+    inp = ProjectionInputs(stats_frame(rows), players, _schedule({}), HALF_PPR, 2026, 5)
+    base = BaselineEngine().per_game(inp)
+    assert RegressionAdjusted(BaselineEngine()).per_game(inp).equals(base)
+    monkeypatch.setattr(RegressionAdjusted, "scores", lambda self, i: {"a": -2.0, "b": 1.0})
+    adj = dict(
+        RegressionAdjusted(BaselineEngine(), 0.5, 0.25)
+        .per_game(inp)
+        .select("player_id", "ppg")
+        .rows()
+    )
+    ppg = dict(base.select("player_id", "ppg").rows())
+    assert adj["a"] == pytest.approx(ppg["a"] - 1.0) and adj["b"] == pytest.approx(ppg["b"] + 0.25)

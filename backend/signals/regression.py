@@ -335,19 +335,26 @@ class RegressionReport:
     efficiency_z: pl.DataFrame
     usage: pl.DataFrame
     config: RegressionConfig = field(default_factory=RegressionConfig)
+    _scores: dict[str, float] | None = field(default=None, repr=False, compare=False)
 
     def for_player(self, player_id: str) -> list[RegressionFlag]:
         return [f for f in self.flags if f.player_id == player_id]
 
     def score(self, player_id: str) -> float:
         """Signed strength: >0 expect better production, <0 expect worse."""
-        s = 0.0
-        for f in self.for_player(player_id):
-            mag = min(
-                abs(f.value) / self.config.scales[f.kind], 2.0
-            )  # 1.0 at threshold, capped at 2
-            s += f.direction * FLAG_WEIGHTS[f.kind] * mag
-        return round(s, 2)
+        return self.scores().get(player_id, 0.0)
+
+    def scores(self) -> dict[str, float]:
+        """Signed strength for every flagged player (1.0 per flag at threshold, capped at 2)."""
+        if self._scores is None:
+            acc: dict[str, float] = {}
+            for f in self.flags:
+                mag = min(abs(f.value) / self.config.scales[f.kind], 2.0)
+                acc[f.player_id] = (
+                    acc.get(f.player_id, 0.0) + f.direction * FLAG_WEIGHTS[f.kind] * mag
+                )
+            self._scores = {k: round(v, 2) for k, v in acc.items()}
+        return self._scores
 
 
 def build_report(
