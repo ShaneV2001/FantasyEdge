@@ -7,6 +7,7 @@ import { Area, Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'rec
 import type { PlayerDetailOut } from '@/api'
 import { getPlayerOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton } from '@/components/common/states'
+import { Analytics } from '@/components/player/analytics'
 import { InjuryTag, PositionBadge, SignalBadge } from '@/components/player/badges'
 import { Matchups, injuryStatus } from '@/components/player/matchups'
 import { Button } from '@/components/ui/button'
@@ -188,6 +189,21 @@ export function PlayerView({ d }: { d: PlayerDetailOut }) {
           <PointsChart d={d} />
         </CardContent>
       </Card>
+
+      {d.analytics && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Analytics</CardTitle>
+            <CardDescription>
+              How he's being used and what he does with it. Rates are totals over the window, not averages of weekly
+              rates; ▲/▼ marks a value at least 10% above or below his season.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Analytics a={d.analytics} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
