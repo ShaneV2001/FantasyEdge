@@ -1,0 +1,221 @@
+import { useQuery } from '@tanstack/react-query'
+import { Info } from 'lucide-react'
+import { useState } from 'react'
+
+import type { TargetCell, TargetRow, TargetsOut } from '@/api'
+import { getTargetsOptions } from '@/api/@tanstack/react-query.gen'
+import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
+import { InjuryTag } from '@/components/player/badges'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { POSITIONS, fmtNum, fmtSigned } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { useTeamStore } from '@/stores/team'
+
+const EASY = 1.1
+const HARD = 0.9
+
+/** Easy / neutral / hard styling for an opponent's points-allowed index. */
+export function matchupTone(index: number | null | undefined): 'easy' | 'hard' | 'neutral' {
+  if (index == null) return 'neutral'
+  if (index >= EASY) return 'easy'
+  if (index <= HARD) return 'hard'
+  return 'neutral'
+}
+
+/** 'Questionable this week (85%…)' → 'Questionable'; 'On IR: assumed out…' → 'IR'. */
+export function injuryStatus(note: string | null | undefined): string | null {
+  if (!note) return null
+  const m = /^On ([^:]+):/.exec(note) ?? /^(\w+) this week/.exec(note)
+  return m ? m[1] : null
+}
+
+const TONE_CLASS = {
+  easy: 'bg-buy/15 text-buy ring-1 ring-inset ring-buy/30',
+  hard: 'bg-sell/15 text-sell ring-1 ring-inset ring-sell/30',
+  neutral: 'bg-muted/50 text-muted-foreground',
+} as const
+
+function MatchupChip({ cell, position }: { cell: TargetCell; position: string }) {
+  const tone = matchupTone(cell.index)
+  const what = position === 'DEF' ? 'DEF points scored against this offense' : `points allowed to ${position}s`
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn('inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px]', TONE_CLASS[tone])}>
+          <span className="opacity-70">W{cell.week}</span>
+          {cell.opponent ?? 'BYE'}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        {cell.opponent
+          ? `Week ${cell.week} vs ${cell.opponent}: ${fmtNum(cell.index, 2)}× the average ${what} · ${fmtNum(cell.points)} projected`
+          : `Week ${cell.week}: bye`}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function Matchups({ cells, position, className }: { cells: TargetCell[]; position: string; className?: string }) {
+  return (
+    <div className={cn('flex flex-wrap gap-1', className)}>
+      {cells.map((c) => (
+        <MatchupChip key={c.week} cell={c} position={position} />
+      ))}
+    </div>
+  )
+}
+
+function Owner({ row }: { row: TargetRow }) {
+  if (row.mine) return <Badge className="bg-primary/15 text-primary hover:bg-primary/15">Your team</Badge>
+  if (row.owner === 'Free agent') return <Badge variant="outline" className="border-buy/40 text-buy">Free agent</Badge>
+  if (row.owner) return <span className="text-xs text-muted-foreground">{row.owner}</span>
+  return null
+}
+
+function TargetsTable({ rows, position, view }: { rows: TargetRow[]; position: string; view: 'ros' | 'week' }) {
+  if (rows.length === 0) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">No {position}s play this week.</p>
+  }
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-10">#</TableHead>
+          <TableHead>Player</TableHead>
+          <TableHead className="hidden md:table-cell">{view === 'ros' ? 'Next matchups' : 'Matchup'}</TableHead>
+          <TableHead className="text-right">{view === 'ros' ? 'ROS' : 'Proj'}<span className="hidden md:inline"> pts</span></TableHead>
+          <TableHead className="text-right">
+            <Tooltip>
+              <TooltipTrigger className="underline decoration-dotted underline-offset-2">
+                <span className="md:hidden">+/−</span>
+                <span className="hidden md:inline">Schedule</span>
+              </TooltipTrigger>
+              <TooltipContent>Points the schedule adds (or costs) vs an average set of opponents</TooltipContent>
+            </Tooltip>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((r) => (
+          <TableRow key={r.player_id} className={cn(r.mine && 'bg-primary/5')}>
+            <TableCell className="font-mono text-muted-foreground">{r.rank}</TableCell>
+            <TableCell>
+              <div className="flex flex-col gap-0.5">
+                <span className="flex items-center gap-2 font-medium">
+                  {r.name}
+                  <InjuryTag status={injuryStatus(r.availability_note)} />
+                </span>
+                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {r.nfl_team} · {fmtNum(r.ppg)} ppg
+                  <Owner row={r} />
+                </span>
+                <Matchups cells={r.cells} position={position} className="mt-1 md:hidden" />
+              </div>
+            </TableCell>
+            <TableCell className="hidden md:table-cell">
+              <Matchups cells={r.cells} position={position} />
+            </TableCell>
+            <TableCell className="text-right font-mono tabular-nums">{fmtNum(r.points)}</TableCell>
+            <TableCell
+              className={cn(
+                'text-right font-mono tabular-nums',
+                r.schedule_delta > 0.05 ? 'text-buy' : r.schedule_delta < -0.05 ? 'text-sell' : 'text-muted-foreground',
+              )}
+            >
+              {fmtSigned(r.schedule_delta)}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+function Rankings({ data }: { data: TargetsOut }) {
+  const [position, setPosition] = useState<string>('RB')
+  const [view, setView] = useState<'ros' | 'week'>('ros')
+  const [week, setWeek] = useState(String(data.week))
+  const pos = data.positions[position]
+  const rows = view === 'ros' ? pos?.ros ?? [] : pos?.weekly.find((w) => String(w.week) === week)?.rows ?? []
+
+  return (
+    <Card>
+      <CardHeader className="gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Tabs value={position} onValueChange={setPosition}>
+            <TabsList>
+              {POSITIONS.map((p) => (
+                <TabsTrigger key={p} value={p}>
+                  {p}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <div className="flex items-center gap-2">
+            <ToggleGroup type="single" variant="outline" value={view} onValueChange={(v) => v && setView(v as 'ros' | 'week')}>
+              <ToggleGroupItem value="ros">Rest of season</ToggleGroupItem>
+              <ToggleGroupItem value="week">By week</ToggleGroupItem>
+            </ToggleGroup>
+            {view === 'week' && (
+              <Select value={week} onValueChange={setWeek}>
+                <SelectTrigger aria-label="Week" className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {data.weeks.map((w) => (
+                    <SelectItem key={w} value={String(w)}>
+                      Week {w}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </div>
+        <div>
+          <CardTitle>
+            Top 10 {position} · {view === 'ros' ? `weeks ${data.week}–${data.last_week}` : `week ${week}`}
+          </CardTitle>
+          <CardDescription>
+            {view === 'ros'
+              ? 'Projected points for the rest of the fantasy season, adjusted for every remaining opponent, byes and injuries.'
+              : `Projected points for week ${week}, adjusted for the opponent.${week === String(data.week) ? ' Players whose game this week is already final are not listed.' : ''}`}
+          </CardDescription>
+        </div>
+        {pos && pos.alpha === 0 && (
+          <p className="flex items-start gap-2 rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            Matchups haven't predicted {position} scoring in our backtests (2023–2025), so this ranking ignores the
+            schedule. Matchup colors are shown for reference only.
+          </p>
+        )}
+      </CardHeader>
+      <CardContent>
+        <TargetsTable rows={rows} position={position} view={view} />
+      </CardContent>
+    </Card>
+  )
+}
+
+export function TargetsPage() {
+  const team = useTeamStore((s) => s.team)!
+  const q = useQuery(getTargetsOptions({ path: { team_id: team.teamId } }))
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Buy targets"
+        description="Who to go get based on upcoming schedule: the top 10 at each position by schedule-adjusted projection, for each week and the rest of the season. Green opponents are soft matchups, red are tough."
+      />
+      {q.isPending && <ListSkeleton rows={6} height="h-12" />}
+      {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
+      {q.data && <Rankings data={q.data} />}
+    </div>
+  )
+}
