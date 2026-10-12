@@ -29,3 +29,7 @@ frontend/playwright-report/
 .DS_Store
 Thumbs.db
 .claude/worktrees/
+
+# internal working notes (kept outside the repo)
+HANDOFF.md
+docs/superpowers/

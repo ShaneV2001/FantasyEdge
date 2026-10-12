@@ -1,5 +1,8 @@
 # ff-edge
 
+[![CI](https://github.com/ShaneV2001/ff-edge/actions/workflows/ci.yml/badge.svg)](https://github.com/ShaneV2001/ff-edge/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **An open-source fantasy football assistant that tells you what to do with your team, and shows its work.**
 
 Connect your Sleeper league (or enter a roster by hand) and ff-edge gives you:
@@ -296,10 +299,10 @@ ff-edge does not scrape any website. It uses only public APIs and published data
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | **Team Advisor MVP**: ingestion, rule-based projections, regression report, bye planner, trade analyzer/finder, advisor feed; Connect, Advisor, My Team, Byes and Trade pages | ✅ done |
-| 2 | **Model v1**: leakage-safe features, LightGBM with quantile bands, walk-forward evaluation vs. season-PPG and last-3 baselines; swapped in only if it beats both | planned |
-| 3 | Rest of the API: players, start/sit, waivers, buy/sell signals board, model report | planned |
-| 4 | Rest of the UI: players table, player pages, waivers, start/sit, signals, model transparency page | planned |
-| 5 | ESPN + Yahoo connectors, daily GitHub Actions refresh, Docker Compose, screenshots | planned |
+| 1.5 | **Measured and tuned**: walk-forward backtest, tuned baseline, K/DEF projections, matchup adjustment, one verdict per player, Rankings, Buy targets, player pages, Settings, CI | ✅ done |
+| 2 | **Model v1**: opportunity features (snap share, WOPR, air yards, goal-line work), practice status, skewed p10–p90 bands, a prior for rookies; LightGBM only if it beats the tuned baseline on the holdout | planned |
+| 3 | **Waivers and trades**: FAAB bid ranges from trending adds, bench-upgrade pickups, roster-spot-aware trades | planned |
+| 4 | ESPN + Yahoo connectors, background refresh with progress, Docker Compose, screenshots | planned |
 
 ---
 
