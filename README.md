@@ -134,8 +134,11 @@ accuracy worse, because the projection already carries their signal: it is half 
 back running hot on efficiency already projects below his pace. The flags are listed as reasons
 instead.
 
-The **Buy targets** page lists, per position, the most undervalued players you don't own, and your
-own players the market overvalues.
+The **Buy targets** page lists, per position, the undervalued players you don't own, and your
+own players the market overvalues. Buys come in two tiers: **Starters** (we rank him above the
+league's starter line, e.g. WR1–WR24 in a 10-team, 2-WR + flex league) first, then **Bench depth &
+sleepers**. Each tier is ordered by our rest-of-season points, so a cheap deep sleeper with a big
+gap never outranks a would-be starter.
 
 ### Player pages
 Click any player for a headshot, bio, verdict and reasons, upcoming matchups, a game log, and a chart

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Info } from 'lucide-react'
 import { useState } from 'react'
 
-import type { BuyTargetRow, BuyTargetsOut } from '@/api'
+import type { BuyTargetPosition, BuyTargetRow, BuyTargetsOut } from '@/api'
 import { getBuyTargetsOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { InjuryTag, SignalBadge } from '@/components/player/badges'
@@ -74,6 +74,40 @@ function ValueTable({ rows, position, marketLabel }: { rows: BuyTargetRow[]; pos
   )
 }
 
+function TierHeading({ title, note }: { title: string; note: string }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-2 pt-2">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <span className="text-xs text-muted-foreground">{note}</span>
+    </div>
+  )
+}
+
+function BuyTiers({ pos, position, marketLabel }: { pos: BuyTargetPosition; position: string; marketLabel: string }) {
+  const starters = pos.buy.filter((r) => r.tier === 'starter')
+  const depth = pos.buy.filter((r) => r.tier === 'depth')
+  const line = pos.starter_line
+  return (
+    <div className="flex flex-col gap-4">
+      {starters.length > 0 && (
+        <section className="flex flex-col gap-1">
+          <TierHeading
+            title="Starters"
+            note={line ? `we rank them ${position}1–${position}${line - 1}: lineup-ready every week` : 'lineup-ready'}
+          />
+          <ValueTable rows={starters} position={position} marketLabel={marketLabel} />
+        </section>
+      )}
+      {depth.length > 0 && (
+        <section className="flex flex-col gap-1">
+          <TierHeading title="Bench depth & sleepers" note="cheap stashes and bye-week fill-ins" />
+          <ValueTable rows={depth} position={position} marketLabel={marketLabel} />
+        </section>
+      )}
+    </div>
+  )
+}
+
 function BuyTargets({ data }: { data: BuyTargetsOut }) {
   const [position, setPosition] = useState<string>('RB')
   const pos = data.positions[position]
@@ -104,13 +138,14 @@ function BuyTargets({ data }: { data: BuyTargetsOut }) {
               <CardTitle>Buy: undervalued {position}s</CardTitle>
               <CardDescription>
                 Players you don't own whose rest-of-season projection (schedule included) beats the price{' '}
-                {data.market_label} puts on them by at least 10 points or 10%. "Prices like" is the player we rank
-                where the market ranks him.
+                {data.market_label} puts on them by at least 10 points or 10%. Would-be starters come first, then
+                bench depth and sleepers, each best projection first. "Prices like" is the player we rank where the
+                market ranks him.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {pos && pos.buy.length > 0 ? (
-                <ValueTable rows={pos.buy} position={position} marketLabel={data.market_label} />
+                <BuyTiers pos={pos} position={position} marketLabel={data.market_label} />
               ) : (
                 <p className="py-6 text-center text-sm text-muted-foreground">
                   No {position} is clearly undervalued right now.

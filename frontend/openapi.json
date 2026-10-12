@@ -951,6 +951,18 @@
             "title": "Has Market",
             "description": "False when the market doesn't value this position"
           },
+          "starter_line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starter Line",
+            "description": "Rank of the first non-starter league-wide at this position"
+          },
           "buy": {
             "items": {
               "$ref": "#/components/schemas/BuyTargetRow"
@@ -1107,6 +1119,15 @@
             },
             "type": "array",
             "title": "Cells"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "starter",
+              "depth"
+            ],
+            "title": "Tier",
+            "description": "starter: we rank him above the league's starter line; depth: bench / sleeper"
           }
         },
         "type": "object",
@@ -1125,7 +1146,8 @@
           "signal",
           "reasons",
           "ppg",
-          "cells"
+          "cells",
+          "tier"
         ],
         "title": "BuyTargetRow"
       },

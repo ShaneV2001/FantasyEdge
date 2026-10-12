@@ -401,10 +401,16 @@ class BuyTargetRow(BaseModel):
     ppg: float
     availability_note: str | None = None
     cells: list[MatchupCell]
+    tier: Literal["starter", "depth"] = Field(
+        description="starter: we rank him above the league's starter line; depth: bench / sleeper"
+    )
 
 
 class BuyTargetPosition(BaseModel):
     has_market: bool = Field(description="False when the market doesn't value this position")
+    starter_line: int | None = Field(
+        None, description="Rank of the first non-starter league-wide at this position"
+    )
     buy: list[BuyTargetRow] = Field(description="Undervalued players on other teams / free agents")
     sell: list[BuyTargetRow] = Field(description="Your players the market overvalues")
 

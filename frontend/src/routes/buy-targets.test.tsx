@@ -26,10 +26,11 @@ const row = (name: string, gap: number, over: Partial<BuyTargetRow> = {}): BuyTa
   ppg: 12,
   availability_note: null,
   cells: [{ week: 6, opponent: 'CHI', index: 1.2, points: 13 }],
+  tier: 'starter',
   ...over,
 })
 
-const empty = { has_market: true, buy: [], sell: [] }
+const empty = { has_market: true, starter_line: 30, buy: [], sell: [] }
 const DATA: BuyTargetsOut = {
   team_id: 'sl-1-1',
   week: 6,
@@ -37,11 +38,15 @@ const DATA: BuyTargetsOut = {
   market_label: 'FantasyCalc',
   positions: {
     QB: empty,
-    RB: { has_market: true, buy: [row('Josh Jacobs', 41)], sell: [row('My Pricey Back', -25, { mine: true, owner: 'Your team' })] },
+    RB: {
+      has_market: true,
+      starter_line: 30,
+      buy: [row('Josh Jacobs', 41), row('Deep Sleeper', 60, { model_points: 90, model_rank: 44, tier: 'depth' })],
+      sell: [row('My Pricey Back', -25, { mine: true, owner: 'Your team' })] },
     WR: empty,
     TE: empty,
-    K: { has_market: false, buy: [], sell: [] },
-    DEF: { has_market: false, buy: [], sell: [] },
+    K: { has_market: false, starter_line: 13, buy: [], sell: [] },
+    DEF: { has_market: false, starter_line: 13, buy: [], sell: [] },
   },
 }
 
@@ -62,7 +67,18 @@ function renderPage() {
     expect(screen.getByText('+41')).toBeInTheDocument()
     expect(screen.getByText('My Pricey Back')).toBeInTheDocument()
     expect(screen.getByText('−25')).toBeInTheDocument()
-    expect(screen.getAllByText('Second reason')).toHaveLength(2)
+    expect(screen.getAllByText('Second reason')).toHaveLength(3)
+  })
+
+  it('lists would-be starters before bench depth and sleepers', async () => {
+    renderPage()
+    await screen.findByText('Josh Jacobs')
+    const starters = screen.getByRole('heading', { name: 'Starters' })
+    const depth = screen.getByRole('heading', { name: 'Bench depth & sleepers' })
+    expect(starters.compareDocumentPosition(depth) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const jacobs = screen.getByText('Josh Jacobs')
+    expect(jacobs.compareDocumentPosition(screen.getByText('Deep Sleeper')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText(/RB1–RB29/)).toBeInTheDocument()
   })
 
   it('explains positions without market values', async () => {

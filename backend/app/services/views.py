@@ -7,6 +7,7 @@ from datetime import datetime
 from app.errors import InvalidInput
 from app.schemas import models as m
 from app.services.context import MARKET_LABEL, LeagueContext
+from projections.base import replacement_ranks
 from scoring.rules import PRESETS, normalize
 from signals import advisor as adv
 from signals import trade as tr
@@ -623,7 +624,15 @@ def rankings_view(ctx: LeagueContext, team_id: str) -> m.RankingsOut:
     )
 
 
-def _buy_row(ctx: LeagueContext, team_id: str, rank: int, pid: str) -> m.BuyTargetRow:
+def _tier(p: dict, line: int | None) -> str:
+    """starter if we rank him above the league's starter line, else bench depth / sleeper."""
+    rank = p.get("model_pos_rank")
+    return "starter" if line is not None and rank is not None and rank < line else "depth"
+
+
+def _buy_row(
+    ctx: LeagueContext, team_id: str, rank: int, pid: str, line: int | None
+) -> m.BuyTargetRow:
     p = ctx.players[pid]
     owner, mine = _owner_label(ctx, pid, team_id)
     return m.BuyTargetRow(
@@ -644,32 +653,48 @@ def _buy_row(ctx: LeagueContext, team_id: str, rank: int, pid: str) -> m.BuyTarg
         ppg=_r(p.get("ppg")) or 0.0,
         availability_note=p.get("availability_note"),
         cells=_cells_out(ros_row(pid, p["position"], ctx.cells[pid]).cells),
+        tier=_tier(p, line),
     )
 
 
 def buy_targets_view(ctx: LeagueContext, team_id: str, top: int = 10) -> m.BuyTargetsOut:
-    """Per position: the most undervalued players you don't own, and your overvalued ones."""
+    """Per position: undervalued players you don't own (would-be starters first, then bench depth
+    and sleepers, each best projection first), and your overvalued ones."""
     team = ctx.team(team_id)
     mine = set(team.player_ids)
+    lines = replacement_ranks(ctx.shape)
     positions = {}
     for pos in TARGET_POSITIONS:
+        line = lines.get(pos)
         valued = [
             pid
             for pid, p in ctx.players.items()
             if p.get("position") == pos and pid in ctx.cells and p.get("value_gap") is not None
         ]
-        buy = sorted(
+        best_first = sorted(
             (pid for pid in valued if ctx.players[pid]["signal"] == "buy" and pid not in mine),
-            key=lambda pid: -ctx.players[pid]["value_gap"],
-        )[:top]
+            key=lambda pid: (
+                -(ctx.players[pid].get("model_ros_points") or 0.0),
+                -ctx.players[pid]["value_gap"],
+            ),
+        )
+        tiers = [
+            [pid for pid in best_first if _tier(ctx.players[pid], line) == t][:top]
+            for t in ("starter", "depth")
+        ]
         sell = sorted(
             (pid for pid in valued if ctx.players[pid]["signal"] == "sell" and pid in mine),
             key=lambda pid: ctx.players[pid]["value_gap"],
         )
         positions[pos] = m.BuyTargetPosition(
             has_market=bool(valued),
-            buy=[_buy_row(ctx, team_id, i + 1, pid) for i, pid in enumerate(buy)],
-            sell=[_buy_row(ctx, team_id, i + 1, pid) for i, pid in enumerate(sell)],
+            starter_line=line,
+            buy=[
+                _buy_row(ctx, team_id, i + 1, pid, line)
+                for tier in tiers
+                for i, pid in enumerate(tier)
+            ],
+            sell=[_buy_row(ctx, team_id, i + 1, pid, line) for i, pid in enumerate(sell)],
         )
     return m.BuyTargetsOut(
         team_id=team_id,

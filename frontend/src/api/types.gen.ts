@@ -108,6 +108,12 @@ export type BuyTargetPosition = {
      */
     has_market: boolean;
     /**
+     * Starter Line
+     *
+     * Rank of the first non-starter league-wide at this position
+     */
+    starter_line?: number | null;
+    /**
      * Buy
      *
      * Undervalued players on other teams / free agents
@@ -197,6 +203,12 @@ export type BuyTargetRow = {
      * Cells
      */
     cells: Array<MatchupCell>;
+    /**
+     * Tier
+     *
+     * starter: we rank him above the league's starter line; depth: bench / sleeper
+     */
+    tier: 'starter' | 'depth';
 };
 
 /**

@@ -527,8 +527,16 @@ def test_one_verdict_per_player_everywhere(client):
     for pos in buy["positions"].values():
         assert all(r["signal"] == "buy" and not r["mine"] for r in pos["buy"])
         assert all(r["signal"] == "sell" and r["mine"] for r in pos["sell"])
-        gaps = [r["value_gap"] for r in pos["buy"]]
-        assert gaps == sorted(gaps, reverse=True)
+        tiers = [r["tier"] for r in pos["buy"]]
+        assert tiers == sorted(tiers, key=["starter", "depth"].index)  # starters first
+        for tier in ("starter", "depth"):
+            pts = [r["model_points"] for r in pos["buy"] if r["tier"] == tier]
+            assert pts == sorted(pts, reverse=True)
+        line = pos["starter_line"]
+        assert all(
+            (r["tier"] == "starter") == (line is not None and r["model_rank"] < line)
+            for r in pos["buy"]
+        )
     advice = tc.get(f"/team/{team_id}/advice").json()["actions"]
     sold = {pl["player_id"] for a in advice if a["type"] == "Sell" for pl in a["players"]}
     assert all(roster[pid] == "sell" for pid in sold)
