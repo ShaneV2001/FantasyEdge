@@ -5,26 +5,57 @@
 
 **An open-source fantasy football assistant that tells you what to do with your team, and shows its work.**
 
+![The Advisor page: team grades by position and a ranked list of recommended moves](docs/screenshots/advisor.png)
+
 Connect your Sleeper league (or enter a roster by hand) and FantasyEdge gives you:
 
-- **An advisor feed**: a ranked list of 5–10 concrete moves (trade, sell, buy, waiver, lineup, bye prep), each with the numbers behind it, an urgency and a confidence level.
-- **A regression report**: who is scoring on unsustainable touchdowns or efficiency, and who is due to bounce back.
-- **A bye-week planner**: a week-by-week grid of which lineup slots you can and can't fill, with "danger weeks" flagged before they arrive.
-- **Trade ideas and a trade analyzer**: 1-for-1 and 2-for-1 deals where *both* teams' starting lineups improve, judged on rest-of-season lineup points rather than raw player value.
-- **Rest-of-season player values** computed under *your* league's scoring rules.
-- **Settings you control**: tune the projection weights, buy/sell thresholds, injury assumptions and
-  advisor rules, with the backtest-tuned defaults one click away.
+| Page | What you get |
+|---|---|
+| **Advisor** | A ranked list of 5–10 concrete moves (trade, sell, buy, waiver, lineup, bye prep), each with the numbers behind it, an urgency and a confidence level. |
+| **My Team** | Your roster with projections, rest-of-season value and a buy/hold/sell verdict for every player, plus team grades for QB, RB, WR, TE, K, DEF and each flex slot against the rest of your league. |
+| **Rankings** | The top 10 at every position for each upcoming week and for the rest of the season, adjusted for schedule. |
+| **Buy targets** | Players the market undervalues that you don't own (would-be starters first, then bench depth and sleepers), and your own players it overvalues. |
+| **Player pages** | Headshot and bio, the verdict and why, projected vs actual points for every week, upcoming matchups, a game log, and an **Analytics** card: snap %, target and rush share, air yards, WOPR, aDOT, efficiency, yards after catch and red-zone work over the last 3 games, last 5 or the season. |
+| **Byes** | A week-by-week grid of which lineup slots you can and can't fill, with "danger weeks" flagged before they arrive. |
+| **Trade** | A trade analyzer, plus 1-for-1 and 2-for-1 ideas where *both* teams' starting lineups improve, judged on rest-of-season lineup points rather than raw player value. |
+| **Settings** | Tune the projection weights, buy/sell thresholds, injury assumptions and advisor rules, with the backtest-tuned defaults one click away. |
+
+Under the hood:
+- **Your league's scoring:** every stat line is re-scored under your Sleeper scoring settings, including kickers and team defense.
+- **Measured accuracy:** a walk-forward backtest over 2023–2025 picked the projection weights and the schedule adjustment, and every number is published below.
+- **Regression flags:** who is scoring on unsustainable touchdowns or efficiency, and how well those flags have actually predicted declines.
 
 Everything runs locally on free, public data. There are no accounts, API keys or paid services.
 
-> **Project status: Phase 1 (Team Advisor MVP).** Connect, Advisor, My Team, Byes and Trade pages
-> work end to end on live Sleeper + nflverse + FantasyCalc data. Projections are rule-based in
-> Phase 1; an ML model replaces them in Phase 2, but only if it beats the baselines (see [Roadmap](#roadmap)).
+### Screenshots
+
+| | |
+|---|---|
+| ![My Team: roster with projections, values and verdicts, team grades and position strength](docs/screenshots/team.png) | ![Rankings: top 10 per position with upcoming matchups and schedule impact](docs/screenshots/rankings.png) |
+| **My Team**: grades by position, roster values, position strength | **Rankings**: schedule-adjusted top 10, by week or rest of season |
+| ![Buy targets: undervalued players to buy, with the reasons and the gap to market price](docs/screenshots/buy-targets.png) | ![Player page: bio, verdict and projected vs actual points by week](docs/screenshots/player.png) |
+| **Buy targets**: what we project vs what the market charges | **Player page**: projected vs actual, every week |
+| ![Bye-week planner: week by lineup-slot grid with danger weeks](docs/screenshots/byes.png) | ![Trade analyzer: build a trade from your roster and any player](docs/screenshots/trade.png) |
+| **Byes**: which slots you can fill each week | **Trade**: judged on both teams' starting lineups |
+
+![Player analytics: usage, efficiency, yards after catch and scoring opportunity over the last 3 games vs the season](docs/screenshots/player-analytics.png)
+
+**Player analytics**: last 3 / last 5 / season, with ▲/▼ against the season value
+
+![Settings: projection weights and matchup strength with defaults and allowed ranges](docs/screenshots/settings.png)
+
+**Settings**: every weight and threshold, with the backtest-tuned defaults
+
+> **Project status:** the team advisor, rankings, buy/sell verdicts, player pages with analytics and
+> settings all work end to end on live Sleeper + nflverse + FantasyCalc data, with CI on every
+> push. Projections are transparent formulas tuned by backtest; a machine-learning model replaces
+> them only if it beats them on a held-out season (see [Roadmap](#roadmap)).
 
 ---
 
 ## Contents
 
+- [Screenshots](#screenshots)
 - [How it works](#how-it-works)
 - [Quick start](#quick-start)
 - [Project layout](#project-layout)
@@ -52,7 +83,7 @@ bonuses; kicking by distance, FG yards, misses and PATs; and team defense (sacks
 safeties, blocked kicks, points- and yards-allowed brackets). Other keys are ignored and logged.
 Manual leagues can pick Standard, Half-PPR or PPR (with Sleeper's standard K/DEF scoring).
 
-### Phase 1 projection
+### Projections
 ```
 projected PPG = 0.5 × season PPG + 0.5 × usage-implied PPG
 ```
@@ -223,11 +254,11 @@ python tasks.py dev     # API on http://localhost:8000, web app on http://localh
 | Command | What it does |
 |---|---|
 | `python tasks.py data` | Refresh all data (≈15 MB Sleeper player map at most once/day, nflverse files, market values) |
-| `python tasks.py test` | `ruff` lint/format check, `pytest` (offline, recorded fixtures), frontend tests |
+| `python tasks.py test` | `ruff` lint/format check, `pytest` (offline, recorded fixtures), `oxlint` and `vitest` for the frontend |
 | `python tasks.py api` / `web` | Run the API or the web app on its own |
 | `python tasks.py gen-api` | Regenerate the typed TypeScript client from the API's OpenAPI schema |
 | `python tasks.py backtest` | Walk-forward accuracy of every projection engine (downloads 4 seasons once, cached in `data/backtest/`) |
-| `cd backend && uv run python -m models.run regression-eval` / `tune` | Check the regression flags; search weights and thresholds against a held-out season |
+| `cd backend && uv run python -m models.run regression-eval` / `tune` / `tune-matchups` | Check the regression flags; search projection weights, flag thresholds and matchup strength against a held-out season |
 
 If you have `make`, the same targets work as `make setup`, `make data`, `make dev`, `make test`.
 
@@ -258,7 +289,9 @@ backend/
 frontend/       Vite + React + TypeScript + shadcn/ui, TanStack Router/Query, Zustand, Recharts
   src/api/      generated typed client + TanStack Query hooks (python tasks.py gen-api)
   src/routes/   connect, advisor, team, byes, rankings, buy-targets, player, trade, settings pages
+  src/components/player/  analytics card, matchups, badges
 scripts/        fixture recorder
+.github/        CI: backend lint + tests, frontend lint + typecheck + tests, API-client drift check
 ```
 
 [ARCHITECTURE.md](ARCHITECTURE.md) is the source of truth for the stack, database schema, API
@@ -268,7 +301,7 @@ contract and frontend structure.
 
 ## API
 
-FastAPI serves interactive docs at `http://localhost:8000/docs`. Phase 1 endpoints:
+FastAPI serves interactive docs at `http://localhost:8000/docs`. Endpoints:
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -281,7 +314,7 @@ FastAPI serves interactive docs at `http://localhost:8000/docs`. Phase 1 endpoin
 | GET | `/team/{id}/byes` | Week × slot bye grid and danger weeks |
 | GET | `/team/{id}/rankings` | Top 10 per position by schedule-adjusted points, each week and rest of season |
 | GET | `/team/{id}/buy-targets` | Undervalued players to buy and your overvalued players, per position |
-| GET | `/team/{id}/players/{player_id}` | Player page: bio, verdict, game log, projected vs actual by week |
+| GET | `/team/{id}/players/{player_id}` | Player page: bio, verdict, game log, projected vs actual by week, L3/L5/season analytics |
 | POST | `/trade/evaluate` | Score a proposed trade for both sides |
 | GET | `/trade/suggest` | Mutually beneficial trade ideas |
 | POST | `/refresh` | Re-sync league, market or all data |
@@ -309,18 +342,46 @@ FantasyEdge does not scrape any website. It uses only public APIs and published 
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | **Team Advisor MVP**: ingestion, rule-based projections, regression report, bye planner, trade analyzer/finder, advisor feed; Connect, Advisor, My Team, Byes and Trade pages | ✅ done |
-| 1.5 | **Measured and tuned**: walk-forward backtest, tuned baseline, K/DEF projections, matchup adjustment, one verdict per player, Rankings, Buy targets, player pages, Settings, CI | ✅ done |
-| 2 | **Model v1**: opportunity features (snap share, WOPR, air yards, goal-line work), practice status, skewed p10–p90 bands, a prior for rookies; LightGBM only if it beats the tuned baseline on the holdout | planned |
-| 3 | **Waivers and trades**: FAAB bid ranges from trending adds, bench-upgrade pickups, roster-spot-aware trades | planned |
-| 4 | ESPN + Yahoo connectors, background refresh with progress, Docker Compose, screenshots | planned |
+| 1 | **Team Advisor MVP**: ingestion, rule-based projections, regression report, bye planner, trade analyzer and finder, advisor feed; Connect, Advisor, My Team, Byes and Trade pages | ✅ done |
+| 1.5 | **Measured and tuned**: walk-forward backtest, tuned baseline, K/DEF projections, schedule adjustment, one verdict per player, Rankings, Buy targets, player pages with analytics, team grades for every slot, Settings, CI | ✅ done |
+| 2 | **Better projections** (each change ships only if the 2025 holdout improves) | next |
+| 3 | **Waivers and trades** | planned |
+| 4 | **More leagues and easier running** | planned |
+
+**Phase 2: better projections**
+- Use opportunity quality in the projection: snap share, WOPR, air yards and goal-line carries are
+  already collected and shown on player pages, but the projection doesn't use them yet.
+- Read practice participation (the injury report) and stop games a player left early from dragging
+  his average down.
+- Skewed 10th–90th percentile bands: fantasy scoring has a long upside tail, and the band is
+  symmetric today.
+- A prior for rookies and players with no history, from their market value, so they don't project
+  0 until they play.
+- A LightGBM model with quantile bands, swapped in only if it beats the tuned baseline.
+
+**Phase 3: waivers and trades**
+- FAAB bid ranges, informed by Sleeper's trending adds and drops.
+- Waiver pickups that would upgrade your bench, not just your starters.
+- Trades that account for roster spots, so a 2-for-1 frees a slot for a waiver pickup.
+- Check suggested trades against your bye-week danger weeks.
+
+**Phase 4: more leagues and easier running**
+- ESPN and Yahoo league connectors.
+- Background data refresh with a progress indicator, incremental play-by-play downloads, and a
+  data-freshness panel.
+- Switching between several of your teams.
+- Docker Compose.
 
 ---
 
 ## Contributing
 
 Issues and pull requests are welcome. Please:
-- run `python tasks.py test` before opening a PR. Tests must pass offline, against fixtures.
+- run `python tasks.py test` before opening a PR. Tests must pass offline, against fixtures. CI runs
+  the same checks, plus a typecheck and a check that the generated API client is up to date
+  (`python tasks.py gen-api`).
+- for a model change, include the `python tasks.py backtest` numbers; it ships only if the held-out
+  season improves.
 - keep feature and signal functions small, typed and pure, and include unit tests.
 - never commit secrets. Use `.env` (see `.env.example`).
 - respect each data source's terms and rate limits, and route HTTP through `ingest/http.py`.
