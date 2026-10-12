@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { connectLeague, evaluateTrade, getAdvice, getBuyTargets, getByes, getRankings, getRegression, getStatus, getTeam, health, manualLeague, type Options, refresh, searchPlayers, selectTeam, suggestTrades, updateRoster } from '../sdk.gen';
-import type { ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, RefreshData, RefreshError, RefreshResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse } from '../types.gen';
+import { connectLeague, evaluateTrade, getAdvice, getBuyTargets, getByes, getPlayer, getRankings, getRegression, getStatus, getTeam, health, manualLeague, type Options, refresh, searchPlayers, selectTeam, suggestTrades, updateRoster } from '../sdk.gen';
+import type { ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, RefreshData, RefreshError, RefreshResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -114,6 +114,26 @@ export const getTeamOptions = (options: Options<GetTeamData>) => queryOptions<Ge
         return data;
     },
     queryKey: getTeamQueryKey(options)
+});
+
+export const getPlayerQueryKey = (options: Options<GetPlayerData>) => createQueryKey('getPlayer', options);
+
+/**
+ * Get Player
+ *
+ * Bio, verdict, weekly statlines and projected-vs-actual points for one player.
+ */
+export const getPlayerOptions = (options: Options<GetPlayerData>) => queryOptions<GetPlayerResponse, GetPlayerError, GetPlayerResponse, ReturnType<typeof getPlayerQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getPlayer({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getPlayerQueryKey(options)
 });
 
 export const getBuyTargetsQueryKey = (options: Options<GetBuyTargetsData>) => createQueryKey('getBuyTargets', options);

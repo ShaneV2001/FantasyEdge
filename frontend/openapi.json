@@ -186,6 +186,58 @@
         }
       }
     },
+    "/team/{team_id}/players/{player_id}": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Player",
+        "description": "Bio, verdict, weekly statlines and projected-vs-actual points for one player.",
+        "operationId": "get_player",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "player_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Player Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerDetailOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/team/{team_id}/buy-targets": {
       "get": {
         "tags": [
@@ -1739,6 +1791,318 @@
         ],
         "title": "PlayerByeOut"
       },
+      "PlayerDetailOut": {
+        "properties": {
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "nfl_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nfl Team"
+          },
+          "headshot_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headshot Url"
+          },
+          "team_logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Logo Url"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "years_exp": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years Exp"
+          },
+          "depth_chart_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Chart Order"
+          },
+          "injury_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Injury Status"
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
+          },
+          "bye_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bye Week"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "Fantasy team that rosters him (None = nobody)"
+          },
+          "mine": {
+            "type": "boolean",
+            "title": "Mine"
+          },
+          "ppg": {
+            "type": "number",
+            "title": "Ppg"
+          },
+          "p10": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P10"
+          },
+          "p90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P90"
+          },
+          "model_ros_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Ros Points"
+          },
+          "ros_value_par": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ros Value Par"
+          },
+          "market_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value"
+          },
+          "model_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Rank"
+          },
+          "market_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Rank"
+          },
+          "market_implied_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Implied Points"
+          },
+          "value_gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Gap"
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "hold",
+              "sell"
+            ],
+            "title": "Signal"
+          },
+          "signal_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Signal Reasons"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/FlagOut"
+            },
+            "type": "array",
+            "title": "Flags"
+          },
+          "statline_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Statline Keys",
+            "description": "Statline columns for this position, in order"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerWeekOut"
+            },
+            "type": "array",
+            "title": "Weeks"
+          },
+          "upcoming": {
+            "items": {
+              "$ref": "#/components/schemas/MatchupCell"
+            },
+            "type": "array",
+            "title": "Upcoming"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_id",
+          "name",
+          "position",
+          "nfl_team",
+          "headshot_url",
+          "team_logo_url",
+          "age",
+          "years_exp",
+          "depth_chart_order",
+          "injury_status",
+          "availability_note",
+          "bye_week",
+          "mine",
+          "ppg",
+          "p10",
+          "p90",
+          "model_ros_points",
+          "ros_value_par",
+          "market_value",
+          "model_rank",
+          "market_rank",
+          "market_implied_points",
+          "value_gap",
+          "signal",
+          "signal_reasons",
+          "flags",
+          "statline_keys",
+          "weeks",
+          "upcoming"
+        ],
+        "title": "PlayerDetailOut"
+      },
       "PlayerFlagsOut": {
         "properties": {
           "player": {
@@ -1891,6 +2255,97 @@
           "position"
         ],
         "title": "PlayerRef"
+      },
+      "PlayerWeekOut": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "opponent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent"
+          },
+          "played": {
+            "type": "boolean",
+            "title": "Played"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual",
+            "description": "Fantasy points scored (league scoring)"
+          },
+          "projected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected",
+            "description": "What we projected before that week"
+          },
+          "p10": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P10"
+          },
+          "p90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P90"
+          },
+          "statline": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Statline",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "opponent",
+          "played"
+        ],
+        "title": "PlayerWeekOut"
       },
       "PositionGradeOut": {
         "properties": {

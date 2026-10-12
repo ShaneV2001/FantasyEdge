@@ -531,3 +531,43 @@ def test_one_verdict_per_player_everywhere(client):
     advice = tc.get(f"/team/{team_id}/advice").json()["actions"]
     sold = {pl["player_id"] for a in advice if a["type"] == "Sell" for pl in a["players"]}
     assert all(roster[pid] == "sell" for pid in sold)
+
+
+def test_player_page_projects_each_played_week_before_it_happened(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    roster = tc.get(f"/team/{team_id}").json()["roster"]
+    rb = max((p for p in roster if p["position"] == "RB"), key=lambda p: p["ppg"])
+    r = tc.get(f"/team/{team_id}/players/{rb['player_id']}")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["name"] == rb["name"] and d["signal"] == rb["signal"] and d["mine"]
+    assert d["statline_keys"][:3] == ["carries", "rush_yds", "rush_td"]
+    played = [w for w in d["weeks"] if w["played"]]
+    assert played and all(w["actual"] is not None for w in played)
+    assert all(w["projected"] is not None for w in played if w["week"] > 1)
+    assert "rush_yds" in played[0]["statline"]
+    week = tc.get(f"/team/{team_id}").json()["league"]["week"]
+    assert d["upcoming"][0]["week"] == week
+    assert d["headshot_url"] is None or d["headshot_url"].startswith("https://sleepercdn.com/")
+    assert tc.get(f"/team/{team_id}/players/nobody").json()["kind"] == "player"
+
+
+def test_past_projection_ignores_the_week_itself(client, monkeypatch):
+    from app.services import player as player_svc
+
+    tc, _ = client
+    connect_and_pick(tc)
+    ctx = context.get_context(deps._con, f"sl-{LEAGUE}")
+    before = player_svc.past_projections(ctx)
+    w = max(before)
+    # blow up every stat line in week w: projections *for* week w must not move
+    ctx.memo.pop("past_projections")
+    ctx.stats = ctx.stats.with_columns(
+        pl.when((pl.col("season") == ctx.season) & (pl.col("week") >= w))
+        .then(pl.col("fp") * 10)
+        .otherwise(pl.col("fp"))
+        .alias("fp")
+    )
+    after = player_svc.past_projections(ctx)
+    assert after[w] == before[w]

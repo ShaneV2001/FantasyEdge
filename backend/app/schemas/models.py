@@ -417,6 +417,53 @@ class BuyTargetsOut(BaseModel):
     positions: dict[str, BuyTargetPosition]
 
 
+# ───────── player page ─────────
+
+
+class PlayerWeekOut(BaseModel):
+    week: int
+    opponent: str | None
+    played: bool
+    actual: float | None = Field(None, description="Fantasy points scored (league scoring)")
+    projected: float | None = Field(None, description="What we projected before that week")
+    p10: float | None = None
+    p90: float | None = None
+    statline: dict[str, float | None] = {}
+
+
+class PlayerDetailOut(BaseModel):
+    player_id: str
+    name: str
+    position: str
+    nfl_team: str | None
+    headshot_url: str | None
+    team_logo_url: str | None
+    age: int | None
+    years_exp: int | None
+    depth_chart_order: int | None
+    injury_status: str | None
+    availability_note: str | None
+    bye_week: int | None
+    owner: str | None = Field(None, description="Fantasy team that rosters him (None = nobody)")
+    mine: bool
+    ppg: float
+    p10: float | None
+    p90: float | None
+    model_ros_points: float | None
+    ros_value_par: float | None
+    market_value: float | None
+    model_rank: int | None
+    market_rank: int | None
+    market_implied_points: float | None
+    value_gap: float | None
+    signal: Literal["buy", "hold", "sell"]
+    signal_reasons: list[str]
+    flags: list[FlagOut]
+    statline_keys: list[str] = Field(description="Statline columns for this position, in order")
+    weeks: list[PlayerWeekOut]
+    upcoming: list[MatchupCell]
+
+
 # ───────── trades ─────────
 
 

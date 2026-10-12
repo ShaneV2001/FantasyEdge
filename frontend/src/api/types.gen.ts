@@ -605,6 +605,136 @@ export type PlayerByeOut = {
 };
 
 /**
+ * PlayerDetailOut
+ */
+export type PlayerDetailOut = {
+    /**
+     * Player Id
+     */
+    player_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position: string;
+    /**
+     * Nfl Team
+     */
+    nfl_team: string | null;
+    /**
+     * Headshot Url
+     */
+    headshot_url: string | null;
+    /**
+     * Team Logo Url
+     */
+    team_logo_url: string | null;
+    /**
+     * Age
+     */
+    age: number | null;
+    /**
+     * Years Exp
+     */
+    years_exp: number | null;
+    /**
+     * Depth Chart Order
+     */
+    depth_chart_order: number | null;
+    /**
+     * Injury Status
+     */
+    injury_status: string | null;
+    /**
+     * Availability Note
+     */
+    availability_note: string | null;
+    /**
+     * Bye Week
+     */
+    bye_week: number | null;
+    /**
+     * Owner
+     *
+     * Fantasy team that rosters him (None = nobody)
+     */
+    owner?: string | null;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Ppg
+     */
+    ppg: number;
+    /**
+     * P10
+     */
+    p10: number | null;
+    /**
+     * P90
+     */
+    p90: number | null;
+    /**
+     * Model Ros Points
+     */
+    model_ros_points: number | null;
+    /**
+     * Ros Value Par
+     */
+    ros_value_par: number | null;
+    /**
+     * Market Value
+     */
+    market_value: number | null;
+    /**
+     * Model Rank
+     */
+    model_rank: number | null;
+    /**
+     * Market Rank
+     */
+    market_rank: number | null;
+    /**
+     * Market Implied Points
+     */
+    market_implied_points: number | null;
+    /**
+     * Value Gap
+     */
+    value_gap: number | null;
+    /**
+     * Signal
+     */
+    signal: 'buy' | 'hold' | 'sell';
+    /**
+     * Signal Reasons
+     */
+    signal_reasons: Array<string>;
+    /**
+     * Flags
+     */
+    flags: Array<FlagOut>;
+    /**
+     * Statline Keys
+     *
+     * Statline columns for this position, in order
+     */
+    statline_keys: Array<string>;
+    /**
+     * Weeks
+     */
+    weeks: Array<PlayerWeekOut>;
+    /**
+     * Upcoming
+     */
+    upcoming: Array<MatchupCell>;
+};
+
+/**
  * PlayerFlagsOut
  */
 export type PlayerFlagsOut = {
@@ -677,6 +807,50 @@ export type PlayerRef = {
      * Nfl Team
      */
     nfl_team?: string | null;
+};
+
+/**
+ * PlayerWeekOut
+ */
+export type PlayerWeekOut = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Opponent
+     */
+    opponent: string | null;
+    /**
+     * Played
+     */
+    played: boolean;
+    /**
+     * Actual
+     *
+     * Fantasy points scored (league scoring)
+     */
+    actual?: number | null;
+    /**
+     * Projected
+     *
+     * What we projected before that week
+     */
+    projected?: number | null;
+    /**
+     * P10
+     */
+    p10?: number | null;
+    /**
+     * P90
+     */
+    p90?: number | null;
+    /**
+     * Statline
+     */
+    statline?: {
+        [key: string]: number | null;
+    };
 };
 
 /**
@@ -1568,6 +1742,40 @@ export type GetTeamResponses = {
 };
 
 export type GetTeamResponse = GetTeamResponses[keyof GetTeamResponses];
+
+export type GetPlayerData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+        /**
+         * Player Id
+         */
+        player_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/players/{player_id}';
+};
+
+export type GetPlayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPlayerError = GetPlayerErrors[keyof GetPlayerErrors];
+
+export type GetPlayerResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlayerDetailOut;
+};
+
+export type GetPlayerResponse = GetPlayerResponses[keyof GetPlayerResponses];
 
 export type GetBuyTargetsData = {
     body?: never;

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 
 from app.deps import get_con, write_lock
 from app.schemas import models as m
-from app.services import context, leagues, views
+from app.services import context, leagues, player, views
 from app.services.context import LeagueContext, get_context
 
 router = APIRouter(prefix="/team", tags=["team"])
@@ -21,6 +21,15 @@ def team_ctx(team_id: str, con: duckdb.DuckDBPyConnection = Depends(get_con)) ->
 def get_team(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.TeamOut:
     """Roster with projections, ROS value, market value, flags and grades vs the league."""
     return views.team_view(ctx, team_id)
+
+
+@router.get("/{team_id}/players/{player_id}", response_model=m.PlayerDetailOut)
+def get_player(
+    team_id: str, player_id: str, ctx: LeagueContext = Depends(team_ctx)
+) -> m.PlayerDetailOut:
+    """Bio, verdict, weekly statlines and projected-vs-actual points for one player."""
+    flags = [views.flag_out(f) for f in ctx.regression.for_player(player_id)]
+    return player.player_detail(ctx, team_id, player_id, flags)
 
 
 @router.get("/{team_id}/buy-targets", response_model=m.BuyTargetsOut)
