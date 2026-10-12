@@ -99,8 +99,8 @@ work:** flagged players fell a further 1.1 (efficiency), 1.4 (TD over expected) 
 points per game, beating similar players 61–67% of the time. **Buy-low flags are no better than a
 coin flip** (46–50%, about 0 PPG of lift), so treat them as context rather than a reason to trade.
 
-### Buy targets (schedule)
-The **Buy targets** page ranks the top 10 at every position, across all players, for each upcoming week
+### Rankings (schedule)
+The **Rankings** page ranks the top 10 at every position, across all players, for each upcoming week
 and for the rest of the season. Each week's projection is the player's per-game projection × expected
 availability × a matchup multiplier, `1 + α × (opponent index − 1)`:
 - **Opponent index:** fantasy points the opponent allows to that position vs league average, with
@@ -117,6 +117,29 @@ Schedule matters most for defenses: matchups double the week-to-week ranking acc
 projections (weekly Spearman 0.12 → 0.23). Elsewhere the effect is small, and for tight ends
 matchups didn't help, so the TE ranking ignores schedule. Each row also shows what the schedule adds
 or costs versus an average set of opponents.
+
+### One verdict per player: buy, hold or sell
+Every player gets a single verdict, shown the same way on My Team, Rankings, Buy targets, the player
+page and in the advisor. It compares **our projection with the market's price**:
+- **Our points:** his schedule-adjusted rest-of-season points (the Rankings numbers).
+- **The market's price:** if FantasyCalc ranks him RBr, he's priced like the player *we* rank RBr,
+  so his market-implied points are that player's projection.
+- **Buy** when we project at least max(10 points, 10%) more than his price; **sell** when at least
+  that much less; otherwise **hold**. Only players in the startable pool get a call (we must rank a
+  buy inside QB24 / RB60 / WR60 / TE24; the market must rank a sell there). Without a market value
+  (most kickers and defenses) the verdict is hold.
+
+Regression flags don't decide the verdict. In the backtest, adding them to the projection made
+accuracy worse, because the projection already carries their signal: it is half usage-based, so a
+back running hot on efficiency already projects below his pace. The flags are listed as reasons
+instead.
+
+The **Buy targets** page lists, per position, the most undervalued players you don't own, and your
+own players the market overvalues.
+
+### Player pages
+Click any player for a headshot, bio, verdict and reasons, upcoming matchups, a game log, and a chart
+of what we projected before each week (using only earlier games) against what he scored.
 
 ### Bye-week planner
 Bye weeks come straight from the NFL schedule: a team's bye is the week it has no game. For every
@@ -138,11 +161,10 @@ Candidate actions are ranked by:
 priority = urgency weight × impact × confidence weight
 ```
 - **Urgency weights:** this week 3.0 · before byes 2.2 · before deadline 1.6 · rest of season 1.0
-- **Confidence** reflects how many independent signals agree.
-- **Sell** candidates need negative regression, optionally backed by a market rank well above our
-  projection, an upcoming bye or a tough schedule.
-- **Buy** targets sit at your weakest positions, show positive regression or are undervalued by
-  the market, and ideally belong to teams with depth to spare there.
+- **Sell** and **Buy** actions come straight from the player's verdict (above): your players with a
+  sell verdict, and other teams' players with a buy verdict at your weakest positions. Confidence and
+  impact grow with the size of the value gap.
+- Team grades cover QB, RB, WR, TE, K, DEF and each flex slot; "needs" only ever include QB–TE.
 
 ---
 
@@ -194,7 +216,7 @@ backend/
   tests/        unit + API tests on recorded fixtures (no live network calls)
 frontend/       Vite + React + TypeScript + shadcn/ui, TanStack Router/Query, Zustand, Recharts
   src/api/      generated typed client + TanStack Query hooks (python tasks.py gen-api)
-  src/routes/   connect, advisor, team, byes, targets, trade pages
+  src/routes/   connect, advisor, team, byes, rankings, buy-targets, player, trade pages
 scripts/        fixture recorder
 ```
 
@@ -216,7 +238,9 @@ FastAPI serves interactive docs at `http://localhost:8000/docs`. Phase 1 endpoin
 | GET | `/team/{id}/advice` | Ranked advisor feed + team grade |
 | GET | `/team/{id}/regression` | Regression flags for your roster and the league |
 | GET | `/team/{id}/byes` | Week × slot bye grid and danger weeks |
-| GET | `/team/{id}/targets` | Top 10 per position by schedule-adjusted points, each week and rest of season |
+| GET | `/team/{id}/rankings` | Top 10 per position by schedule-adjusted points, each week and rest of season |
+| GET | `/team/{id}/buy-targets` | Undervalued players to buy and your overvalued players, per position |
+| GET | `/team/{id}/players/{player_id}` | Player page: bio, verdict, game log, projected vs actual by week |
 | POST | `/trade/evaluate` | Score a proposed trade for both sides |
 | GET | `/trade/suggest` | Mutually beneficial trade ideas |
 | POST | `/refresh` | Re-sync league, market or all data |
