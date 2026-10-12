@@ -98,6 +98,46 @@ export type AdviceOut = {
 };
 
 /**
+ * AnalyticsGroupOut
+ */
+export type AnalyticsGroupOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Metrics
+     */
+    metrics: Array<string>;
+};
+
+/**
+ * AnalyticsWindowOut
+ */
+export type AnalyticsWindowOut = {
+    /**
+     * Label
+     */
+    label: 'L3' | 'L5' | 'Season';
+    /**
+     * Games
+     */
+    games: number;
+    /**
+     * Metrics
+     *
+     * Metric key → value; null = no data
+     */
+    metrics: {
+        [key: string]: number | null;
+    };
+};
+
+/**
  * BuyTargetPosition
  */
 export type BuyTargetPosition = {
@@ -598,6 +638,22 @@ export type MatchupCell = {
 };
 
 /**
+ * PlayerAnalyticsOut
+ */
+export type PlayerAnalyticsOut = {
+    /**
+     * Groups
+     */
+    groups: Array<AnalyticsGroupOut>;
+    /**
+     * Windows
+     *
+     * Shortest window first; Season is last
+     */
+    windows: Array<AnalyticsWindowOut>;
+};
+
+/**
  * PlayerByeOut
  */
 export type PlayerByeOut = {
@@ -744,6 +800,10 @@ export type PlayerDetailOut = {
      * Upcoming
      */
     upcoming: Array<MatchupCell>;
+    /**
+     * None for K/DEF or no games
+     */
+    analytics?: PlayerAnalyticsOut | null;
 };
 
 /**

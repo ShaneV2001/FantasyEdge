@@ -560,6 +560,9 @@ def test_player_page_projects_each_played_week_before_it_happened(client):
     assert d["upcoming"][0]["week"] == week
     assert d["headshot_url"] is None or d["headshot_url"].startswith("https://sleepercdn.com/")
     assert tc.get(f"/team/{team_id}/players/nobody").json()["kind"] == "player"
+    a = d["analytics"]
+    assert a["windows"][-1]["label"] == "Season" and a["windows"][-1]["games"] == len(played)
+    assert "rush_share" in a["windows"][-1]["metrics"]
 
 
 def test_past_projection_ignores_the_week_itself(client, monkeypatch):

@@ -1030,6 +1030,71 @@
         ],
         "title": "AdviceOut"
       },
+      "AnalyticsGroupOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "metrics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "metrics"
+        ],
+        "title": "AnalyticsGroupOut"
+      },
+      "AnalyticsWindowOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "enum": [
+              "L3",
+              "L5",
+              "Season"
+            ],
+            "title": "Label"
+          },
+          "games": {
+            "type": "integer",
+            "title": "Games"
+          },
+          "metrics": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Metrics",
+            "description": "Metric key \u2192 value; null = no data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "games",
+          "metrics"
+        ],
+        "title": "AnalyticsWindowOut"
+      },
       "BuyTargetPosition": {
         "properties": {
           "has_market": {
@@ -1858,6 +1923,31 @@
         ],
         "title": "MatchupCell"
       },
+      "PlayerAnalyticsOut": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsGroupOut"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsWindowOut"
+            },
+            "type": "array",
+            "title": "Windows",
+            "description": "Shortest window first; Season is last"
+          }
+        },
+        "type": "object",
+        "required": [
+          "groups",
+          "windows"
+        ],
+        "title": "PlayerAnalyticsOut"
+      },
       "PlayerByeOut": {
         "properties": {
           "player": {
@@ -2175,6 +2265,17 @@
             },
             "type": "array",
             "title": "Upcoming"
+          },
+          "analytics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlayerAnalyticsOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None for K/DEF or no games"
           }
         },
         "type": "object",

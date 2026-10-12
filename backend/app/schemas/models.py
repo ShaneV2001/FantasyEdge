@@ -437,6 +437,23 @@ class PlayerWeekOut(BaseModel):
     statline: dict[str, float | None] = {}
 
 
+class AnalyticsWindowOut(BaseModel):
+    label: Literal["L3", "L5", "Season"]
+    games: int
+    metrics: dict[str, float | None] = Field(description="Metric key → value; null = no data")
+
+
+class AnalyticsGroupOut(BaseModel):
+    key: str
+    label: str
+    metrics: list[str]
+
+
+class PlayerAnalyticsOut(BaseModel):
+    groups: list[AnalyticsGroupOut]
+    windows: list[AnalyticsWindowOut] = Field(description="Shortest window first; Season is last")
+
+
 class PlayerDetailOut(BaseModel):
     player_id: str
     name: str
@@ -468,6 +485,7 @@ class PlayerDetailOut(BaseModel):
     statline_keys: list[str] = Field(description="Statline columns for this position, in order")
     weeks: list[PlayerWeekOut]
     upcoming: list[MatchupCell]
+    analytics: PlayerAnalyticsOut | None = Field(None, description="None for K/DEF or no games")
 
 
 # ───────── trades ─────────

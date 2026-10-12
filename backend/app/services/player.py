@@ -14,6 +14,7 @@ import polars as pl
 from app.errors import NotFound
 from app.schemas import models as m
 from app.services.context import LeagueContext, engine_for
+from app.services.player_analytics import player_analytics
 from projections.base import ProjectionInputs
 from projections.matchup import MatchupAdjusted
 
@@ -173,4 +174,5 @@ def player_detail(
         statline_keys=list(STATLINE.get(pos, ())),
         weeks=weeks,
         upcoming=upcoming,
+        analytics=player_analytics(ctx.stats, player_id, ctx.season, pos),
     )
