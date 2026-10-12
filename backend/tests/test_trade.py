@@ -99,7 +99,7 @@ def test_trade_advice_hidden_after_deadline(league):
     ideas = suggest(math, players, ("A", rosters["A"]), {"B": rosters["B"]})
     inp = adv.AdvisorInputs(
         my_team_id="A", rosters=rosters, team_names={"A": "A", "B": "B"}, starters=[],
-        players={k: v | {"regression_score": -3.0} for k, v in players.items()},
+        players={k: v | {"signal": "sell"} for k, v in players.items()},
         profiles=team_profiles(rosters, players, SLOTS), byes=[], math=math, week=12,
         trade_deadline_week=11, trade_ideas=ideas, free_agents=None, regression_messages={},
     )  # fmt: skip

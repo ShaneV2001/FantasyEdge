@@ -23,7 +23,16 @@ from projections.norms import norms_window, position_rates
 from scoring.rules import describe, normalize, score
 from signals.lineup import SKILL_POSITIONS
 from signals.regression import RegressionReport, build_report
-from signals.schedule import Schedule, build_schedule, fp_allowed_index, schedule_ease
+from signals.schedule import (
+    MATCHUP_ALPHA,
+    Schedule,
+    build_schedule,
+    fp_allowed_index,
+    schedule_ease,
+)
+from signals.targets import WeekCell, all_cells, ros_points
+from signals.verdict import reasons as verdict_reasons
+from signals.verdict import value_players
 
 log = logging.getLogger("ff_edge.context")
 
@@ -110,6 +119,9 @@ class LeagueContext:
     built_at: datetime
     # (opponent, position) -> fantasy points allowed vs league average (>1 = easier matchup)
     matchup: dict[tuple[str, str], float] = field(default_factory=dict)
+    # player_id -> week-by-week matchup-adjusted projections, current week through last week
+    cells: dict[str, list[WeekCell]] = field(default_factory=dict)
+    stats: pl.DataFrame = field(default_factory=pl.DataFrame)  # league-scored history
     memo: dict = field(default_factory=dict)  # per-context derived results (e.g. trade ideas)
 
     @property
@@ -269,6 +281,56 @@ def _add_unprojected(info: dict[str, dict], teams: list[TeamRow], columns: list[
         info[pid] = row
 
 
+MARKET_LABEL = {"fantasycalc": "FantasyCalc", "dynastyprocess": "DynastyProcess"}
+
+
+def _value_players(
+    info: dict[str, dict],
+    report: RegressionReport,
+    schedule: Schedule,
+    matchup: dict[tuple[str, str], float],
+    start: int,
+    end: int,
+    market_source: str | None,
+) -> dict[str, list[WeekCell]]:
+    """Schedule-adjusted ROS points and the single buy/hold/sell verdict for every player."""
+    pool = {
+        pid: r for pid, r in info.items()
+        if r.get("position") in MATCHUP_POSITIONS and r.get("nfl_team")
+    }  # fmt: skip
+    cells = all_cells(pool, schedule, matchup, MATCHUP_ALPHA, start, end)
+    model_pts = {pid: ros_points(c) for pid, c in cells.items()}
+    values = value_players(info, model_pts, MATCHUP_POSITIONS)
+    label = MARKET_LABEL.get(market_source or "", "Market")
+    for pid, r in info.items():
+        v = values.get(pid)
+        if v is None:
+            r.update(
+                signal="hold",
+                signal_reasons=[],
+                value_gap=None,
+                model_ros_points=None,
+                market_implied_points=None,
+                model_pos_rank=None,
+                market_rank_cov=None,
+            )
+            continue
+        delta = sum(c.points - c.neutral for c in cells[pid])
+        r.update(
+            signal=v.signal,
+            signal_reasons=verdict_reasons(
+                r, v, market_label=label, schedule_delta=delta,
+                flag_messages=[f.message for f in report.for_player(pid)],
+            ),
+            value_gap=v.gap,
+            model_ros_points=v.model_points,
+            market_implied_points=v.market_implied,
+            model_pos_rank=v.model_rank,
+            market_rank_cov=v.market_rank,
+        )  # fmt: skip
+    return cells
+
+
 def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueContext:
     league = load_league(con, league_id)
     teams = load_teams(con, league_id)
@@ -319,23 +381,6 @@ def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueConte
         on="player_id",
         how="left",
     )
-    # model rank vs market rank, compared within the market-covered player set at each position
-    proj = proj.with_columns(
-        pl.when(pl.col("market_value").is_not_null())
-        .then(
-            pl.col("ros_value_par")
-            .rank("ordinal", descending=True)
-            .over(["position", pl.col("market_value").is_not_null()])
-        )
-        .alias("model_pos_rank"),
-        pl.when(pl.col("market_value").is_not_null())
-        .then(
-            pl.col("market_value")
-            .rank("ordinal", descending=True)
-            .over(["position", pl.col("market_value").is_not_null()])
-        )
-        .alias("market_rank_cov"),
-    )
     tdoe = report.tdoe.select("player_id", "tdoe", "expected_td", "actual_td")
     proj = proj.join(tdoe, on="player_id", how="left")
 
@@ -361,6 +406,7 @@ def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueConte
             r["ease_next4"] = r["ease_playoffs"] = None
         info[pid] = r
     _add_unprojected(info, teams, proj.columns)
+    cells = _value_players(info, report, schedule, matchup, week, league.last_week, source)
 
     return LeagueContext(
         league=league,
@@ -376,6 +422,8 @@ def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueConte
         market_stale=stale,
         built_at=datetime.now(),
         matchup=matchup,
+        cells=cells,
+        stats=scored,
     )
 
 

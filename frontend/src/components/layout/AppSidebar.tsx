@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { ArrowLeftRight, CalendarRange, Crosshair, Plug, RefreshCw, Sparkles, Users } from 'lucide-react'
+import { ArrowLeftRight, CalendarRange, Crosshair, ListOrdered, Plug, RefreshCw, Sparkles, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { getTeamOptions, refreshMutation } from '@/api/@tanstack/react-query.gen'
@@ -25,7 +25,8 @@ const NAV = [
   { to: '/advisor', label: 'Advisor', icon: Sparkles },
   { to: '/team', label: 'My Team', icon: Users },
   { to: '/byes', label: 'Byes', icon: CalendarRange },
-  { to: '/targets', label: 'Buy targets', icon: Crosshair },
+  { to: '/rankings', label: 'Rankings', icon: ListOrdered },
+  { to: '/buy-targets', label: 'Buy targets', icon: Crosshair },
   { to: '/trade', label: 'Trade', icon: ArrowLeftRight },
 ] as const
 

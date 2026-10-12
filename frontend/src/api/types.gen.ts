@@ -98,6 +98,136 @@ export type AdviceOut = {
 };
 
 /**
+ * BuyTargetPosition
+ */
+export type BuyTargetPosition = {
+    /**
+     * Has Market
+     *
+     * False when the market doesn't value this position
+     */
+    has_market: boolean;
+    /**
+     * Buy
+     *
+     * Undervalued players on other teams / free agents
+     */
+    buy: Array<BuyTargetRow>;
+    /**
+     * Sell
+     *
+     * Your players the market overvalues
+     */
+    sell: Array<BuyTargetRow>;
+};
+
+/**
+ * BuyTargetRow
+ */
+export type BuyTargetRow = {
+    /**
+     * Rank
+     */
+    rank: number;
+    /**
+     * Player Id
+     */
+    player_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position: string;
+    /**
+     * Nfl Team
+     */
+    nfl_team: string | null;
+    /**
+     * Owner
+     */
+    owner: string | null;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Model Points
+     *
+     * Our schedule-adjusted ROS points
+     */
+    model_points: number;
+    /**
+     * Model Rank
+     */
+    model_rank: number | null;
+    /**
+     * Market Rank
+     */
+    market_rank: number | null;
+    /**
+     * Market Implied Points
+     *
+     * ROS points of the player we rank where the market ranks him
+     */
+    market_implied_points?: number | null;
+    /**
+     * Value Gap
+     */
+    value_gap: number | null;
+    /**
+     * Signal
+     */
+    signal: 'buy' | 'hold' | 'sell';
+    /**
+     * Reasons
+     */
+    reasons: Array<string>;
+    /**
+     * Ppg
+     */
+    ppg: number;
+    /**
+     * Availability Note
+     */
+    availability_note?: string | null;
+    /**
+     * Cells
+     */
+    cells: Array<MatchupCell>;
+};
+
+/**
+ * BuyTargetsOut
+ */
+export type BuyTargetsOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Last Week
+     */
+    last_week: number;
+    /**
+     * Market Label
+     */
+    market_label: string;
+    /**
+     * Positions
+     */
+    positions: {
+        [key: string]: BuyTargetPosition;
+    };
+};
+
+/**
  * ByeWeekOut
  */
 export type ByeWeekOut = {
@@ -428,6 +558,34 @@ export type MarketInfo = {
 };
 
 /**
+ * MatchupCell
+ */
+export type MatchupCell = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Opponent
+     *
+     * None on a bye
+     */
+    opponent?: string | null;
+    /**
+     * Index
+     *
+     * Opponent's fantasy points allowed to the position vs average (>1 easier)
+     */
+    index?: number | null;
+    /**
+     * Points
+     *
+     * Matchup-adjusted projected points
+     */
+    points: number;
+};
+
+/**
  * PlayerByeOut
  */
 export type PlayerByeOut = {
@@ -489,6 +647,10 @@ export type PlayerFlagsOut = {
      * Model Rank
      */
     model_rank?: number | null;
+    /**
+     * Signal
+     */
+    signal?: 'buy' | 'hold' | 'sell';
     /**
      * Flags
      */
@@ -555,6 +717,148 @@ export type PositionGradeOut = {
      * Standard deviations above the comparison-league average
      */
     z?: number;
+};
+
+/**
+ * RankingPosition
+ */
+export type RankingPosition = {
+    /**
+     * Alpha
+     *
+     * How strongly matchups move this position (0 = not at all)
+     */
+    alpha: number;
+    /**
+     * Ros
+     */
+    ros: Array<RankingRow>;
+    /**
+     * Weekly
+     */
+    weekly: Array<RankingWeek>;
+};
+
+/**
+ * RankingRow
+ */
+export type RankingRow = {
+    /**
+     * Rank
+     */
+    rank: number;
+    /**
+     * Player Id
+     */
+    player_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position: string;
+    /**
+     * Nfl Team
+     */
+    nfl_team: string | null;
+    /**
+     * Owner
+     *
+     * Team name, 'Free agent', or None if unknown
+     */
+    owner?: string | null;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Points
+     *
+     * Matchup-adjusted projected points (week or rest of season)
+     */
+    points: number;
+    /**
+     * Neutral Points
+     *
+     * Same projection against an average schedule
+     */
+    neutral_points: number;
+    /**
+     * Schedule Delta
+     *
+     * points - neutral_points: what the schedule adds
+     */
+    schedule_delta: number;
+    /**
+     * Avg Index
+     */
+    avg_index: number | null;
+    /**
+     * Games
+     */
+    games: number;
+    /**
+     * Ppg
+     */
+    ppg: number;
+    /**
+     * Availability Note
+     */
+    availability_note?: string | null;
+    /**
+     * Cells
+     *
+     * Weekly view: that week; ROS: next few opponents
+     */
+    cells: Array<MatchupCell>;
+    /**
+     * Signal
+     */
+    signal?: 'buy' | 'hold' | 'sell';
+};
+
+/**
+ * RankingWeek
+ */
+export type RankingWeek = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Rows
+     */
+    rows: Array<RankingRow>;
+};
+
+/**
+ * RankingsOut
+ */
+export type RankingsOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Last Week
+     */
+    last_week: number;
+    /**
+     * Weeks
+     */
+    weeks: Array<number>;
+    /**
+     * Positions
+     */
+    positions: {
+        [key: string]: RankingPosition;
+    };
 };
 
 /**
@@ -740,6 +1044,32 @@ export type RosterPlayer = {
      */
     method?: string | null;
     /**
+     * Signal
+     *
+     * Our projection vs the market: one verdict used everywhere
+     */
+    signal?: 'buy' | 'hold' | 'sell';
+    /**
+     * Signal Reasons
+     */
+    signal_reasons?: Array<string>;
+    /**
+     * Value Gap
+     *
+     * Model ROS points minus what the market's price implies
+     */
+    value_gap?: number | null;
+    /**
+     * Market Implied Points
+     */
+    market_implied_points?: number | null;
+    /**
+     * Model Ros Points
+     *
+     * Schedule-adjusted ROS points
+     */
+    model_ros_points?: number | null;
+    /**
      * Slot
      *
      * Platform slot: starter | bench | ir | taxi
@@ -832,172 +1162,6 @@ export type StatusOut = {
      * Attribution
      */
     attribution: Array<string>;
-};
-
-/**
- * TargetCell
- */
-export type TargetCell = {
-    /**
-     * Week
-     */
-    week: number;
-    /**
-     * Opponent
-     *
-     * None on a bye
-     */
-    opponent?: string | null;
-    /**
-     * Index
-     *
-     * Opponent's fantasy points allowed to the position vs average (>1 easier)
-     */
-    index?: number | null;
-    /**
-     * Points
-     *
-     * Matchup-adjusted projected points
-     */
-    points: number;
-};
-
-/**
- * TargetPosition
- */
-export type TargetPosition = {
-    /**
-     * Alpha
-     *
-     * How strongly matchups move this position (0 = not at all)
-     */
-    alpha: number;
-    /**
-     * Ros
-     */
-    ros: Array<TargetRow>;
-    /**
-     * Weekly
-     */
-    weekly: Array<TargetWeek>;
-};
-
-/**
- * TargetRow
- */
-export type TargetRow = {
-    /**
-     * Rank
-     */
-    rank: number;
-    /**
-     * Player Id
-     */
-    player_id: string;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Position
-     */
-    position: string;
-    /**
-     * Nfl Team
-     */
-    nfl_team: string | null;
-    /**
-     * Owner
-     *
-     * Team name, 'Free agent', or None if unknown
-     */
-    owner?: string | null;
-    /**
-     * Mine
-     */
-    mine: boolean;
-    /**
-     * Points
-     *
-     * Matchup-adjusted projected points (week or rest of season)
-     */
-    points: number;
-    /**
-     * Neutral Points
-     *
-     * Same projection against an average schedule
-     */
-    neutral_points: number;
-    /**
-     * Schedule Delta
-     *
-     * points - neutral_points: what the schedule adds
-     */
-    schedule_delta: number;
-    /**
-     * Avg Index
-     */
-    avg_index: number | null;
-    /**
-     * Games
-     */
-    games: number;
-    /**
-     * Ppg
-     */
-    ppg: number;
-    /**
-     * Availability Note
-     */
-    availability_note?: string | null;
-    /**
-     * Cells
-     *
-     * Weekly view: that week; ROS: next few opponents
-     */
-    cells: Array<TargetCell>;
-};
-
-/**
- * TargetWeek
- */
-export type TargetWeek = {
-    /**
-     * Week
-     */
-    week: number;
-    /**
-     * Rows
-     */
-    rows: Array<TargetRow>;
-};
-
-/**
- * TargetsOut
- */
-export type TargetsOut = {
-    /**
-     * Team Id
-     */
-    team_id: string;
-    /**
-     * Week
-     */
-    week: number;
-    /**
-     * Last Week
-     */
-    last_week: number;
-    /**
-     * Weeks
-     */
-    weeks: Array<number>;
-    /**
-     * Positions
-     */
-    positions: {
-        [key: string]: TargetPosition;
-    };
 };
 
 /**
@@ -1405,7 +1569,7 @@ export type GetTeamResponses = {
 
 export type GetTeamResponse = GetTeamResponses[keyof GetTeamResponses];
 
-export type GetTargetsData = {
+export type GetBuyTargetsData = {
     body?: never;
     path: {
         /**
@@ -1414,26 +1578,56 @@ export type GetTargetsData = {
         team_id: string;
     };
     query?: never;
-    url: '/team/{team_id}/targets';
+    url: '/team/{team_id}/buy-targets';
 };
 
-export type GetTargetsErrors = {
+export type GetBuyTargetsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetTargetsError = GetTargetsErrors[keyof GetTargetsErrors];
+export type GetBuyTargetsError = GetBuyTargetsErrors[keyof GetBuyTargetsErrors];
 
-export type GetTargetsResponses = {
+export type GetBuyTargetsResponses = {
     /**
      * Successful Response
      */
-    200: TargetsOut;
+    200: BuyTargetsOut;
 };
 
-export type GetTargetsResponse = GetTargetsResponses[keyof GetTargetsResponses];
+export type GetBuyTargetsResponse = GetBuyTargetsResponses[keyof GetBuyTargetsResponses];
+
+export type GetRankingsData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/rankings';
+};
+
+export type GetRankingsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetRankingsError = GetRankingsErrors[keyof GetRankingsErrors];
+
+export type GetRankingsResponses = {
+    /**
+     * Successful Response
+     */
+    200: RankingsOut;
+};
+
+export type GetRankingsResponse = GetRankingsResponses[keyof GetRankingsResponses];
 
 export type GetAdviceData = {
     body?: never;

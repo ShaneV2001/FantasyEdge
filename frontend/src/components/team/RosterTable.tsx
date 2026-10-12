@@ -188,7 +188,7 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
                 )}
               </TableCell>
               <TableCell className="text-right">
-                <SignalBadge score={p.regression_score} />
+                <SignalBadge signal={p.signal} reasons={p.signal_reasons} />
               </TableCell>
             </TableRow>
             </Fragment>

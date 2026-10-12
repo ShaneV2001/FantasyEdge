@@ -1,7 +1,7 @@
 import pytest
 
 from signals.schedule import Schedule
-from signals.targets import rank_targets, week_cells
+from signals.targets import all_cells, rank_targets, week_cells
 
 
 def _schedule():
@@ -30,7 +30,8 @@ def test_cells_apply_matchup_bye_and_injury():
 
 def test_rankings_per_week_and_rest_of_season():
     players = {"a": P("AAA", 10), "b": P("BBB", 10)}
-    r = rank_targets(players, _schedule(), INDEX, {"DEF": 1.0}, 5, 7, positions=["DEF"])["DEF"]
+    cells = all_cells(players, _schedule(), INDEX, {"DEF": 1.0}, 5, 7)
+    r = rank_targets(players, cells, 5, 7, positions=["DEF"])["DEF"]
     assert [x.player_id for x in r["weekly"][5]] == ["a", "b"]
     assert [x.player_id for x in r["weekly"][6]] == ["b", "a"]
     assert [x.player_id for x in r["weekly"][7]] == ["b"]  # AAA is on bye
@@ -43,6 +44,7 @@ def test_rankings_per_week_and_rest_of_season():
 
 def test_alpha_zero_ignores_schedule_and_top_n_caps():
     players = {f"p{i}": P("BBB", float(i)) for i in range(15)}
-    r = rank_targets(players, _schedule(), INDEX, {"DEF": 0.0}, 5, 6, positions=["DEF"])["DEF"]
+    cells = all_cells(players, _schedule(), INDEX, {"DEF": 0.0}, 5, 6)
+    r = rank_targets(players, cells, 5, 6, positions=["DEF"])["DEF"]
     assert len(r["ros"]) == 10 and r["ros"][0].player_id == "p14"
     assert all(x.schedule_delta == 0 for x in r["ros"])

@@ -491,10 +491,10 @@ def test_connect_lists_leagues_without_full_sync(client):
     assert len(router.calls) == n_calls
 
 
-def test_targets_rank_every_position_by_week_and_rest_of_season(client):
+def test_rankings_every_position_by_week_and_rest_of_season(client):
     tc, _ = client
     team_id = connect_and_pick(tc)
-    r = tc.get(f"/team/{team_id}/targets")
+    r = tc.get(f"/team/{team_id}/rankings")
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["weeks"] == list(range(body["week"], body["last_week"] + 1))
@@ -509,3 +509,25 @@ def test_targets_rank_every_position_by_week_and_rest_of_season(client):
     assert "Free agent" in owners or any(o and o != "Free agent" for o in owners)
     mine = [x for p in body["positions"].values() for x in p["ros"] if x["mine"]]
     assert all(x["owner"] == "Your team" for x in mine)
+
+
+def test_one_verdict_per_player_everywhere(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    roster = {p["player_id"]: p["signal"] for p in tc.get(f"/team/{team_id}").json()["roster"]}
+    reg = tc.get(f"/team/{team_id}/regression").json()
+    for row in reg["roster"]:
+        assert row["signal"] == roster[row["player"]["player_id"]]
+    for pos in tc.get(f"/team/{team_id}/rankings").json()["positions"].values():
+        for row in pos["ros"]:
+            if row["player_id"] in roster:
+                assert row["signal"] == roster[row["player_id"]]
+    buy = tc.get(f"/team/{team_id}/buy-targets").json()
+    for pos in buy["positions"].values():
+        assert all(r["signal"] == "buy" and not r["mine"] for r in pos["buy"])
+        assert all(r["signal"] == "sell" and r["mine"] for r in pos["sell"])
+        gaps = [r["value_gap"] for r in pos["buy"]]
+        assert gaps == sorted(gaps, reverse=True)
+    advice = tc.get(f"/team/{team_id}/advice").json()["actions"]
+    sold = {pl["player_id"] for a in advice if a["type"] == "Sell" for pl in a["players"]}
+    assert all(roster[pid] == "sell" for pid in sold)

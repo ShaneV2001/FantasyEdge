@@ -23,11 +23,17 @@ def get_team(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.TeamOut:
     return views.team_view(ctx, team_id)
 
 
-@router.get("/{team_id}/targets", response_model=m.TargetsOut)
-def get_targets(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.TargetsOut:
+@router.get("/{team_id}/buy-targets", response_model=m.BuyTargetsOut)
+def get_buy_targets(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.BuyTargetsOut:
+    """Players the market undervalues vs our projection (buy), and your overvalued ones (sell)."""
+    return views.buy_targets_view(ctx, team_id)
+
+
+@router.get("/{team_id}/rankings", response_model=m.RankingsOut)
+def get_rankings(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.RankingsOut:
     """Top 10 per position by schedule-adjusted points, for each upcoming week and the rest of
     the season (all players; owner labeled)."""
-    return views.targets_view(ctx, team_id)
+    return views.rankings_view(ctx, team_id)
 
 
 @router.get("/{team_id}/advice", response_model=m.AdviceOut)

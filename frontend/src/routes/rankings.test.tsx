@@ -3,13 +3,15 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { TargetRow, TargetsOut } from '@/api'
+import type { RankingRow, RankingsOut } from '@/api'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useTeamStore } from '@/stores/team'
 
-import { TargetsPage, injuryStatus, matchupTone } from './targets'
+import { injuryStatus, matchupTone } from '@/components/player/matchups'
 
-const row = (rank: number, name: string, over: Partial<TargetRow> = {}): TargetRow => ({
+import { RankingsPage } from './rankings'
+
+const row = (rank: number, name: string, over: Partial<RankingRow> = {}): RankingRow => ({
   rank,
   player_id: name,
   name,
@@ -25,10 +27,11 @@ const row = (rank: number, name: string, over: Partial<TargetRow> = {}): TargetR
   ppg: 15,
   availability_note: null,
   cells: [{ week: 6, opponent: 'CAR', index: 1.3, points: 18 }],
+  signal: 'hold',
   ...over,
 })
 
-const DATA: TargetsOut = {
+const DATA: RankingsOut = {
   team_id: 'sl-1-1',
   week: 6,
   last_week: 7,
@@ -38,7 +41,7 @@ const DATA: TargetsOut = {
       p,
       {
         alpha: p === 'TE' ? 0 : 0.5,
-        ros: [row(1, `${p} ROS star`, { mine: true, owner: 'Your team' }), row(2, `${p} free agent`, { owner: 'Free agent' })],
+        ros: [row(1, `${p} ROS star`, { mine: true, owner: 'Your team' }), row(2, `${p} free agent`, { owner: 'Free agent', signal: 'buy' })],
         weekly: [
           { week: 6, rows: [row(1, `${p} week-6 pick`)] },
           { week: 7, rows: [row(1, `${p} week-7 pick`)] },
@@ -53,13 +56,13 @@ function renderPage() {
   return render(
     <QueryClientProvider client={qc}>
       <TooltipProvider>
-        <TargetsPage />
+        <RankingsPage />
       </TooltipProvider>
     </QueryClientProvider>,
   )
 }
 
-describe('TargetsPage', () => {
+describe('RankingsPage', () => {
   beforeEach(() => {
     useTeamStore.getState().setTeam({
       teamId: 'sl-1-1',
@@ -77,6 +80,7 @@ describe('TargetsPage', () => {
     expect(await screen.findByText('RB ROS star')).toBeInTheDocument()
     expect(screen.getByText('Your team')).toBeInTheDocument()
     expect(screen.getByText('Free agent')).toBeInTheDocument()
+    expect(screen.getByText('buy')).toBeInTheDocument() // verdict badge from the API
 
     await userEvent.click(screen.getByRole('tab', { name: 'WR' }))
     expect(screen.getByText('WR ROS star')).toBeInTheDocument()

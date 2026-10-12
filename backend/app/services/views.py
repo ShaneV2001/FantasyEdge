@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.errors import InvalidInput
 from app.schemas import models as m
-from app.services.context import LeagueContext
+from app.services.context import MARKET_LABEL, LeagueContext
 from scoring.rules import PRESETS, normalize
 from signals import advisor as adv
 from signals import trade as tr
@@ -15,11 +15,8 @@ from signals.lineup import starting_slots
 from signals.regression import TDOE_THRESHOLD, USAGE_SHIFT, Z_THRESHOLD, RegressionFlag
 from signals.schedule import MATCHUP_ALPHA
 from signals.targets import POSITIONS as TARGET_POSITIONS
-from signals.targets import TargetRow, rank_targets
+from signals.targets import TargetRow, rank_targets, ros_row
 from signals.team import RosMath, TeamProfile, simulate_league, team_profiles
-
-MARKET_LABEL = {"fantasycalc": "FantasyCalc", "dynastyprocess": "DynastyProcess"}
-
 
 # ───────── shared helpers ─────────
 
@@ -102,6 +99,11 @@ def player_value(ctx: LeagueContext, pid: str) -> dict:
         ease_next4=_r(p.get("ease_next4")),
         ease_playoffs=_r(p.get("ease_playoffs")),
         method=p.get("method"),
+        signal=p.get("signal") or "hold",
+        signal_reasons=list(p.get("signal_reasons") or []),
+        value_gap=p.get("value_gap"),
+        market_implied_points=p.get("market_implied_points"),
+        model_ros_points=p.get("model_ros_points"),
     )
 
 
@@ -341,6 +343,7 @@ def regression_view(ctx: LeagueContext, team_id: str, league_limit: int = 40) ->
             market_rank=p.get("market_rank_cov"),
             model_rank=p.get("model_pos_rank"),
             flags=[flag_out(f) for f in ctx.regression.for_player(pid)],
+            signal=p.get("signal") or "hold",
         )
 
     roster = [
@@ -558,10 +561,17 @@ def _owner_label(ctx: LeagueContext, pid: str, team_id: str) -> tuple[str | None
     return (None if ctx.league.platform == "manual" else "Free agent"), False
 
 
-def _target_row(ctx: LeagueContext, team_id: str, rank: int, r: TargetRow) -> m.TargetRow:
+def _cells_out(cells) -> list[m.MatchupCell]:
+    return [
+        m.MatchupCell(week=c.week, opponent=c.opponent, index=c.index, points=c.points)
+        for c in cells
+    ]
+
+
+def _ranking_row(ctx: LeagueContext, team_id: str, rank: int, r: TargetRow) -> m.RankingRow:
     p = ctx.players[r.player_id]
     owner, mine = _owner_label(ctx, r.player_id, team_id)
-    return m.TargetRow(
+    return m.RankingRow(
         rank=rank,
         player_id=r.player_id,
         name=p["name"],
@@ -576,46 +586,95 @@ def _target_row(ctx: LeagueContext, team_id: str, rank: int, r: TargetRow) -> m.
         games=r.games,
         ppg=_r(p.get("ppg")) or 0.0,
         availability_note=p.get("availability_note"),
-        cells=[
-            m.TargetCell(week=c.week, opponent=c.opponent, index=c.index, points=c.points)
-            for c in r.cells
-        ],
+        cells=_cells_out(r.cells),
+        signal=p.get("signal") or "hold",
     )
 
 
-def targets_view(ctx: LeagueContext, team_id: str) -> m.TargetsOut:
+def rankings_view(ctx: LeagueContext, team_id: str) -> m.RankingsOut:
     """Top players at each position by matchup-adjusted points: each week and rest of season."""
     ctx.team(team_id)
     start, end = ctx.week, ctx.league.last_week
-    if "targets" not in ctx.memo:
+    if "rankings" not in ctx.memo:
         pool = {
-            pid: p
-            for pid, p in ctx.players.items()
-            if p.get("position") in TARGET_POSITIONS
-            and p.get("nfl_team")
-            and (p.get("ppg") or 0) > 0
+            pid: p for pid, p in ctx.players.items() if pid in ctx.cells and (p.get("ppg") or 0) > 0
         }
-        ctx.memo["targets"] = rank_targets(
-            pool, ctx.schedule, ctx.matchup, MATCHUP_ALPHA, start, end
-        )
-    ranked = ctx.memo["targets"]
-    return m.TargetsOut(
+        ctx.memo["rankings"] = rank_targets(pool, ctx.cells, start, end)
+    ranked = ctx.memo["rankings"]
+    return m.RankingsOut(
         team_id=team_id,
         week=start,
         last_week=end,
         weeks=list(range(start, end + 1)),
         positions={
-            pos: m.TargetPosition(
+            pos: m.RankingPosition(
                 alpha=MATCHUP_ALPHA.get(pos, 0.0),
-                ros=[_target_row(ctx, team_id, i + 1, r) for i, r in enumerate(v["ros"])],
+                ros=[_ranking_row(ctx, team_id, i + 1, r) for i, r in enumerate(v["ros"])],
                 weekly=[
-                    m.TargetWeek(
+                    m.RankingWeek(
                         week=w,
-                        rows=[_target_row(ctx, team_id, i + 1, r) for i, r in enumerate(rows)],
+                        rows=[_ranking_row(ctx, team_id, i + 1, r) for i, r in enumerate(rows)],
                     )
                     for w, rows in v["weekly"].items()
                 ],
             )
             for pos, v in ranked.items()
         },
+    )
+
+
+def _buy_row(ctx: LeagueContext, team_id: str, rank: int, pid: str) -> m.BuyTargetRow:
+    p = ctx.players[pid]
+    owner, mine = _owner_label(ctx, pid, team_id)
+    return m.BuyTargetRow(
+        rank=rank,
+        player_id=pid,
+        name=p["name"],
+        position=p["position"],
+        nfl_team=p.get("nfl_team"),
+        owner=owner,
+        mine=mine,
+        model_points=p.get("model_ros_points") or 0.0,
+        model_rank=p.get("model_pos_rank"),
+        market_rank=p.get("market_rank_cov"),
+        market_implied_points=p.get("market_implied_points"),
+        value_gap=p.get("value_gap"),
+        signal=p.get("signal") or "hold",
+        reasons=list(p.get("signal_reasons") or []),
+        ppg=_r(p.get("ppg")) or 0.0,
+        availability_note=p.get("availability_note"),
+        cells=_cells_out(ros_row(pid, p["position"], ctx.cells[pid]).cells),
+    )
+
+
+def buy_targets_view(ctx: LeagueContext, team_id: str, top: int = 10) -> m.BuyTargetsOut:
+    """Per position: the most undervalued players you don't own, and your overvalued ones."""
+    team = ctx.team(team_id)
+    mine = set(team.player_ids)
+    positions = {}
+    for pos in TARGET_POSITIONS:
+        valued = [
+            pid
+            for pid, p in ctx.players.items()
+            if p.get("position") == pos and pid in ctx.cells and p.get("value_gap") is not None
+        ]
+        buy = sorted(
+            (pid for pid in valued if ctx.players[pid]["signal"] == "buy" and pid not in mine),
+            key=lambda pid: -ctx.players[pid]["value_gap"],
+        )[:top]
+        sell = sorted(
+            (pid for pid in valued if ctx.players[pid]["signal"] == "sell" and pid in mine),
+            key=lambda pid: ctx.players[pid]["value_gap"],
+        )
+        positions[pos] = m.BuyTargetPosition(
+            has_market=bool(valued),
+            buy=[_buy_row(ctx, team_id, i + 1, pid) for i, pid in enumerate(buy)],
+            sell=[_buy_row(ctx, team_id, i + 1, pid) for i, pid in enumerate(sell)],
+        )
+    return m.BuyTargetsOut(
+        team_id=team_id,
+        week=ctx.week,
+        last_week=ctx.league.last_week,
+        market_label=market_label(ctx),
+        positions=positions,
     )

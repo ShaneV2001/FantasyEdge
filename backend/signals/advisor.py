@@ -12,6 +12,7 @@ from signals.byes import ByeWeekRow
 from signals.lineup import SLOT_ELIGIBILITY, fit_to_slots
 from signals.team import RosMath, TeamProfile
 from signals.trade import TradeEvaluation
+from signals.verdict import threshold as verdict_threshold
 
 URGENCY_WEIGHT = {
     "this_week": 3.0,
@@ -21,9 +22,6 @@ URGENCY_WEIGHT = {
 }
 CONFIDENCE_WEIGHT = {"high": 1.0, "medium": 0.75, "low": 0.5}
 
-SELL_REGRESSION = -1.0  # regression score at or below → sell candidate
-BUY_REGRESSION = 1.0
-MARKET_GAP_RANKS = 5  # market rank vs model rank (within position) considered meaningful
 TOUGH_SCHEDULE = 0.92  # matchup index below this = tough
 EASY_SCHEDULE = 1.08
 BYE_HORIZON = 4  # weeks ahead to warn about danger weeks
@@ -69,10 +67,6 @@ class AdvisorInputs:
     playoff_label: str = "weeks 15-17"
 
 
-def _confidence(n_signals: int) -> str:
-    return "high" if n_signals >= 3 else "medium" if n_signals == 2 else "low"
-
-
 def _name(players: Mapping[str, Mapping], pid: str) -> str:
     return players.get(pid, {}).get("name", pid)
 
@@ -84,13 +78,6 @@ def deadline_passed(inp: AdvisorInputs) -> bool:
 
 def trade_urgency(inp: AdvisorInputs) -> str:
     return "before_deadline" if inp.trade_deadline_week is not None else "rest_of_season"
-
-
-def market_gap(p: Mapping) -> int | None:
-    """model rank − market rank (within position). >0 → market likes him more than we do."""
-    if p.get("model_pos_rank") is None or p.get("market_rank_cov") is None:
-        return None
-    return int(p["model_pos_rank"]) - int(p["market_rank_cov"])
 
 
 # ───────── generators ─────────
@@ -190,49 +177,46 @@ def _best_fa_for_slots(inp: AdvisorInputs, labels: Sequence[str], week: int) -> 
     return max(cands, key=lambda p: inp.players[p].get("ppg") or 0, default=None)
 
 
+def _gap_confidence(p: Mapping) -> str:
+    """How far past the buy/sell line the value gap is."""
+    gap, implied = p.get("value_gap"), p.get("market_implied_points")
+    if gap is None or not implied:
+        return "low"
+    ratio = abs(gap) / verdict_threshold(implied)
+    return "high" if ratio >= 2 else "medium" if ratio >= 1.4 else "low"
+
+
+def _gap_impact(p: Mapping) -> float:
+    return min(abs(p.get("value_gap") or 0.0) / 15, 5.0)
+
+
 def sell_actions(inp: AdvisorInputs) -> list[Action]:
+    """Your players whose verdict is Sell: the market pays more than we project."""
     if deadline_passed(inp):
         return []
     actions = []
     for pid in inp.rosters[inp.my_team_id]:
         p = inp.players.get(pid)
-        if not p or p.get("position") not in ("QB", "RB", "WR", "TE"):
+        if not p or p.get("signal") != "sell":
             continue
-        reg = p.get("regression_score") or 0.0
-        gap = market_gap(p)
-        market_high = gap is not None and gap >= MARKET_GAP_RANKS
-        if not (reg <= SELL_REGRESSION or (market_high and reg < 0)):
-            continue
-        reasons = list(inp.regression_messages.get(pid, []))
-        signals = 1 if reg <= SELL_REGRESSION else 0
-        if market_high:
-            signals += 1
-            reasons.append(
-                f"{inp.market_label} ranks him {p['position']}{p['market_rank_cov']}, "
-                f"{gap} spots above our projection ({p['position']}{p['model_pos_rank']})."
-            )
+        reasons = list(p.get("signal_reasons") or [])
         bye = p.get("bye_week")
         if bye is not None and inp.week <= bye <= inp.week + 3:
-            signals += 1
             reasons.append(f"Bye in week {bye} is coming up.")
-        if p.get("ease_next4") and p["ease_next4"] <= TOUGH_SCHEDULE:
-            signals += 1
-            reasons.append(f"Tough schedule next 4 weeks (matchup index {p['ease_next4']:.2f}).")
-        elif p.get("ease_playoffs") and p["ease_playoffs"] <= TOUGH_SCHEDULE:
-            signals += 1
+        if p.get("ease_playoffs") and p["ease_playoffs"] <= TOUGH_SCHEDULE:
             reasons.append(
                 f"Tough fantasy-playoff schedule, {inp.playoff_label} "
                 f"(index {p['ease_playoffs']:.2f})."
             )
-        impact = min(abs(reg) + (gap or 0) / 5 + max(p.get("ros_value_par") or 0, 0) / 60, 5.0)
         actions.append(
             Action("Sell", f"Sell high on {p['name']}", reasons, trade_urgency(inp),
-                   _confidence(signals), impact, [pid])
+                   _gap_confidence(p), _gap_impact(p), [pid])
         )  # fmt: skip
     return actions
 
 
 def buy_actions(inp: AdvisorInputs) -> list[Action]:
+    """Other teams' players whose verdict is Buy, at positions you need."""
     if deadline_passed(inp):
         return []
     mine = inp.profiles.get(inp.my_team_id)
@@ -247,40 +231,20 @@ def buy_actions(inp: AdvisorInputs) -> list[Action]:
         prof = inp.profiles.get(tid)
         for pid in roster:
             p = inp.players.get(pid)
-            if not p or p.get("position") not in needs:
+            if not p or p.get("signal") != "buy" or p.get("position") not in needs:
                 continue
-            reg = p.get("regression_score") or 0.0
-            gap = market_gap(p)
-            market_low = gap is not None and gap <= -MARKET_GAP_RANKS
-            if not (reg >= BUY_REGRESSION or (market_low and reg >= 0)):
-                continue
-            if (p.get("ros_value_par") or 0) <= 0:
-                continue
-            reasons = list(inp.regression_messages.get(pid, []))
-            signals = 1 if reg >= BUY_REGRESSION else 0
-            if market_low:
-                signals += 1
-                reasons.append(
-                    f"{inp.market_label} ranks him {p['position']}{p['market_rank_cov']}, "
-                    f"{-gap} spots below our projection ({p['position']}{p['model_pos_rank']})."
-                )
+            reasons = list(p.get("signal_reasons") or [])
             reasons.append(f"Fills your weakest spot: {p['position']}.")
             if prof and p["position"] in prof.surplus:
-                signals += 1
                 reasons.append(f"{inp.team_names[tid]} has {p['position']} depth to spare.")
             if p.get("ease_playoffs") and p["ease_playoffs"] >= EASY_SCHEDULE:
-                signals += 1
                 reasons.append(
                     f"Easy fantasy-playoff schedule, {inp.playoff_label} "
                     f"(index {p['ease_playoffs']:.2f})."
                 )
-            bye = p.get("bye_week")
-            if bye is not None and bye < inp.week:
-                reasons.append("His bye is already done.")
-            impact = min(abs(reg) + abs(gap or 0) / 5 + (p.get("ros_value_par") or 0) / 60, 5.0)
             actions.append(
-                Action("Buy", f"Buy low on {p['name']} ({inp.team_names[tid]})", reasons,
-                       trade_urgency(inp), _confidence(signals), impact, [pid], tid)
+                Action("Buy", f"Buy {p['name']} ({inp.team_names[tid]})", reasons,
+                       trade_urgency(inp), _gap_confidence(p), _gap_impact(p), [pid], tid)
             )  # fmt: skip
     return actions
 

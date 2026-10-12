@@ -51,6 +51,15 @@ class PlayerValue(PlayerRef):
     ease_next4: float | None = Field(None, description="Matchup index next 4 weeks (>1 easier)")
     ease_playoffs: float | None = None
     method: str | None = None
+    signal: Literal["buy", "hold", "sell"] = Field(
+        "hold", description="Our projection vs the market: one verdict used everywhere"
+    )
+    signal_reasons: list[str] = []
+    value_gap: float | None = Field(
+        None, description="Model ROS points minus what the market's price implies"
+    )
+    market_implied_points: float | None = None
+    model_ros_points: float | None = Field(None, description="Schedule-adjusted ROS points")
 
 
 class FlagOut(BaseModel):
@@ -273,6 +282,7 @@ class PlayerFlagsOut(BaseModel):
     tdoe: float | None = None
     market_rank: int | None = None
     model_rank: int | None = None
+    signal: Literal["buy", "hold", "sell"] = "hold"
     flags: list[FlagOut]
 
 
@@ -324,7 +334,7 @@ class ByesOut(BaseModel):
 # ───────── buy targets ─────────
 
 
-class TargetCell(BaseModel):
+class MatchupCell(BaseModel):
     week: int
     opponent: str | None = Field(None, description="None on a bye")
     index: float | None = Field(
@@ -333,7 +343,7 @@ class TargetCell(BaseModel):
     points: float = Field(description="Matchup-adjusted projected points")
 
 
-class TargetRow(BaseModel):
+class RankingRow(BaseModel):
     rank: int
     player_id: str
     name: str
@@ -348,26 +358,63 @@ class TargetRow(BaseModel):
     games: int
     ppg: float
     availability_note: str | None = None
-    cells: list[TargetCell] = Field(description="Weekly view: that week; ROS: next few opponents")
+    cells: list[MatchupCell] = Field(description="Weekly view: that week; ROS: next few opponents")
+    signal: Literal["buy", "hold", "sell"] = "hold"
 
 
-class TargetWeek(BaseModel):
+class RankingWeek(BaseModel):
     week: int
-    rows: list[TargetRow]
+    rows: list[RankingRow]
 
 
-class TargetPosition(BaseModel):
+class RankingPosition(BaseModel):
     alpha: float = Field(description="How strongly matchups move this position (0 = not at all)")
-    ros: list[TargetRow]
-    weekly: list[TargetWeek]
+    ros: list[RankingRow]
+    weekly: list[RankingWeek]
 
 
-class TargetsOut(BaseModel):
+class RankingsOut(BaseModel):
     team_id: str
     week: int
     last_week: int
     weeks: list[int]
-    positions: dict[str, TargetPosition]
+    positions: dict[str, RankingPosition]
+
+
+class BuyTargetRow(BaseModel):
+    rank: int
+    player_id: str
+    name: str
+    position: str
+    nfl_team: str | None
+    owner: str | None
+    mine: bool
+    model_points: float = Field(description="Our schedule-adjusted ROS points")
+    model_rank: int | None
+    market_rank: int | None
+    market_implied_points: float | None = Field(
+        None, description="ROS points of the player we rank where the market ranks him"
+    )
+    value_gap: float | None
+    signal: Literal["buy", "hold", "sell"]
+    reasons: list[str]
+    ppg: float
+    availability_note: str | None = None
+    cells: list[MatchupCell]
+
+
+class BuyTargetPosition(BaseModel):
+    has_market: bool = Field(description="False when the market doesn't value this position")
+    buy: list[BuyTargetRow] = Field(description="Undervalued players on other teams / free agents")
+    sell: list[BuyTargetRow] = Field(description="Your players the market overvalues")
+
+
+class BuyTargetsOut(BaseModel):
+    team_id: str
+    week: int
+    last_week: int
+    market_label: str
+    positions: dict[str, BuyTargetPosition]
 
 
 # ───────── trades ─────────

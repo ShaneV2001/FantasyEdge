@@ -68,37 +68,38 @@ def week_cells(
     return cells
 
 
-def rank_targets(
+def all_cells(
     players: Mapping[str, Mapping],
     schedule: Schedule,
     index: Mapping[tuple[str, str], float],
     alpha: Mapping[str, float],
     start: int,
     end: int,
+) -> dict[str, list[WeekCell]]:
+    """Week-by-week matchup-adjusted projections for every player (computed once per context)."""
+    return {
+        pid: week_cells(p, schedule, index, alpha.get(p.get("position") or "", 0.0), start, end)
+        for pid, p in players.items()
+    }
+
+
+def ros_points(cells: list[WeekCell]) -> float:
+    return round(sum(c.points for c in cells), 2)
+
+
+def rank_targets(
+    players: Mapping[str, Mapping],
+    cells: Mapping[str, list[WeekCell]],
+    start: int,
+    end: int,
     positions: Iterable[str] = POSITIONS,
     top: int = TOP_N,
 ) -> dict[str, dict]:
     """{position: {"ros": [TargetRow…], "weekly": {week: [TargetRow…]}}}, best first."""
-    cells = {
-        pid: week_cells(p, schedule, index, alpha.get(p.get("position") or "", 0.0), start, end)
-        for pid, p in players.items()
-    }
     out: dict[str, dict] = {}
     for pos in positions:
-        pids = [pid for pid, p in players.items() if p.get("position") == pos]
-        ros = []
-        for pid in pids:
-            played = [c for c in cells[pid] if c.index is not None]
-            ros.append(
-                TargetRow(
-                    pid, pos,
-                    round(sum(c.points for c in cells[pid]), 2),
-                    round(sum(c.neutral for c in cells[pid]), 2),
-                    len(played),
-                    round(sum(c.index for c in played) / len(played), 3) if played else None,
-                    [c for c in cells[pid] if c.opponent is not None][:UPCOMING_CELLS],
-                )
-            )  # fmt: skip
+        pids = [pid for pid, p in players.items() if p.get("position") == pos and pid in cells]
+        ros = [ros_row(pid, pos, cells[pid]) for pid in pids]
         ros.sort(key=lambda r: (-r.points, r.player_id))
         weekly: dict[int, list[TargetRow]] = {}
         for i, w in enumerate(range(start, end + 1)):
@@ -112,3 +113,16 @@ def rank_targets(
             weekly[w] = rows[:top]
         out[pos] = {"ros": ros[:top], "weekly": weekly}
     return out
+
+
+def ros_row(pid: str, pos: str, cells: list[WeekCell]) -> TargetRow:
+    """Rest-of-season summary: total, neutral total, games, average opponent, next opponents."""
+    played = [c for c in cells if c.index is not None]
+    return TargetRow(
+        pid, pos,
+        ros_points(cells),
+        round(sum(c.neutral for c in cells), 2),
+        len(played),
+        round(sum(c.index for c in played) / len(played), 3) if played else None,
+        [c for c in cells if c.opponent is not None][:UPCOMING_CELLS],
+    )  # fmt: skip

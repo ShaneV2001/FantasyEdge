@@ -2,7 +2,7 @@ import { TrendingDown, TrendingUp } from 'lucide-react'
 
 import type { PlayerRef } from '@/api'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { POSITION_CLASS, type Signal, signalFor } from '@/lib/format'
+import { POSITION_CLASS, type Signal } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export function PositionBadge({ position, className }: { position: string; className?: string }) {
@@ -25,26 +25,39 @@ const SIGNAL_STYLE: Record<Signal, string> = {
   hold: 'bg-muted text-muted-foreground ring-border',
 }
 
-export function SignalBadge({ score, showHold = false }: { score: number | null | undefined; showHold?: boolean }) {
-  const signal = signalFor(score)
-  if (signal === 'hold' && !showHold) return null
-  const Icon = signal === 'buy' ? TrendingUp : signal === 'sell' ? TrendingDown : null
+const SIGNAL_HINT: Record<Signal, string> = {
+  buy: 'Undervalued: we project more than the market charges',
+  sell: 'Overvalued: the market pays more than we project',
+  hold: 'Fairly priced: our projection and the market agree',
+}
+
+/** The player's single buy / hold / sell verdict (computed by the API; same on every page). */
+export function SignalBadge({
+  signal,
+  reasons,
+  showHold = false,
+}: {
+  signal: Signal | null | undefined
+  reasons?: string[] | null
+  showHold?: boolean
+}) {
+  const s: Signal = signal ?? 'hold'
+  if (s === 'hold' && !showHold) return null
+  const Icon = s === 'buy' ? TrendingUp : s === 'sell' ? TrendingDown : null
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
           className={cn(
             'inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset',
-            SIGNAL_STYLE[signal],
+            SIGNAL_STYLE[s],
           )}
         >
           {Icon && <Icon className="size-3" />}
-          {signal}
+          {s}
         </span>
       </TooltipTrigger>
-      <TooltipContent>
-        Regression score {score?.toFixed(2) ?? '0'} ({signal === 'buy' ? 'production should improve' : signal === 'sell' ? 'production likely to cool off' : 'no strong signal'})
-      </TooltipContent>
+      <TooltipContent className="max-w-xs">{reasons?.[0] ?? SIGNAL_HINT[s]}</TooltipContent>
     </Tooltip>
   )
 }

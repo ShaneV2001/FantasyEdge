@@ -2,11 +2,11 @@ import { useQuery } from '@tanstack/react-query'
 import { Info } from 'lucide-react'
 import { useState } from 'react'
 
-import type { TargetCell, TargetRow, TargetsOut } from '@/api'
-import { getTargetsOptions } from '@/api/@tanstack/react-query.gen'
+import type { RankingRow, RankingsOut } from '@/api'
+import { getRankingsOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
-import { InjuryTag } from '@/components/player/badges'
-import { Badge } from '@/components/ui/badge'
+import { InjuryTag, SignalBadge } from '@/components/player/badges'
+import { Matchups, OwnerLabel, injuryStatus } from '@/components/player/matchups'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -17,68 +17,7 @@ import { POSITIONS, fmtNum, fmtSigned } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useTeamStore } from '@/stores/team'
 
-const EASY = 1.1
-const HARD = 0.9
-
-/** Easy / neutral / hard styling for an opponent's points-allowed index. */
-export function matchupTone(index: number | null | undefined): 'easy' | 'hard' | 'neutral' {
-  if (index == null) return 'neutral'
-  if (index >= EASY) return 'easy'
-  if (index <= HARD) return 'hard'
-  return 'neutral'
-}
-
-/** 'Questionable this week (85%…)' → 'Questionable'; 'On IR: assumed out…' → 'IR'. */
-export function injuryStatus(note: string | null | undefined): string | null {
-  if (!note) return null
-  const m = /^On ([^:]+):/.exec(note) ?? /^(\w+) this week/.exec(note)
-  return m ? m[1] : null
-}
-
-const TONE_CLASS = {
-  easy: 'bg-buy/15 text-buy ring-1 ring-inset ring-buy/30',
-  hard: 'bg-sell/15 text-sell ring-1 ring-inset ring-sell/30',
-  neutral: 'bg-muted/50 text-muted-foreground',
-} as const
-
-function MatchupChip({ cell, position }: { cell: TargetCell; position: string }) {
-  const tone = matchupTone(cell.index)
-  const what = position === 'DEF' ? 'DEF points scored against this offense' : `points allowed to ${position}s`
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className={cn('inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px]', TONE_CLASS[tone])}>
-          <span className="opacity-70">W{cell.week}</span>
-          {cell.opponent ?? 'BYE'}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>
-        {cell.opponent
-          ? `Week ${cell.week} vs ${cell.opponent}: ${fmtNum(cell.index, 2)}× the average ${what} · ${fmtNum(cell.points)} projected`
-          : `Week ${cell.week}: bye`}
-      </TooltipContent>
-    </Tooltip>
-  )
-}
-
-function Matchups({ cells, position, className }: { cells: TargetCell[]; position: string; className?: string }) {
-  return (
-    <div className={cn('flex flex-wrap gap-1', className)}>
-      {cells.map((c) => (
-        <MatchupChip key={c.week} cell={c} position={position} />
-      ))}
-    </div>
-  )
-}
-
-function Owner({ row }: { row: TargetRow }) {
-  if (row.mine) return <Badge className="bg-primary/15 text-primary hover:bg-primary/15">Your team</Badge>
-  if (row.owner === 'Free agent') return <Badge variant="outline" className="border-buy/40 text-buy">Free agent</Badge>
-  if (row.owner) return <span className="text-xs text-muted-foreground">{row.owner}</span>
-  return null
-}
-
-function TargetsTable({ rows, position, view }: { rows: TargetRow[]; position: string; view: 'ros' | 'week' }) {
+function RankingsTable({ rows, position, view }: { rows: RankingRow[]; position: string; view: 'ros' | 'week' }) {
   if (rows.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">No {position}s play this week.</p>
   }
@@ -110,10 +49,11 @@ function TargetsTable({ rows, position, view }: { rows: TargetRow[]; position: s
                 <span className="flex items-center gap-2 font-medium">
                   {r.name}
                   <InjuryTag status={injuryStatus(r.availability_note)} />
+                  <SignalBadge signal={r.signal} />
                 </span>
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
                   {r.nfl_team} · {fmtNum(r.ppg)} ppg
-                  <Owner row={r} />
+                  <OwnerLabel owner={r.owner} mine={r.mine} />
                 </span>
                 <Matchups cells={r.cells} position={position} className="mt-1 md:hidden" />
               </div>
@@ -137,7 +77,7 @@ function TargetsTable({ rows, position, view }: { rows: TargetRow[]; position: s
   )
 }
 
-function Rankings({ data }: { data: TargetsOut }) {
+function Rankings({ data }: { data: RankingsOut }) {
   const [position, setPosition] = useState<string>('RB')
   const [view, setView] = useState<'ros' | 'week'>('ros')
   const [week, setWeek] = useState(String(data.week))
@@ -197,21 +137,21 @@ function Rankings({ data }: { data: TargetsOut }) {
         )}
       </CardHeader>
       <CardContent>
-        <TargetsTable rows={rows} position={position} view={view} />
+        <RankingsTable rows={rows} position={position} view={view} />
       </CardContent>
     </Card>
   )
 }
 
-export function TargetsPage() {
+export function RankingsPage() {
   const team = useTeamStore((s) => s.team)!
-  const q = useQuery(getTargetsOptions({ path: { team_id: team.teamId } }))
+  const q = useQuery(getRankingsOptions({ path: { team_id: team.teamId } }))
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Buy targets"
-        description="Who to go get based on upcoming schedule: the top 10 at each position by schedule-adjusted projection, for each week and the rest of the season. Green opponents are soft matchups, red are tough."
+        title="Rankings"
+        description="The top 10 at each position by schedule-adjusted projection, for each week and the rest of the season. Green opponents are soft matchups, red are tough. The badge is the player's buy/hold/sell verdict (our projection vs the market)."
       />
       {q.isPending && <ListSkeleton rows={6} height="h-12" />}
       {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}

@@ -4,7 +4,8 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { AdvisorPage } from '@/routes/advisor'
 import { ByesPage } from '@/routes/byes'
 import { ConnectPage } from '@/routes/connect'
-import { TargetsPage } from '@/routes/targets'
+import { BuyTargetsPage } from '@/routes/buy-targets'
+import { RankingsPage } from '@/routes/rankings'
 import { TeamPage } from '@/routes/team'
 import { TeamEditPage } from '@/routes/team-edit'
 import { TradePage } from '@/routes/trade'
@@ -39,11 +40,17 @@ const teamEditRoute = createRoute({
   component: TeamEditPage,
 })
 const byesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/byes', beforeLoad: requireTeam, component: ByesPage })
-const targetsRoute = createRoute({
+const rankingsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/targets',
+  path: '/rankings',
   beforeLoad: requireTeam,
-  component: TargetsPage,
+  component: RankingsPage,
+})
+const buyTargetsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/buy-targets',
+  beforeLoad: requireTeam,
+  component: BuyTargetsPage,
 })
 const tradeRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -52,7 +59,7 @@ const tradeRoute = createRoute({
   component: TradePage,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, byesRoute, targetsRoute, tradeRoute])
+const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, byesRoute, rankingsRoute, buyTargetsRoute, tradeRoute])
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' })
 

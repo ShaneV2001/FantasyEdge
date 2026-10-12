@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetByesData, GetByesErrors, GetByesResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTargetsData, GetTargetsErrors, GetTargetsResponses, GetTeamData, GetTeamErrors, GetTeamResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, RefreshData, RefreshErrors, RefreshResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses } from './types.gen';
+import type { ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, RefreshData, RefreshErrors, RefreshResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -68,12 +68,19 @@ export const manualLeague = <ThrowOnError extends boolean = false>(options: Opti
 export const getTeam = <ThrowOnError extends boolean = false>(options: Options<GetTeamData, ThrowOnError>): RequestResult<GetTeamResponses, GetTeamErrors, ThrowOnError> => (options.client ?? client).get<GetTeamResponses, GetTeamErrors, ThrowOnError>({ url: '/team/{team_id}', ...options });
 
 /**
- * Get Targets
+ * Get Buy Targets
+ *
+ * Players the market undervalues vs our projection (buy), and your overvalued ones (sell).
+ */
+export const getBuyTargets = <ThrowOnError extends boolean = false>(options: Options<GetBuyTargetsData, ThrowOnError>): RequestResult<GetBuyTargetsResponses, GetBuyTargetsErrors, ThrowOnError> => (options.client ?? client).get<GetBuyTargetsResponses, GetBuyTargetsErrors, ThrowOnError>({ url: '/team/{team_id}/buy-targets', ...options });
+
+/**
+ * Get Rankings
  *
  * Top 10 per position by schedule-adjusted points, for each upcoming week and the rest of
  * the season (all players; owner labeled).
  */
-export const getTargets = <ThrowOnError extends boolean = false>(options: Options<GetTargetsData, ThrowOnError>): RequestResult<GetTargetsResponses, GetTargetsErrors, ThrowOnError> => (options.client ?? client).get<GetTargetsResponses, GetTargetsErrors, ThrowOnError>({ url: '/team/{team_id}/targets', ...options });
+export const getRankings = <ThrowOnError extends boolean = false>(options: Options<GetRankingsData, ThrowOnError>): RequestResult<GetRankingsResponses, GetRankingsErrors, ThrowOnError> => (options.client ?? client).get<GetRankingsResponses, GetRankingsErrors, ThrowOnError>({ url: '/team/{team_id}/rankings', ...options });
 
 /**
  * Get Advice

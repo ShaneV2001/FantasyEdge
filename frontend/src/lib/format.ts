@@ -51,14 +51,6 @@ export function fmtRelative(iso: string | null | undefined, now: Date = new Date
 
 export type Signal = 'buy' | 'sell' | 'hold'
 
-/** Regression score → buy/sell/hold (same thresholds as the advisor: ±1). */
-export function signalFor(score: number | null | undefined): Signal {
-  if (score === null || score === undefined) return 'hold'
-  if (score >= 1) return 'buy'
-  if (score <= -1) return 'sell'
-  return 'hold'
-}
-
 export const URGENCY_LABEL: Record<string, string> = {
   this_week: 'This week',
   before_byes: 'Before byes',

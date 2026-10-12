@@ -186,14 +186,14 @@
         }
       }
     },
-    "/team/{team_id}/targets": {
+    "/team/{team_id}/buy-targets": {
       "get": {
         "tags": [
           "team"
         ],
-        "summary": "Get Targets",
-        "description": "Top 10 per position by schedule-adjusted points, for each upcoming week and the rest of\nthe season (all players; owner labeled).",
-        "operationId": "get_targets",
+        "summary": "Get Buy Targets",
+        "description": "Players the market undervalues vs our projection (buy), and your overvalued ones (sell).",
+        "operationId": "get_buy_targets",
         "parameters": [
           {
             "name": "team_id",
@@ -211,7 +211,50 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TargetsOut"
+                  "$ref": "#/components/schemas/BuyTargetsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/team/{team_id}/rankings": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Rankings",
+        "description": "Top 10 per position by schedule-adjusted points, for each upcoming week and the rest of\nthe season (all players; owner labeled).",
+        "operationId": "get_rankings",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankingsOut"
                 }
               }
             }
@@ -849,6 +892,227 @@
         ],
         "title": "AdviceOut"
       },
+      "BuyTargetPosition": {
+        "properties": {
+          "has_market": {
+            "type": "boolean",
+            "title": "Has Market",
+            "description": "False when the market doesn't value this position"
+          },
+          "buy": {
+            "items": {
+              "$ref": "#/components/schemas/BuyTargetRow"
+            },
+            "type": "array",
+            "title": "Buy",
+            "description": "Undervalued players on other teams / free agents"
+          },
+          "sell": {
+            "items": {
+              "$ref": "#/components/schemas/BuyTargetRow"
+            },
+            "type": "array",
+            "title": "Sell",
+            "description": "Your players the market overvalues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "has_market",
+          "buy",
+          "sell"
+        ],
+        "title": "BuyTargetPosition"
+      },
+      "BuyTargetRow": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "nfl_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nfl Team"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "mine": {
+            "type": "boolean",
+            "title": "Mine"
+          },
+          "model_points": {
+            "type": "number",
+            "title": "Model Points",
+            "description": "Our schedule-adjusted ROS points"
+          },
+          "model_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Rank"
+          },
+          "market_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Rank"
+          },
+          "market_implied_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Implied Points",
+            "description": "ROS points of the player we rank where the market ranks him"
+          },
+          "value_gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Gap"
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "hold",
+              "sell"
+            ],
+            "title": "Signal"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "ppg": {
+            "type": "number",
+            "title": "Ppg"
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/MatchupCell"
+            },
+            "type": "array",
+            "title": "Cells"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "player_id",
+          "name",
+          "position",
+          "nfl_team",
+          "owner",
+          "mine",
+          "model_points",
+          "model_rank",
+          "market_rank",
+          "value_gap",
+          "signal",
+          "reasons",
+          "ppg",
+          "cells"
+        ],
+        "title": "BuyTargetRow"
+      },
+      "BuyTargetsOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "last_week": {
+            "type": "integer",
+            "title": "Last Week"
+          },
+          "market_label": {
+            "type": "string",
+            "title": "Market Label"
+          },
+          "positions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BuyTargetPosition"
+            },
+            "type": "object",
+            "title": "Positions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "week",
+          "last_week",
+          "market_label",
+          "positions"
+        ],
+        "title": "BuyTargetsOut"
+      },
       "ByeWeekOut": {
         "properties": {
           "week": {
@@ -1391,6 +1655,49 @@
         ],
         "title": "MarketInfo"
       },
+      "MatchupCell": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "opponent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent",
+            "description": "None on a bye"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index",
+            "description": "Opponent's fantasy points allowed to the position vs average (>1 easier)"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points",
+            "description": "Matchup-adjusted projected points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "points"
+        ],
+        "title": "MatchupCell"
+      },
       "PlayerByeOut": {
         "properties": {
           "player": {
@@ -1523,6 +1830,16 @@
             ],
             "title": "Model Rank"
           },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "hold",
+              "sell"
+            ],
+            "title": "Signal",
+            "default": "hold"
+          },
           "flags": {
             "items": {
               "$ref": "#/components/schemas/FlagOut"
@@ -1630,6 +1947,223 @@
           "delta_pct"
         ],
         "title": "PositionGradeOut"
+      },
+      "RankingPosition": {
+        "properties": {
+          "alpha": {
+            "type": "number",
+            "title": "Alpha",
+            "description": "How strongly matchups move this position (0 = not at all)"
+          },
+          "ros": {
+            "items": {
+              "$ref": "#/components/schemas/RankingRow"
+            },
+            "type": "array",
+            "title": "Ros"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/RankingWeek"
+            },
+            "type": "array",
+            "title": "Weekly"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alpha",
+          "ros",
+          "weekly"
+        ],
+        "title": "RankingPosition"
+      },
+      "RankingRow": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "nfl_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nfl Team"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "Team name, 'Free agent', or None if unknown"
+          },
+          "mine": {
+            "type": "boolean",
+            "title": "Mine"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points",
+            "description": "Matchup-adjusted projected points (week or rest of season)"
+          },
+          "neutral_points": {
+            "type": "number",
+            "title": "Neutral Points",
+            "description": "Same projection against an average schedule"
+          },
+          "schedule_delta": {
+            "type": "number",
+            "title": "Schedule Delta",
+            "description": "points - neutral_points: what the schedule adds"
+          },
+          "avg_index": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Index"
+          },
+          "games": {
+            "type": "integer",
+            "title": "Games"
+          },
+          "ppg": {
+            "type": "number",
+            "title": "Ppg"
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/MatchupCell"
+            },
+            "type": "array",
+            "title": "Cells",
+            "description": "Weekly view: that week; ROS: next few opponents"
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "hold",
+              "sell"
+            ],
+            "title": "Signal",
+            "default": "hold"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "player_id",
+          "name",
+          "position",
+          "nfl_team",
+          "mine",
+          "points",
+          "neutral_points",
+          "schedule_delta",
+          "avg_index",
+          "games",
+          "ppg",
+          "cells"
+        ],
+        "title": "RankingRow"
+      },
+      "RankingWeek": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/RankingRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "rows"
+        ],
+        "title": "RankingWeek"
+      },
+      "RankingsOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "last_week": {
+            "type": "integer",
+            "title": "Last Week"
+          },
+          "weeks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Weeks"
+          },
+          "positions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RankingPosition"
+            },
+            "type": "object",
+            "title": "Positions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "week",
+          "last_week",
+          "weeks",
+          "positions"
+        ],
+        "title": "RankingsOut"
       },
       "RefreshOut": {
         "properties": {
@@ -1969,6 +2503,60 @@
             ],
             "title": "Method"
           },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "hold",
+              "sell"
+            ],
+            "title": "Signal",
+            "description": "Our projection vs the market: one verdict used everywhere",
+            "default": "hold"
+          },
+          "signal_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Signal Reasons",
+            "default": []
+          },
+          "value_gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Gap",
+            "description": "Model ROS points minus what the market's price implies"
+          },
+          "market_implied_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Implied Points"
+          },
+          "model_ros_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Ros Points",
+            "description": "Schedule-adjusted ROS points"
+          },
           "slot": {
             "type": "string",
             "title": "Slot",
@@ -2155,256 +2743,6 @@
           "attribution"
         ],
         "title": "StatusOut"
-      },
-      "TargetCell": {
-        "properties": {
-          "week": {
-            "type": "integer",
-            "title": "Week"
-          },
-          "opponent": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Opponent",
-            "description": "None on a bye"
-          },
-          "index": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Index",
-            "description": "Opponent's fantasy points allowed to the position vs average (>1 easier)"
-          },
-          "points": {
-            "type": "number",
-            "title": "Points",
-            "description": "Matchup-adjusted projected points"
-          }
-        },
-        "type": "object",
-        "required": [
-          "week",
-          "points"
-        ],
-        "title": "TargetCell"
-      },
-      "TargetPosition": {
-        "properties": {
-          "alpha": {
-            "type": "number",
-            "title": "Alpha",
-            "description": "How strongly matchups move this position (0 = not at all)"
-          },
-          "ros": {
-            "items": {
-              "$ref": "#/components/schemas/TargetRow"
-            },
-            "type": "array",
-            "title": "Ros"
-          },
-          "weekly": {
-            "items": {
-              "$ref": "#/components/schemas/TargetWeek"
-            },
-            "type": "array",
-            "title": "Weekly"
-          }
-        },
-        "type": "object",
-        "required": [
-          "alpha",
-          "ros",
-          "weekly"
-        ],
-        "title": "TargetPosition"
-      },
-      "TargetRow": {
-        "properties": {
-          "rank": {
-            "type": "integer",
-            "title": "Rank"
-          },
-          "player_id": {
-            "type": "string",
-            "title": "Player Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "position": {
-            "type": "string",
-            "title": "Position"
-          },
-          "nfl_team": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nfl Team"
-          },
-          "owner": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner",
-            "description": "Team name, 'Free agent', or None if unknown"
-          },
-          "mine": {
-            "type": "boolean",
-            "title": "Mine"
-          },
-          "points": {
-            "type": "number",
-            "title": "Points",
-            "description": "Matchup-adjusted projected points (week or rest of season)"
-          },
-          "neutral_points": {
-            "type": "number",
-            "title": "Neutral Points",
-            "description": "Same projection against an average schedule"
-          },
-          "schedule_delta": {
-            "type": "number",
-            "title": "Schedule Delta",
-            "description": "points - neutral_points: what the schedule adds"
-          },
-          "avg_index": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avg Index"
-          },
-          "games": {
-            "type": "integer",
-            "title": "Games"
-          },
-          "ppg": {
-            "type": "number",
-            "title": "Ppg"
-          },
-          "availability_note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Availability Note"
-          },
-          "cells": {
-            "items": {
-              "$ref": "#/components/schemas/TargetCell"
-            },
-            "type": "array",
-            "title": "Cells",
-            "description": "Weekly view: that week; ROS: next few opponents"
-          }
-        },
-        "type": "object",
-        "required": [
-          "rank",
-          "player_id",
-          "name",
-          "position",
-          "nfl_team",
-          "mine",
-          "points",
-          "neutral_points",
-          "schedule_delta",
-          "avg_index",
-          "games",
-          "ppg",
-          "cells"
-        ],
-        "title": "TargetRow"
-      },
-      "TargetWeek": {
-        "properties": {
-          "week": {
-            "type": "integer",
-            "title": "Week"
-          },
-          "rows": {
-            "items": {
-              "$ref": "#/components/schemas/TargetRow"
-            },
-            "type": "array",
-            "title": "Rows"
-          }
-        },
-        "type": "object",
-        "required": [
-          "week",
-          "rows"
-        ],
-        "title": "TargetWeek"
-      },
-      "TargetsOut": {
-        "properties": {
-          "team_id": {
-            "type": "string",
-            "title": "Team Id"
-          },
-          "week": {
-            "type": "integer",
-            "title": "Week"
-          },
-          "last_week": {
-            "type": "integer",
-            "title": "Last Week"
-          },
-          "weeks": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Weeks"
-          },
-          "positions": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/TargetPosition"
-            },
-            "type": "object",
-            "title": "Positions"
-          }
-        },
-        "type": "object",
-        "required": [
-          "team_id",
-          "week",
-          "last_week",
-          "weeks",
-          "positions"
-        ],
-        "title": "TargetsOut"
       },
       "TeamChoiceOut": {
         "properties": {

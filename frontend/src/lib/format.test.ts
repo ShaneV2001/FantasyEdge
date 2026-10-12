@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { fmtNum, fmtRelative, fmtSigned, signalFor, slotLabel } from './format'
+import { fmtNum, fmtRelative, fmtSigned, slotLabel } from './format'
 
 describe('formatters', () => {
   it('formats numbers and missing values', () => {
@@ -13,13 +13,6 @@ describe('formatters', () => {
     expect(fmtSigned(4.25)).toBe('+4.3')
     expect(fmtSigned(-2)).toBe('−2.0')
     expect(fmtSigned(0)).toBe('0.0')
-  })
-
-  it('maps regression scores to buy/sell/hold at ±1', () => {
-    expect(signalFor(1.2)).toBe('buy')
-    expect(signalFor(-1)).toBe('sell')
-    expect(signalFor(0.5)).toBe('hold')
-    expect(signalFor(undefined)).toBe('hold')
   })
 
   it('treats naive API timestamps as UTC', () => {

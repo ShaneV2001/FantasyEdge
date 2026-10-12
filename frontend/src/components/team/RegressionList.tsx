@@ -35,7 +35,7 @@ export function RegressionList({ rows, showOwner = false }: { rows: PlayerFlagsO
                   {fmtNum(r.tdoe)}
                 </span>
               )}
-              <SignalBadge score={r.regression_score} showHold />
+              <SignalBadge signal={r.signal} showHold />
             </span>
           </div>
           <ul className="flex flex-col gap-1 pl-1">
