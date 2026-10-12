@@ -7,6 +7,7 @@ import { ConnectPage } from '@/routes/connect'
 import { BuyTargetsPage } from '@/routes/buy-targets'
 import { PlayerPage } from '@/routes/player'
 import { RankingsPage } from '@/routes/rankings'
+import { SettingsPage } from '@/routes/settings'
 import { TeamPage } from '@/routes/team'
 import { TeamEditPage } from '@/routes/team-edit'
 import { TradePage } from '@/routes/trade'
@@ -65,8 +66,9 @@ const tradeRoute = createRoute({
   beforeLoad: requireTeam,
   component: TradePage,
 })
+const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage })
 
-const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, byesRoute, rankingsRoute, buyTargetsRoute, playerRoute, tradeRoute])
+const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, byesRoute, rankingsRoute, buyTargetsRoute, playerRoute, tradeRoute, settingsRoute])
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' })
 

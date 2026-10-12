@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { ArrowLeftRight, CalendarRange, Crosshair, ListOrdered, Plug, RefreshCw, Sparkles, Users } from 'lucide-react'
+import { ArrowLeftRight, CalendarRange, Crosshair, ListOrdered, Plug, RefreshCw, Settings2, Sparkles, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { getTeamOptions, refreshMutation } from '@/api/@tanstack/react-query.gen'
@@ -80,6 +80,14 @@ export function AppSidebar() {
                   <Link to="/connect">
                     <Plug />
                     <span>{team ? 'Switch team' : 'Connect'}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname.startsWith('/settings')} tooltip="Settings">
+                  <Link to="/settings">
+                    <Settings2 />
+                    <span>Settings</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
