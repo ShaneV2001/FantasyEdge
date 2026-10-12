@@ -1,6 +1,7 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
 
 import type { PlayerRef } from '@/api'
+import { PlayerLink } from '@/components/player/PlayerLink'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { POSITION_CLASS, type Signal } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -62,11 +63,17 @@ export function SignalBadge({
   )
 }
 
-export function PlayerChip({ player, className }: { player: PlayerRef; className?: string }) {
+export function PlayerChip({ player, className, link = true }: { player: PlayerRef; className?: string; link?: boolean }) {
   return (
     <span className={cn('inline-flex items-center gap-1.5 rounded-md bg-muted/60 py-0.5 pr-2 pl-0.5 text-xs', className)}>
       <PositionBadge position={player.position} className="h-4 min-w-7 text-[10px]" />
-      <span className="font-medium">{player.name}</span>
+      {link ? (
+        <PlayerLink playerId={player.player_id} className="font-medium">
+          {player.name}
+        </PlayerLink>
+      ) : (
+        <span className="font-medium">{player.name}</span>
+      )}
       {player.nfl_team && <span className="text-muted-foreground">{player.nfl_team}</span>}
     </span>
   )

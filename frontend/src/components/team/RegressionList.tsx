@@ -1,5 +1,6 @@
 import type { PlayerFlagsOut } from '@/api'
 import { PositionBadge, SignalBadge } from '@/components/player/badges'
+import { PlayerLink } from '@/components/player/PlayerLink'
 import { fmtNum } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -20,7 +21,9 @@ export function RegressionList({ rows, showOwner = false }: { rows: PlayerFlagsO
         <li key={r.player.player_id} className="flex flex-col gap-2 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <PositionBadge position={r.player.position} />
-            <span className="font-medium">{r.player.name}</span>
+            <PlayerLink playerId={r.player.player_id} className="font-medium">
+              {r.player.name}
+            </PlayerLink>
             <span className="text-xs text-muted-foreground">{r.player.nfl_team}</span>
             {showOwner && (
               <span className="text-xs text-muted-foreground">· {r.team_name ?? 'Free agent'}</span>

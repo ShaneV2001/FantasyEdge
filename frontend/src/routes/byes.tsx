@@ -5,6 +5,7 @@ import type { ByeWeekOut, SlotCellOut } from '@/api'
 import { getByesOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { PositionBadge } from '@/components/player/badges'
+import { PlayerLink } from '@/components/player/PlayerLink'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
@@ -86,7 +87,9 @@ export function ByesPage() {
                 {d.players.map((p) => (
                   <li key={p.player.player_id} className="flex items-center gap-2 text-sm">
                     <PositionBadge position={p.player.position} />
-                    <span className={cn('flex-1 truncate', p.done && 'text-muted-foreground')}>{p.player.name}</span>
+                    <PlayerLink playerId={p.player.player_id} className={cn('flex-1 truncate', p.done && 'text-muted-foreground')}>
+                      {p.player.name}
+                    </PlayerLink>
                     <span className="font-mono text-xs text-muted-foreground">
                       {p.bye_week == null ? '—' : p.done ? `wk ${p.bye_week} ✓` : `wk ${p.bye_week}`}
                     </span>

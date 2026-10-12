@@ -3,6 +3,7 @@ import { Fragment, useMemo, useState } from 'react'
 
 import type { RosterPlayer } from '@/api'
 import { InjuryTag, PositionBadge, SignalBadge } from '@/components/player/badges'
+import { PlayerLink } from '@/components/player/PlayerLink'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fmtInt, fmtNum } from '@/lib/format'
@@ -118,7 +119,9 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1.5">
-                  <span className={cn('font-medium', !p.optimal_starter && 'text-muted-foreground')}>{p.name}</span>
+                  <PlayerLink playerId={p.player_id} className={cn('font-medium', !p.optimal_starter && 'text-muted-foreground')}>
+                    {p.name}
+                  </PlayerLink>
                   <Trend p={p} />
                   <InjuryTag status={p.injury_status} />
                   {p.slot === 'ir' && (

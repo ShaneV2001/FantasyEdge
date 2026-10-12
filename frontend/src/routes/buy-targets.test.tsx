@@ -1,10 +1,9 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { BuyTargetRow, BuyTargetsOut } from '@/api'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { renderPage as renderWithRouter } from '@/test/render'
 import { useTeamStore } from '@/stores/team'
 
 import { BuyTargetsPage } from './buy-targets'
@@ -53,16 +52,9 @@ describe('BuyTargetsPage', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  function renderPage() {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    return render(
-      <QueryClientProvider client={qc}>
-        <TooltipProvider>
-          <BuyTargetsPage />
-        </TooltipProvider>
-      </QueryClientProvider>,
-    )
-  }
+function renderPage() {
+  return renderWithRouter(<BuyTargetsPage />)
+}
 
   it('lists undervalued buys and your overvalued sells', async () => {
     renderPage()

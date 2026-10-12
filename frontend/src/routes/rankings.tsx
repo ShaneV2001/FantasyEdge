@@ -7,6 +7,7 @@ import { getRankingsOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { InjuryTag, SignalBadge } from '@/components/player/badges'
 import { Matchups, OwnerLabel, injuryStatus } from '@/components/player/matchups'
+import { PlayerLink } from '@/components/player/PlayerLink'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -47,7 +48,7 @@ function RankingsTable({ rows, position, view }: { rows: RankingRow[]; position:
             <TableCell>
               <div className="flex flex-col gap-0.5">
                 <span className="flex items-center gap-2 font-medium">
-                  {r.name}
+                  <PlayerLink playerId={r.player_id}>{r.name}</PlayerLink>
                   <InjuryTag status={injuryStatus(r.availability_note)} />
                   <SignalBadge signal={r.signal} />
                 </span>

@@ -1,10 +1,9 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RankingRow, RankingsOut } from '@/api'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { renderPage as renderWithRouter } from '@/test/render'
 import { useTeamStore } from '@/stores/team'
 
 import { injuryStatus, matchupTone } from '@/components/player/matchups'
@@ -52,14 +51,7 @@ const DATA: RankingsOut = {
 }
 
 function renderPage() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={qc}>
-      <TooltipProvider>
-        <RankingsPage />
-      </TooltipProvider>
-    </QueryClientProvider>,
-  )
+  return renderWithRouter(<RankingsPage />)
 }
 
 describe('RankingsPage', () => {

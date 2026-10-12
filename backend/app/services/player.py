@@ -122,7 +122,9 @@ def player_detail(
     }
     past = past_projections(ctx)
     weeks = []
-    for w in sorted(set(played_weeks(ctx)) | set(rows)):
+    # weeks already over, plus this week if he has played (this week's unplayed game is upcoming)
+    past_weeks = {w for w in played_weeks(ctx) if w < ctx.week}
+    for w in sorted(past_weeks | set(rows)):
         row = rows.get(w)
         proj = past.get(w, {}).get(player_id)
         weeks.append(

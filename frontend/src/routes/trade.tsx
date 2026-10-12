@@ -150,7 +150,7 @@ function AnyPlayerPicker({
               className="rounded-md ring-primary/40 hover:ring-1"
               aria-label={`Remove ${p.name}`}
             >
-              <PlayerChip player={p} className="bg-primary/10" />
+              <PlayerChip player={p} className="bg-primary/10" link={false} />
             </button>
           ))}
         </div>
