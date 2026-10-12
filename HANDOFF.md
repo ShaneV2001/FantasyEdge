@@ -1,7 +1,7 @@
 # ff-edge handoff
 
-_Last updated 2026-10-11. Branch `main`, everything committed and pushed to `origin`
-(github.com/ShaneV2001/ff-edge, private). Latest commit: `fe4c2f6`._
+_Last updated 2026-10-12. Branch `main`, everything committed and pushed to `origin`
+(github.com/ShaneV2001/ff-edge)._
 
 ## Where things stand
 
@@ -21,8 +21,9 @@ This round of work (about 30 commits since `81d58ae`) did three things:
    - **Buy targets page.**
    - **Player pages:** headshot, projected-vs-actual chart, game log.
    - **More team grades:** K, DEF and flex slots.
+   - **Settings page:** 24 tunable values in four groups, saved to `data/settings.json`.
 
-**Tests:** 347 backend (pytest) and 23 frontend (vitest). Lint, format, typecheck and the API-client
+**Tests:** 374 backend (pytest) and 28 frontend (vitest). Lint, format, typecheck and the API-client
 drift check are all clean.
 
 ## Run it
@@ -65,12 +66,15 @@ All of the numbers below come from the backtest. The README sections "Accuracy",
 - `backend/app/services/context.py`: `build_context` is the single place that projects, scores the
   schedule, and attaches the verdict to every player. Per-league results are cached in `_cache`;
   derived results go in `ctx.memo`.
+- `backend/app/user_settings.py`: `UserSettings` (defaults = the tuned constants) and load/save of
+  `data/settings.json`, which holds only changed values. `LeagueContext.tuning` carries them, and
+  `get_context` keys its cache on them. The backtest always runs on the defaults.
 - `backend/app/services/player.py`: player page and the memoized walk-forward `past_projections`.
 - `backend/signals/targets.py` (week cells / rankings), `signals/verdict.py`, `projections/matchup.py`
   and `projections/regression_adj.py` (kept for experiments; unused in the app).
 - `backend/models/`: `backtest.py`, `data.py` (season cache), `regression_eval.py`, `tune.py`, and
   the `run.py` CLI.
-- `frontend/src/routes/`: `rankings.tsx`, `buy-targets.tsx`, `player.tsx` (+ tests).
+- `frontend/src/routes/`: `rankings.tsx`, `buy-targets.tsx`, `player.tsx`, `settings.tsx` (+ tests).
   `components/player/` holds `matchups.tsx`, `PlayerLink.tsx` and `badges.tsx` (`SignalBadge` takes
   the API verdict). `lib/stale-team.ts` sends a stale saved team back to Connect.
   `test/render.tsx` renders components with a router.
@@ -78,6 +82,8 @@ All of the numbers below come from the backtest. The README sections "Accuracy",
   - `GET /team/{id}/rankings`
   - `GET /team/{id}/buy-targets`
   - `GET /team/{id}/players/{player_id}`
+  - `GET/PUT/DELETE /settings` (PUT takes `{key: value}` for changed fields only; 422 on unknown
+    keys or out-of-range values)
   - `/team/{id}/targets` was renamed to `/rankings`.
 
 ## Gotchas (learned the hard way)

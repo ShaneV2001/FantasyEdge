@@ -9,6 +9,8 @@ Connect your Sleeper league (or enter a roster by hand) and ff-edge gives you:
 - **A bye-week planner**: a week-by-week grid of which lineup slots you can and can't fill, with "danger weeks" flagged before they arrive.
 - **Trade ideas and a trade analyzer**: 1-for-1 and 2-for-1 deals where *both* teams' starting lineups improve, judged on rest-of-season lineup points rather than raw player value.
 - **Rest-of-season player values** computed under *your* league's scoring rules.
+- **Settings you control**: tune the projection weights, buy/sell thresholds, injury assumptions and
+  advisor rules, with the backtest-tuned defaults one click away.
 
 Everything runs locally on free, public data. There are no accounts, API keys or paid services.
 
@@ -34,7 +36,8 @@ Everything runs locally on free, public data. There are no accounts, API keys or
 ## How it works
 
 Every number in ff-edge comes from a formula you can read and change. The constants live at the
-top of each module, and nothing is hidden inside a model.
+top of each module, nothing is hidden inside a model, and the ones you'd most want to tweak are on
+the [Settings](#settings) page.
 
 ### League-aware scoring
 Your Sleeper `scoring_settings` are read directly and every historical stat line is re-scored under
@@ -169,6 +172,25 @@ priority = urgency weight × impact × confidence weight
   impact grow with the size of the value gap.
 - Team grades cover QB, RB, WR, TE, K, DEF and each flex slot; "needs" only ever include QB–TE.
 
+### Settings
+The **Settings** page (sidebar; it works before you connect a league) lets you change 24 values in
+four groups. Every page recomputes as soon as you save.
+
+| Group | What you can change | Defaults |
+|---|---|---|
+| Projections | Usage vs season-rate weight, early-season shrink (games), matchup strength (α) per position | 0.5 · 8 · QB .25 / RB .5 / WR .25 / TE 0 / K .25 / DEF .75 |
+| Buy/sell & targets | Gap needed for a call (points and share of price), startable depth per position, players per Buy-targets tier | 10 pts or 10% · QB24 / RB60 / WR60 / TE24 · 10 |
+| Injuries | Chance a Questionable / Doubtful player plays this week, weeks assumed out on IR/PUP/NFI | 85% · 25% · 4 |
+| Advisor & trades | Minimum gain for waiver and start/sit advice, easy/tough schedule cutoffs, trade accept / lean-accept lines | 1.5 ppg · 1.0 pts · 1.08 / 0.92 · 8 / 2 pts |
+
+- The projection defaults were picked by the backtest, and the page marks them so. Moving them can
+  make projections less accurate. The backtest itself always runs on the defaults.
+- Each field shows its default and allowed range, with a reset link. **Reset all** goes back to
+  every default.
+- Settings are saved in `data/settings.json`, which holds **only the values you changed**. You can
+  share the file or edit it by hand. If it can't be read, the app uses the defaults and the
+  Settings page shows a warning, and the next save replaces the file.
+
 ---
 
 ## Quick start
@@ -195,7 +217,8 @@ python tasks.py dev     # API on http://localhost:8000, web app on http://localh
 
 If you have `make`, the same targets work as `make setup`, `make data`, `make dev`, `make test`.
 
-All data lives in `data/` (gitignored): a single DuckDB file plus an HTTP response cache.
+All data lives in `data/` (gitignored): a single DuckDB file, an HTTP response cache, and your
+`settings.json` if you've changed any settings.
 
 > DuckDB allows one writing process at a time, so stop the API before running `python tasks.py data`
 > (or use the **Update** button / `POST /refresh` while it's running).
@@ -209,7 +232,8 @@ the Advisor page opens. The **Update** button in the sidebar re-pulls rosters an
 
 ```
 backend/
-  app/          FastAPI app, Pydantic schemas, services (league sync, cached league context)
+  app/          FastAPI app, Pydantic schemas, services (league sync, cached league context),
+                user_settings.py (the Settings values and data/settings.json)
   ingest/       sleeper.py, nflverse.py, market_values.py, idmap.py, http.py (retry + cache)
   db/           DuckDB schema (v1 baseline) + ordered migrations
   scoring/      league scoring rules → fantasy points
@@ -219,7 +243,7 @@ backend/
   tests/        unit + API tests on recorded fixtures (no live network calls)
 frontend/       Vite + React + TypeScript + shadcn/ui, TanStack Router/Query, Zustand, Recharts
   src/api/      generated typed client + TanStack Query hooks (python tasks.py gen-api)
-  src/routes/   connect, advisor, team, byes, rankings, buy-targets, player, trade pages
+  src/routes/   connect, advisor, team, byes, rankings, buy-targets, player, trade, settings pages
 scripts/        fixture recorder
 ```
 
@@ -247,6 +271,9 @@ FastAPI serves interactive docs at `http://localhost:8000/docs`. Phase 1 endpoin
 | POST | `/trade/evaluate` | Score a proposed trade for both sides |
 | GET | `/trade/suggest` | Mutually beneficial trade ideas |
 | POST | `/refresh` | Re-sync league, market or all data |
+| GET | `/settings` | Every setting: value, default, range, help text (and a warning if `settings.json` was unreadable) |
+| PUT | `/settings` | Change some settings, e.g. `{"gap_min_points": 15}`; out-of-range values get a 422 |
+| DELETE | `/settings` | Reset all settings to the defaults |
 | GET | `/meta/status` | Last sync time per source, current NFL week |
 
 ---
