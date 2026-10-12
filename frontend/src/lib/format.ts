@@ -1,4 +1,10 @@
 export const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'] as const
+
+/** Flex slot grades from the API, in display order (labels as in slotLabel). */
+export const FLEX_GRADES = ['FLEX', 'SFLEX', 'W/R', 'W/T'] as const
+
+/** Grade keys in display order: positions, then flex slots. */
+export const GRADE_ORDER: readonly string[] = [...POSITIONS, ...FLEX_GRADES]
 export type Position = (typeof POSITIONS)[number]
 
 /** Tailwind classes per position — one fixed colour used everywhere. */

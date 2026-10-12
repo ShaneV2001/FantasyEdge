@@ -4,10 +4,9 @@ import type { PositionGradeOut } from '@/api'
 import { PositionBadge } from '@/components/player/badges'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { fmtNum, GRADE_CLASS } from '@/lib/format'
+import { FLEX_GRADES, fmtNum, GRADE_CLASS, GRADE_ORDER } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-const ORDER = ['QB', 'RB', 'WR', 'TE']
 
 function zText(z: number) {
   return `${z >= 0 ? '+' : '−'}${Math.abs(z).toFixed(1)}σ`
@@ -44,6 +43,15 @@ function GradeCard({
   )
 }
 
+function gradeDetail(pos: string, g: PositionGradeOut, need: boolean) {
+  const vs = `${fmtNum(g.points)} vs ${fmtNum(g.league_avg)} average`
+  if ((FLEX_GRADES as readonly string[]).includes(pos)) {
+    return `${pos} slot: ${vs} — the players your best lineup puts in your ${pos} spot(s).`
+  }
+  if (pos === 'K' || pos === 'DEF') return `${pos} strength ${vs} — your starting ${pos}.`
+  return `${pos} strength ${vs} — your best ${pos}s weighted by the lineup spots they fill (incl. a share of FLEX), so depth counts and FLEX usage doesn't skew it.${need ? ' Flagged as a need.' : ''}`
+}
+
 export function TeamGrades({
   grades,
   overall,
@@ -57,7 +65,7 @@ export function TeamGrades({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {overall && (
           <GradeCard
             label={<span className="text-xs font-semibold tracking-wide uppercase">Overall</span>}
@@ -65,7 +73,7 @@ export function TeamGrades({
             detail={`Full-strength starting lineup projects ${fmtNum(overall.points)} ppg vs ${fmtNum(overall.league_avg)} average (${zText(overall.z ?? 0)}).`}
           />
         )}
-        {ORDER.filter((p) => grades[p]).map((pos) => {
+        {GRADE_ORDER.filter((p) => grades[p]).map((pos) => {
           const g = grades[pos]
           return (
             <GradeCard
@@ -73,7 +81,7 @@ export function TeamGrades({
               label={<PositionBadge position={pos} />}
               g={g}
               need={needs.includes(pos)}
-              detail={`${pos} strength ${fmtNum(g.points)} vs ${fmtNum(g.league_avg)} average — your best ${pos}s weighted by the lineup spots they fill (incl. a share of FLEX), so depth counts and FLEX usage doesn't skew it.${needs.includes(pos) ? ' Flagged as a need.' : ''}`}
+              detail={gradeDetail(pos, g, needs.includes(pos))}
             />
           )
         })}

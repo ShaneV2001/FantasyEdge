@@ -9,6 +9,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart'
+import { GRADE_ORDER } from '@/lib/format'
 
 const config = {
   mine: { label: 'Your starters', color: 'var(--chart-1)' },
@@ -16,8 +17,7 @@ const config = {
 } satisfies ChartConfig
 
 export function PositionStrengthChart({ grades }: { grades: Record<string, PositionGradeOut> }) {
-  const data = ['QB', 'RB', 'WR', 'TE']
-    .filter((p) => grades[p])
+  const data = GRADE_ORDER.filter((p) => grades[p])
     .map((p) => ({ position: p, mine: grades[p].points, league: grades[p].league_avg }))
   return (
     <ChartContainer config={config} className="aspect-auto h-56 w-full">

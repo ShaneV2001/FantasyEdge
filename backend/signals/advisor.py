@@ -223,7 +223,8 @@ def buy_actions(inp: AdvisorInputs) -> list[Action]:
     needs = set(mine.needs) if mine else set()
     if not needs and mine:
         # no glaring hole: target the weakest graded position
-        needs = {min(mine.grades.values(), key=lambda g: g.delta_pct).position}
+        skill = [g for pos, g in mine.grades.items() if pos in ("QB", "RB", "WR", "TE")]
+        needs = {min(skill, key=lambda g: g.delta_pct).position} if skill else set()
     actions = []
     for tid, roster in inp.rosters.items():
         if tid == inp.my_team_id:

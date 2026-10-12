@@ -105,7 +105,8 @@ def test_connect_select_and_team_view(client):
     body = r.json()
     assert body["league"]["week"] >= 1
     assert len(body["roster"]) >= 14
-    assert set(body["grades"]) == {"QB", "RB", "WR", "TE"}
+    assert set(body["grades"]) == {"QB", "RB", "WR", "TE", "K", "DEF", "FLEX", "SFLEX"}
+    assert not set(body["needs"]) & {"K", "DEF", "FLEX", "SFLEX"}
     assert any(p["market_value"] for p in body["roster"])
     assert body["market"]["source"] == "fantasycalc"
     assert len(body["league_teams"]) == 4

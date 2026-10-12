@@ -10,7 +10,14 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from projections.base import weekly_points
-from signals.lineup import SKILL_POSITIONS, SLOT_ELIGIBILITY, Lineup, LineupPlayer, optimal_lineup
+from signals.lineup import (
+    SKILL_POSITIONS,
+    SLOT_ELIGIBILITY,
+    Lineup,
+    LineupPlayer,
+    optimal_lineup,
+    slot_label,
+)
 from signals.schedule import Schedule
 
 
@@ -89,6 +96,8 @@ FLEX_SHARES: dict[str, dict[str, float]] = {
     "SUPER_FLEX": {"QB": 0.9, "RB": 0.05, "WR": 0.05},
 }
 OVERALL = "ALL"
+# K and DEF are graded too (dedicated slots only); needs/surplus stay skill-position only.
+GRADED_POSITIONS = (*SKILL_POSITIONS, "K", "DEF")
 
 
 def grade_from_z(z: float) -> str:
@@ -105,15 +114,15 @@ def grade_from_z(z: float) -> str:
 
 def position_weights(slots: Sequence[str]) -> dict[str, list[float]]:
     """Per position: weight for the 1st, 2nd, ... best player (1.0 per dedicated slot + flex share)."""
-    dedicated = dict.fromkeys(SKILL_POSITIONS, 0)
-    share = dict.fromkeys(SKILL_POSITIONS, 0.0)
+    dedicated = dict.fromkeys(GRADED_POSITIONS, 0)
+    share = dict.fromkeys(GRADED_POSITIONS, 0.0)
     for slot in slots:
         if slot in dedicated:
             dedicated[slot] += 1
         for pos, f in FLEX_SHARES.get(slot, {}).items():
             share[pos] += f
     out = {}
-    for pos in SKILL_POSITIONS:
+    for pos in GRADED_POSITIONS:
         w = [1.0] * dedicated[pos]
         extra = round(share[pos], 4)
         while extra > 1e-9:
@@ -197,6 +206,17 @@ def grade_value(label: str, value: float, field_values: list[float]) -> Position
     )
 
 
+def slot_strength(lineup: Lineup) -> dict[str, float]:
+    """Points from each flex slot type in a full-strength lineup, keyed by its label (FLEX, SFLEX,
+    W/R, W/T): how good the players filling your flex spots are."""
+    out: dict[str, float] = {}
+    for slot, lp in lineup.slots:
+        if slot in FLEX_SHARES:
+            label = slot_label(slot)
+            out[label] = out.get(label, 0.0) + (lp.points if lp else 0.0)
+    return out
+
+
 def team_profiles(
     rosters: Mapping[str, list[str]],
     players: Mapping[str, Mapping],
@@ -209,6 +229,7 @@ def team_profiles(
     strength = {t: position_strength(p, players, weights) for t, p in rosters.items()}
     lineups = {t: full_strength_lineup(p, players, slots) for t, p in rosters.items()}
     totals = {t: lu.points for t, lu in lineups.items()}
+    flex = {t: slot_strength(lu) for t, lu in lineups.items()}
 
     starter_ppg: dict[str, list[float]] = {pos: [] for pos in SKILL_POSITIONS}
     for lu in lineups.values():
@@ -224,13 +245,17 @@ def team_profiles(
             pos: grade_value(pos, strength[t][pos], [strength[x][pos] for x in rosters])
             for pos in weights
         }
+        grades |= {
+            label: grade_value(label, pts, [flex[x].get(label, 0.0) for x in rosters])
+            for label, pts in flex[t].items()
+        }
         overall = grade_value(OVERALL, totals[t], list(totals.values()))
         lu = lineups[t]
         starters = [lp.player_id for _, lp in lu.slots if lp]
         bench = [p for p in rosters[t] if p not in starters and p in players]
         needs = [
             pos for pos, g in grades.items()
-            if g.grade in ("D", "F") or (n >= 6 and g.rank > n * 2 / 3)
+            if pos in SKILL_POSITIONS and (g.grade in ("D", "F") or (n >= 6 and g.rank > n * 2 / 3))
         ]  # fmt: skip
         surplus = sorted(
             {
