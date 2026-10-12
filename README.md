@@ -150,6 +150,17 @@ gap never outranks a would-be starter.
 Click any player for a headshot, bio, verdict and reasons, upcoming matchups, a game log, and a chart
 of what we projected before each week (using only earlier games) against what he scored.
 
+The **Analytics** card shows how a player is used and what he does with it, over his last 3 games,
+last 5, or the season:
+- **Usage:** snap %, rush share, target share, air-yards share, WOPR.
+- **Efficiency:** aDOT, catch rate, completion %, yards per target / carry / attempt, EPA per play.
+- **Yards after catch:** YAC per game and per reception (YAC share of passing yards for QBs).
+- **Scoring opportunity:** red-zone carries and targets, goal-line carries, red-zone TDs.
+
+Rates are totals over the window (catch rate = catches ÷ targets in those games), counts are per
+game, and ▲/▼ marks a window at least 10% above or below the season value. Shares are against the
+team's QB/RB/WR/TE totals in the same games. A window that would cover the whole season is skipped.
+
 ### Bye-week planner
 Bye weeks come straight from the NFL schedule: a team's bye is the week it has no game. For every
 remaining week, ff-edge builds your best legal lineup from the players available that week and marks
