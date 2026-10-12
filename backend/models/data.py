@@ -15,7 +15,7 @@ import polars as pl
 from ingest import nflverse
 from signals.schedule import Schedule, build_schedule
 
-log = logging.getLogger("ff_edge.backtest")
+log = logging.getLogger("fantasyedge.backtest")
 
 FANTASY_POSITIONS = ("QB", "RB", "WR", "TE", "K")
 CACHE_VERSION = 3  # bump when cached columns change (v2: K/DEF; v3: YAC, pass air yards)

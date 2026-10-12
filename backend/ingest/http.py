@@ -1,6 +1,6 @@
 """Central HTTP client: retry with backoff, polite rate limiting and an on-disk response cache.
 
-Every external call in ff-edge goes through `CachedHttp`. If a source fails and a stale cached
+Every external call in FantasyEdge goes through `CachedHttp`. If a source fails and a stale cached
 copy exists, the stale copy is served (and logged) so the app degrades instead of breaking.
 """
 
@@ -24,9 +24,9 @@ from tenacity import (
     wait_exponential,
 )
 
-log = logging.getLogger("ff_edge.http")
+log = logging.getLogger("fantasyedge.http")
 
-USER_AGENT = "ff-edge/0.1 (+https://github.com/ff-edge; non-commercial)"
+USER_AGENT = "FantasyEdge/0.1 (+https://github.com/ShaneV2001/FantasyEdge; non-commercial)"
 
 
 class SourceUnavailable(RuntimeError):

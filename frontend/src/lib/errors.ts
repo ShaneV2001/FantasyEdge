@@ -9,7 +9,7 @@ export interface ApiProblem {
 export function describeError(err: unknown): ApiProblem {
   if (err instanceof TypeError) {
     return {
-      message: 'Could not reach the ff-edge API.',
+      message: 'Could not reach the FantasyEdge API.',
       hint: 'Start the backend with `python tasks.py api` (port 8000), then retry.',
     }
   }

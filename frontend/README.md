@@ -1,4 +1,4 @@
-# ff-edge web
+# FantasyEdge web
 
 Vite + React + TypeScript + Tailwind v4 + shadcn/ui. Dark mode by default.
 

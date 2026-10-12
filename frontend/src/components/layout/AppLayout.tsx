@@ -55,7 +55,7 @@ function Footer() {
       <a className="underline underline-offset-2" href="https://fantasycalc.com" target="_blank" rel="noreferrer">
         FantasyCalc
       </a>
-      ; ID mapping from DynastyProcess. ff-edge is not affiliated with Sleeper, ESPN, Yahoo, FantasyCalc,
+      ; ID mapping from DynastyProcess. FantasyEdge is not affiliated with Sleeper, ESPN, Yahoo, FantasyCalc,
       nflverse or the NFL. Projections are estimates, not guarantees.
     </footer>
   )

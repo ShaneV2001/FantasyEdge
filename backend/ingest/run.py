@@ -24,7 +24,7 @@ from ingest.market_values import (
     get_market_values,
 )
 
-log = logging.getLogger("ff_edge.ingest")
+log = logging.getLogger("fantasyedge.ingest")
 
 
 @dataclass

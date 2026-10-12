@@ -1,7 +1,7 @@
 [project]
-name = "ff-edge-backend"
+name = "fantasyedge-backend"
 version = "0.1.0"
-description = "ff-edge: fantasy football team advisor (backend)"
+description = "FantasyEdge: fantasy football team advisor (backend)"
 requires-python = ">=3.11"
 license = "MIT"
 dependencies = [

@@ -34,7 +34,7 @@ from signals.targets import WeekCell, all_cells, ros_points
 from signals.verdict import reasons as verdict_reasons
 from signals.verdict import value_players
 
-log = logging.getLogger("ff_edge.context")
+log = logging.getLogger("fantasyedge.context")
 
 MATCHUP_POSITIONS = (*SKILL_POSITIONS, "K", "DEF")
 

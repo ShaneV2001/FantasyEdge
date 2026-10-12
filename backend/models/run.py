@@ -30,7 +30,7 @@ from projections.baseline import BaselineEngine
 from projections.simple import Last3Engine, SeasonPpgEngine
 from scoring.rules import PRESETS
 
-log = logging.getLogger("ff_edge.backtest")
+log = logging.getLogger("fantasyedge.backtest")
 
 ENGINES = (BaselineEngine(), SeasonPpgEngine(), Last3Engine())
 

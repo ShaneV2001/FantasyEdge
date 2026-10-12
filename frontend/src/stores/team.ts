@@ -16,6 +16,17 @@ interface TeamState {
   clear: () => void
 }
 
+const STORAGE_KEY = 'fantasyedge:team'
+
+// The app used to be called ff-edge: carry a team saved under the old key over, once.
+try {
+  const old = localStorage.getItem('ff-edge:team')
+  if (old && !localStorage.getItem(STORAGE_KEY)) localStorage.setItem(STORAGE_KEY, old)
+  localStorage.removeItem('ff-edge:team')
+} catch {
+  // storage unavailable (private mode): nothing to migrate
+}
+
 export const useTeamStore = create<TeamState>()(
   persist(
     (set) => ({
@@ -23,6 +34,6 @@ export const useTeamStore = create<TeamState>()(
       setTeam: (team) => set({ team }),
       clear: () => set({ team: null }),
     }),
-    { name: 'ff-edge:team', storage: createJSONStorage(() => localStorage), version: 1 },
+    { name: STORAGE_KEY, storage: createJSONStorage(() => localStorage), version: 1 },
   ),
 )

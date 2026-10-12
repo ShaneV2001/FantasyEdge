@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "ff-edge API",
+    "title": "FantasyEdge API",
     "description": "Fantasy football team advisor. Data: Sleeper, nflverse (CC-BY 4.0), FantasyCalc, DynastyProcess.",
     "version": "0.1.0"
   },

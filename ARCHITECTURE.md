@@ -1,4 +1,4 @@
-# ff-edge — Architecture
+# FantasyEdge — Architecture
 
 ## 1. Stack
 

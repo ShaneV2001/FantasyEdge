@@ -1,4 +1,4 @@
-"""ff-edge API."""
+"""FantasyEdge API."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ from app.routes import league, meta, settings, team, trade
 from ingest.http import SourceUnavailable
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-log = logging.getLogger("ff_edge.api")
+log = logging.getLogger("fantasyedge.api")
 
 app = FastAPI(
     generate_unique_id_function=lambda route: route.name,  # clean client names: getTeam, getAdvice…
-    title="ff-edge API",
+    title="FantasyEdge API",
     version="0.1.0",
     description="Fantasy football team advisor. Data: Sleeper, nflverse (CC-BY 4.0), FantasyCalc, DynastyProcess.",
 )

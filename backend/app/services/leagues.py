@@ -19,7 +19,7 @@ from ingest.run import Clients, market_sync
 from scoring.rules import PRESETS, describe, from_sleeper, normalize, profile_id
 from signals.lineup import NON_STARTING, SLOT_ELIGIBILITY, fit_to_slots, starting_slots
 
-log = logging.getLogger("ff_edge.leagues")
+log = logging.getLogger("fantasyedge.leagues")
 
 
 def _now() -> datetime:

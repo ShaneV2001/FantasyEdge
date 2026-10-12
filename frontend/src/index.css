@@ -137,7 +137,7 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
-    /* ff-edge tokens: one accent (amber), fixed position colours, buy/sell/warn */
+    /* FantasyEdge tokens: one accent (amber), fixed position colours, buy/sell/warn */
     --primary: oklch(0.82 0.15 78);
     --primary-foreground: oklch(0.2 0.03 70);
     --ring: oklch(0.82 0.15 78 / 60%);

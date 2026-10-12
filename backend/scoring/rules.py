@@ -13,7 +13,7 @@ import logging
 
 import polars as pl
 
-log = logging.getLogger("ff_edge.scoring")
+log = logging.getLogger("fantasyedge.scoring")
 
 HALF_PPR: dict[str, float] = {
     "pass_yd": 0.04,

@@ -53,10 +53,10 @@ export function AppSidebar() {
       <SidebarHeader>
         <Link to="/" className="flex items-center gap-2 px-2 py-1.5">
           <span className="grid size-7 place-items-center rounded-md bg-primary font-mono text-sm font-bold text-primary-foreground">
-            ff
+            FE
           </span>
           <span className="font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-            ff-edge
+            FantasyEdge
           </span>
         </Link>
       </SidebarHeader>

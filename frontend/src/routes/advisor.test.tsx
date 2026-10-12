@@ -121,7 +121,7 @@ describe('AdvisorPage', () => {
   it('shows an actionable error when the API is down', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
     renderPage()
-    expect(await screen.findByText('Could not reach the ff-edge API.')).toBeInTheDocument()
+    expect(await screen.findByText('Could not reach the FantasyEdge API.')).toBeInTheDocument()
     expect(screen.getByText(/python tasks.py api/)).toBeInTheDocument()
   })
 })

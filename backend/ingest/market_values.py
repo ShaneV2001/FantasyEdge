@@ -16,7 +16,7 @@ import polars as pl
 
 from ingest.http import CachedHttp, SourceUnavailable
 
-log = logging.getLogger("ff_edge.market")
+log = logging.getLogger("fantasyedge.market")
 
 MARKET_SCHEMA = {
     "sleeper_id": pl.Utf8,

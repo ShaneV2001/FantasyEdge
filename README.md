@@ -1,11 +1,11 @@
-# ff-edge
+# FantasyEdge
 
-[![CI](https://github.com/ShaneV2001/ff-edge/actions/workflows/ci.yml/badge.svg)](https://github.com/ShaneV2001/ff-edge/actions/workflows/ci.yml)
+[![CI](https://github.com/ShaneV2001/FantasyEdge/actions/workflows/ci.yml/badge.svg)](https://github.com/ShaneV2001/FantasyEdge/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **An open-source fantasy football assistant that tells you what to do with your team, and shows its work.**
 
-Connect your Sleeper league (or enter a roster by hand) and ff-edge gives you:
+Connect your Sleeper league (or enter a roster by hand) and FantasyEdge gives you:
 
 - **An advisor feed**: a ranked list of 5–10 concrete moves (trade, sell, buy, waiver, lineup, bye prep), each with the numbers behind it, an urgency and a confidence level.
 - **A regression report**: who is scoring on unsustainable touchdowns or efficiency, and who is due to bounce back.
@@ -38,7 +38,7 @@ Everything runs locally on free, public data. There are no accounts, API keys or
 
 ## How it works
 
-Every number in ff-edge comes from a formula you can read and change. The constants live at the
+Every number in FantasyEdge comes from a formula you can read and change. The constants live at the
 top of each module, nothing is hidden inside a model, and the ones you'd most want to tweak are on
 the [Settings](#settings) page.
 
@@ -76,7 +76,7 @@ only earlier games, then is scored against what happened. Fantasy-relevant playe
 QB24 / RB60 / WR60 / TE24 / K16 / DEF16 projected each week; MAE is against each player's average
 over the next 4 games, half-PPR.
 
-| Position | ff-edge baseline | Season PPG | Last 3 games |
+| Position | FantasyEdge baseline | Season PPG | Last 3 games |
 |---|---|---|---|
 | QB | **4.28** | 4.62 | 5.29 |
 | RB | **3.85** | 4.06 | 4.54 |
@@ -163,7 +163,7 @@ team's QB/RB/WR/TE totals in the same games. A window that would cover the whole
 
 ### Bye-week planner
 Bye weeks come straight from the NFL schedule: a team's bye is the week it has no game. For every
-remaining week, ff-edge builds your best legal lineup from the players available that week and marks
+remaining week, FantasyEdge builds your best legal lineup from the players available that week and marks
 each slot **ok**, **thin** (only a below-replacement option) or **empty**. A **danger week** is
 one where a slot is worse than it is at full strength, so a position that's weak all season doesn't
 flag every week.
@@ -212,7 +212,7 @@ four groups. Every page recomputes as soon as you save.
 **Requirements:** Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+ (pnpm comes via `corepack`).
 
 ```bash
-git clone <this repo> ff-edge && cd ff-edge
+git clone https://github.com/ShaneV2001/FantasyEdge.git && cd FantasyEdge
 cp .env.example .env
 
 python tasks.py setup   # install backend (uv) and frontend (pnpm) dependencies
@@ -296,12 +296,12 @@ FastAPI serves interactive docs at `http://localhost:8000/docs`. Phase 1 endpoin
 
 | Source | Used for | Terms |
 |---|---|---|
-| [Sleeper API](https://docs.sleeper.com) | Leagues, rosters, players, trending adds/drops | Free for non-commercial use. ff-edge stays far below the rate limit and fetches the player map at most once per day. Trending data is credited to Sleeper wherever it's shown. |
+| [Sleeper API](https://docs.sleeper.com) | Leagues, rosters, players, trending adds/drops | Free for non-commercial use. FantasyEdge stays far below the rate limit and fetches the player map at most once per day. Trending data is credited to Sleeper wherever it's shown. |
 | [nflverse](https://github.com/nflverse) via [`nflreadpy`](https://github.com/nflverse/nflreadpy) | Weekly stats, play-by-play (red-zone splits), snap counts, schedules, injuries | Data licensed **CC-BY 4.0**; FTN charting data **CC-BY-SA 4.0**. |
 | [FantasyCalc](https://fantasycalc.com) | Crowd-sourced trade market values | Unofficial endpoint, cached for 24 h; the app falls back gracefully if it changes. |
 | [DynastyProcess data](https://github.com/dynastyprocess/data) | Player ID crosswalk (Sleeper ↔ nflverse ↔ ESPN/Yahoo), fallback market values | Open data repository. |
 
-ff-edge does not scrape any website. It uses only public APIs and published data files.
+FantasyEdge does not scrape any website. It uses only public APIs and published data files.
 
 ---
 
@@ -329,7 +329,7 @@ Issues and pull requests are welcome. Please:
 
 ## Disclaimer
 
-ff-edge is an independent project and is **not affiliated with, endorsed by, or sponsored by**
+FantasyEdge is an independent project and is **not affiliated with, endorsed by, or sponsored by**
 Sleeper, ESPN, Yahoo, FantasyCalc, DynastyProcess, nflverse or the NFL. All trademarks belong to their
 respective owners. Projections are estimates, not guarantees. Use them to inform your decisions, not
 to make them for you.

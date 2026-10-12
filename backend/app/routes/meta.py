@@ -15,13 +15,13 @@ from ingest.market_values import MarketFormat
 from ingest.run import Clients
 
 router = APIRouter(tags=["meta"])
-log = logging.getLogger("ff_edge.api")
+log = logging.getLogger("fantasyedge.api")
 
 ATTRIBUTION = [
     "League, roster, player and trending data from the Sleeper API (non-commercial use).",
     "NFL statistics, play-by-play, schedules and injuries from nflverse (CC-BY 4.0); FTN data CC-BY-SA 4.0.",
     "Market trade values from FantasyCalc; player ID crosswalk from DynastyProcess.",
-    "ff-edge is not affiliated with Sleeper, ESPN, Yahoo, FantasyCalc, nflverse or the NFL.",
+    "FantasyEdge is not affiliated with Sleeper, ESPN, Yahoo, FantasyCalc, nflverse or the NFL.",
 ]
 
 
