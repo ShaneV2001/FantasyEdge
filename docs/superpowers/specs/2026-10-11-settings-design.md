@@ -26,10 +26,10 @@ Defaults are today's constants. Each field has a label, help text, min and max.
 |---|---|---|---|---|
 | Projections | `usage_weight` | 0.5 | 0–1 | `W_USAGE`; season weight = 1 − this (`W_L3` stays 0) |
 | Projections | `shrink_games` | 8 | 0–17 | `SHRINK_GAMES` |
-| Projections | `matchup_alpha.{QB,RB,WR,TE,K,DEF}` | .25/.5/.25/0/.25/.75 | 0–1.5 | `MATCHUP_ALPHA` |
+| Projections | `matchup_alpha_{qb,rb,wr,te,k,def}` | .25/.5/.25/0/.25/.75 | 0–1.5 | `MATCHUP_ALPHA` |
 | Buy/sell | `gap_min_points` | 10 | 0–50 | `GAP_MIN_POINTS` |
 | Buy/sell | `gap_min_share` | 0.10 | 0–0.5 | `GAP_MIN_SHARE` |
-| Buy/sell | `startable_rank.{QB,RB,WR,TE}` | 24/60/60/24 | 1–100 | `STARTABLE_RANK` (K/DEF stay fixed) |
+| Buy/sell | `startable_{qb,rb,wr,te}` | 24/60/60/24 | 1–100 | `STARTABLE_RANK` (K/DEF stay fixed) |
 | Buy/sell | `targets_per_tier` | 10 | 3–25 | `top` in `buy_targets_view` |
 | Injuries | `play_chance_questionable` | 0.85 | 0–1 | `STATUS_THIS_WEEK["Questionable"]` |
 | Injuries | `play_chance_doubtful` | 0.25 | 0–1 | `STATUS_THIS_WEEK["Doubtful"]` |
@@ -45,7 +45,7 @@ Projection fields are labelled "tuned by backtest" so users know the defaults ar
 
 ## Components
 
-**`backend/app/settings.py`**: a pydantic `Settings` model (fields above, `Field(ge, le,
+**`backend/app/user_settings.py`**: a pydantic `UserSettings` model with flat keys (named so it doesn't clash with the env config `app.config.Settings`) (fields above, `Field(ge, le,
 description)`, a validator for lean ≤ accept), plus:
 - `load(path) -> (Settings, warning | None)`. A missing file gives defaults. Unreadable JSON or
   invalid values give defaults plus a warning string; it never raises.
@@ -75,7 +75,7 @@ description)`, a validator for lean ≤ accept), plus:
   defaults.
 
 **Frontend (`frontend/src/routes/settings.tsx`)**: a "Settings" sidebar link with one card per
-group, built from the `GET /settings` schema (number inputs; sliders for 0–1 fields). Each field
+group, built from the `GET /settings` schema (number inputs). Each field
 shows "default X" and a reset link when changed. Projection cards carry the backtest note. The page
 has **Save** (PUT, then invalidate all queries), **Reset all** (DELETE, with a confirm) and a warning
 banner when the file was invalid. Client-side ranges come from the schema; the server stays
