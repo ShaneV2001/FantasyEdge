@@ -99,6 +99,25 @@ work:** flagged players fell a further 1.1 (efficiency), 1.4 (TD over expected) 
 points per game, beating similar players 61–67% of the time. **Buy-low flags are no better than a
 coin flip** (46–50%, about 0 PPG of lift), so treat them as context rather than a reason to trade.
 
+### Buy targets (schedule)
+The **Buy targets** page ranks the top 10 at every position, across all players, for each upcoming week
+and for the rest of the season. Each week's projection is the player's per-game projection × expected
+availability × a matchup multiplier, `1 + α × (opponent index − 1)`:
+- **Opponent index:** fantasy points the opponent allows to that position vs league average, with
+  this season shrunk toward last season. For a defense, the opponent is the offense it faces.
+- **α per position:** how far a matchup moves the projection, chosen by the walk-forward backtest
+  (`python -m models.run tune-matchups`). It was tuned on 2023–24 and kept only where 2025 improved.
+
+| | QB | RB | WR | TE | K | DEF |
+|---|---|---|---|---|---|---|
+| α | 0.25 | 0.5 | 0.25 | 0 | 0.25 | 0.75 |
+| 2025 next-week MAE, no adjustment → adjusted | 6.49 → 6.46 | 4.09 → 4.08 | 3.72 → 3.72 | 3.08 (no gain) | 3.79 → 3.77 | 4.30 → 4.18 |
+
+Schedule matters most for defenses: matchups double the week-to-week ranking accuracy of DEF
+projections (weekly Spearman 0.12 → 0.23). Elsewhere the effect is small, and for tight ends
+matchups didn't help, so the TE ranking ignores schedule. Each row also shows what the schedule adds
+or costs versus an average set of opponents.
+
 ### Bye-week planner
 Bye weeks come straight from the NFL schedule: a team's bye is the week it has no game. For every
 remaining week, ff-edge builds your best legal lineup from the players available that week and marks
@@ -175,7 +194,7 @@ backend/
   tests/        unit + API tests on recorded fixtures (no live network calls)
 frontend/       Vite + React + TypeScript + shadcn/ui, TanStack Router/Query, Zustand, Recharts
   src/api/      generated typed client + TanStack Query hooks (python tasks.py gen-api)
-  src/routes/   connect, advisor, team, byes, trade pages
+  src/routes/   connect, advisor, team, byes, targets, trade pages
 scripts/        fixture recorder
 ```
 
@@ -197,6 +216,7 @@ FastAPI serves interactive docs at `http://localhost:8000/docs`. Phase 1 endpoin
 | GET | `/team/{id}/advice` | Ranked advisor feed + team grade |
 | GET | `/team/{id}/regression` | Regression flags for your roster and the league |
 | GET | `/team/{id}/byes` | Week × slot bye grid and danger weeks |
+| GET | `/team/{id}/targets` | Top 10 per position by schedule-adjusted points, each week and rest of season |
 | POST | `/trade/evaluate` | Score a proposed trade for both sides |
 | GET | `/trade/suggest` | Mutually beneficial trade ideas |
 | POST | `/refresh` | Re-sync league, market or all data |
