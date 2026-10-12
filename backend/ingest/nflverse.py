@@ -26,6 +26,7 @@ STATS_COLUMNS = [
     "carries", "rush_yds", "rush_td",
     "targets", "receptions", "rec_yds", "rec_td",
     "air_yards", "target_share", "air_yards_share", "wopr",
+    "rec_yac", "pass_yac", "pass_air_yards",
     "rz_carries", "rz_targets", "gl_carries", "rz_td",
     "fumbles_lost", "two_pt", "epa_total",
     "pass_fd", "rush_fd", "rec_fd", "fumbles", "sacks_taken", "pass_int_td",
@@ -52,6 +53,11 @@ def _opt(df: pl.DataFrame, col: str) -> pl.Expr:
     return _num(col) if col in df.columns else pl.lit(0)
 
 
+def _nullable(df: pl.DataFrame, col: str) -> pl.Expr:
+    """A column older nflverse releases may lack; missing stays null (unknown), not 0."""
+    return pl.col(col) if col in df.columns else pl.lit(None)
+
+
 def transform_weekly_stats(stats: pl.DataFrame) -> pl.DataFrame:
     """nflverse `load_player_stats` (week level) → player_week_stats columns (no RZ/snaps yet)."""
     df = stats.filter((pl.col("season_type") == "REG") & pl.col("position").is_in(SKILL))
@@ -75,6 +81,9 @@ def transform_weekly_stats(stats: pl.DataFrame) -> pl.DataFrame:
         _num("receiving_yards").cast(pl.Int32).alias("rec_yds"),
         _num("receiving_tds").cast(pl.Int32).alias("rec_td"),
         _num("receiving_air_yards").cast(pl.Int32).alias("air_yards"),
+        _nullable(df, "receiving_yards_after_catch").cast(pl.Int32).alias("rec_yac"),
+        _nullable(df, "passing_yards_after_catch").cast(pl.Int32).alias("pass_yac"),
+        _nullable(df, "passing_air_yards").cast(pl.Int32).alias("pass_air_yards"),
         pl.col("target_share").cast(pl.Float64),
         pl.col("air_yards_share").cast(pl.Float64),
         pl.col("wopr").cast(pl.Float64),

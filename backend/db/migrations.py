@@ -50,6 +50,13 @@ MIGRATIONS: list[tuple[int, str]] = [
         "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS pts_allow INTEGER;"
         "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS yds_allow INTEGER;",
     ),
+    # v5: yards after catch and passing air yards, for the player-page analytics
+    (
+        5,
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rec_yac INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS pass_yac INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS pass_air_yards INTEGER;",
+    ),
 ]
 
 

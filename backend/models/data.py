@@ -18,7 +18,7 @@ from signals.schedule import Schedule, build_schedule
 log = logging.getLogger("ff_edge.backtest")
 
 FANTASY_POSITIONS = ("QB", "RB", "WR", "TE", "K")
-CACHE_VERSION = 2  # bump when the cached frame's columns change (v2: kickers and defenses)
+CACHE_VERSION = 3  # bump when the cached frame's columns change (v2: K/DEF; v3: YAC, pass air yards)
 
 
 def _positions(raw_stats: pl.DataFrame) -> pl.DataFrame:

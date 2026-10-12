@@ -58,3 +58,8 @@ def test_transaction_rolls_back_on_error(tmp_path):
         con.execute("DELETE FROM sync_log")
         raise RuntimeError("boom")
     assert con.execute("SELECT source FROM sync_log").fetchall() == [("keep",)]
+
+
+def test_v5_adds_yac_and_passing_air_yards(tmp_path):
+    con = connect(tmp_path / "ff.duckdb")
+    assert {"rec_yac", "pass_yac", "pass_air_yards"} <= _columns(con, "player_week_stats")

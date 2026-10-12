@@ -110,6 +110,8 @@ def test_weekly_stats_split_two_pointers_and_first_downs():
             "rushing_epa": [0.0], "receiving_epa": [0.0], "passing_first_downs": [11],
             "rushing_first_downs": [1], "receiving_first_downs": [0], "rushing_fumbles": [0],
             "receiving_fumbles": [0], "sack_fumbles": [2], "sacks_suffered": [3],
+            "passing_air_yards": [310], "passing_yards_after_catch": [120],
+            "receiving_yards_after_catch": [0],
         }
     )  # fmt: skip
     row = build_player_week_stats(raw, None, None).row(0, named=True)
@@ -117,6 +119,26 @@ def test_weekly_stats_split_two_pointers_and_first_downs():
     assert (row["pass_2pt"], row["rush_2pt"], row["two_pt"]) == (1, 1, 2)
     assert (row["pass_fd"], row["rush_fd"], row["sacks_taken"], row["fumbles"]) == (11, 1, 3, 2)
     assert row["pass_int_td"] == 0
+    assert (row["pass_air_yards"], row["pass_yac"], row["rec_yac"]) == (310, 120, 0)
+
+
+def test_weekly_stats_without_yac_columns_are_null():
+    raw = pl.DataFrame(
+        {
+            "season_type": ["REG"], "position": ["WR"], "player_id": ["W"], "season": [2026],
+            "week": [1], "game_id": ["g"], "team": ["KC"], "opponent_team": ["LV"],
+            "attempts": [0], "completions": [0], "passing_yards": [0], "passing_tds": [0],
+            "passing_interceptions": [0], "carries": [0], "rushing_yards": [0],
+            "rushing_tds": [0], "targets": [8], "receptions": [6], "receiving_yards": [70],
+            "receiving_tds": [1], "receiving_air_yards": [60], "target_share": [0.25],
+            "air_yards_share": [0.3], "wopr": [0.58], "rushing_fumbles_lost": [0],
+            "receiving_fumbles_lost": [0], "sack_fumbles_lost": [0], "passing_2pt_conversions": [0],
+            "rushing_2pt_conversions": [0], "receiving_2pt_conversions": [0], "passing_epa": [0.0],
+            "rushing_epa": [0.0], "receiving_epa": [2.5],
+        }
+    )  # fmt: skip
+    row = build_player_week_stats(raw, None, None).row(0, named=True)
+    assert row["rec_yac"] is None and row["pass_yac"] is None and row["pass_air_yards"] is None
 
 
 def test_kicker_transform_maps_sleeper_terms():
