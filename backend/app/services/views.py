@@ -13,6 +13,9 @@ from signals import trade as tr
 from signals.byes import RosterEntry, bye_grid
 from signals.lineup import starting_slots
 from signals.regression import TDOE_THRESHOLD, USAGE_SHIFT, Z_THRESHOLD, RegressionFlag
+from signals.schedule import MATCHUP_ALPHA
+from signals.targets import POSITIONS as TARGET_POSITIONS
+from signals.targets import TargetRow, rank_targets
 from signals.team import RosMath, TeamProfile, simulate_league, team_profiles
 
 MARKET_LABEL = {"fantasycalc": "FantasyCalc", "dynastyprocess": "DynastyProcess"}
@@ -540,4 +543,79 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
         deadline_passed=ctx.deadline_passed,
         market=market_info(ctx),
         notes=notes,
+    )
+
+
+# ───────── buy targets ─────────
+
+
+def _owner_label(ctx: LeagueContext, pid: str, team_id: str) -> tuple[str | None, bool]:
+    owner = ctx.owner_of(pid)
+    if owner is not None:
+        return (
+            "Your team" if owner.team_id == team_id else owner.team_name
+        ), owner.team_id == team_id
+    return (None if ctx.league.platform == "manual" else "Free agent"), False
+
+
+def _target_row(ctx: LeagueContext, team_id: str, rank: int, r: TargetRow) -> m.TargetRow:
+    p = ctx.players[r.player_id]
+    owner, mine = _owner_label(ctx, r.player_id, team_id)
+    return m.TargetRow(
+        rank=rank,
+        player_id=r.player_id,
+        name=p["name"],
+        position=r.position,
+        nfl_team=p.get("nfl_team"),
+        owner=owner,
+        mine=mine,
+        points=r.points,
+        neutral_points=r.neutral_points,
+        schedule_delta=r.schedule_delta,
+        avg_index=r.avg_index,
+        games=r.games,
+        ppg=_r(p.get("ppg")) or 0.0,
+        availability_note=p.get("availability_note"),
+        cells=[
+            m.TargetCell(week=c.week, opponent=c.opponent, index=c.index, points=c.points)
+            for c in r.cells
+        ],
+    )
+
+
+def targets_view(ctx: LeagueContext, team_id: str) -> m.TargetsOut:
+    """Top players at each position by matchup-adjusted points: each week and rest of season."""
+    ctx.team(team_id)
+    start, end = ctx.week, ctx.league.last_week
+    if "targets" not in ctx.memo:
+        pool = {
+            pid: p
+            for pid, p in ctx.players.items()
+            if p.get("position") in TARGET_POSITIONS
+            and p.get("nfl_team")
+            and (p.get("ppg") or 0) > 0
+        }
+        ctx.memo["targets"] = rank_targets(
+            pool, ctx.schedule, ctx.matchup, MATCHUP_ALPHA, start, end
+        )
+    ranked = ctx.memo["targets"]
+    return m.TargetsOut(
+        team_id=team_id,
+        week=start,
+        last_week=end,
+        weeks=list(range(start, end + 1)),
+        positions={
+            pos: m.TargetPosition(
+                alpha=MATCHUP_ALPHA.get(pos, 0.0),
+                ros=[_target_row(ctx, team_id, i + 1, r) for i, r in enumerate(v["ros"])],
+                weekly=[
+                    m.TargetWeek(
+                        week=w,
+                        rows=[_target_row(ctx, team_id, i + 1, r) for i, r in enumerate(rows)],
+                    )
+                    for w, rows in v["weekly"].items()
+                ],
+            )
+            for pos, v in ranked.items()
+        },
     )

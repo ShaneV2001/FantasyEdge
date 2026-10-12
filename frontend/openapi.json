@@ -186,6 +186,49 @@
         }
       }
     },
+    "/team/{team_id}/targets": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Targets",
+        "description": "Top 10 per position by schedule-adjusted points, for each upcoming week and the rest of\nthe season (all players; owner labeled).",
+        "operationId": "get_targets",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TargetsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/team/{team_id}/advice": {
       "get": {
         "tags": [
@@ -2112,6 +2155,256 @@
           "attribution"
         ],
         "title": "StatusOut"
+      },
+      "TargetCell": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "opponent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent",
+            "description": "None on a bye"
+          },
+          "index": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index",
+            "description": "Opponent's fantasy points allowed to the position vs average (>1 easier)"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points",
+            "description": "Matchup-adjusted projected points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "points"
+        ],
+        "title": "TargetCell"
+      },
+      "TargetPosition": {
+        "properties": {
+          "alpha": {
+            "type": "number",
+            "title": "Alpha",
+            "description": "How strongly matchups move this position (0 = not at all)"
+          },
+          "ros": {
+            "items": {
+              "$ref": "#/components/schemas/TargetRow"
+            },
+            "type": "array",
+            "title": "Ros"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/TargetWeek"
+            },
+            "type": "array",
+            "title": "Weekly"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alpha",
+          "ros",
+          "weekly"
+        ],
+        "title": "TargetPosition"
+      },
+      "TargetRow": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "nfl_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nfl Team"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "Team name, 'Free agent', or None if unknown"
+          },
+          "mine": {
+            "type": "boolean",
+            "title": "Mine"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points",
+            "description": "Matchup-adjusted projected points (week or rest of season)"
+          },
+          "neutral_points": {
+            "type": "number",
+            "title": "Neutral Points",
+            "description": "Same projection against an average schedule"
+          },
+          "schedule_delta": {
+            "type": "number",
+            "title": "Schedule Delta",
+            "description": "points - neutral_points: what the schedule adds"
+          },
+          "avg_index": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Index"
+          },
+          "games": {
+            "type": "integer",
+            "title": "Games"
+          },
+          "ppg": {
+            "type": "number",
+            "title": "Ppg"
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/TargetCell"
+            },
+            "type": "array",
+            "title": "Cells",
+            "description": "Weekly view: that week; ROS: next few opponents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "player_id",
+          "name",
+          "position",
+          "nfl_team",
+          "mine",
+          "points",
+          "neutral_points",
+          "schedule_delta",
+          "avg_index",
+          "games",
+          "ppg",
+          "cells"
+        ],
+        "title": "TargetRow"
+      },
+      "TargetWeek": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TargetRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "rows"
+        ],
+        "title": "TargetWeek"
+      },
+      "TargetsOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "last_week": {
+            "type": "integer",
+            "title": "Last Week"
+          },
+          "weeks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Weeks"
+          },
+          "positions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TargetPosition"
+            },
+            "type": "object",
+            "title": "Positions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "week",
+          "last_week",
+          "weeks",
+          "positions"
+        ],
+        "title": "TargetsOut"
       },
       "TeamChoiceOut": {
         "properties": {

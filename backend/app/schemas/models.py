@@ -321,6 +321,55 @@ class ByesOut(BaseModel):
     danger_weeks: list[int]
 
 
+# ───────── buy targets ─────────
+
+
+class TargetCell(BaseModel):
+    week: int
+    opponent: str | None = Field(None, description="None on a bye")
+    index: float | None = Field(
+        None, description="Opponent's fantasy points allowed to the position vs average (>1 easier)"
+    )
+    points: float = Field(description="Matchup-adjusted projected points")
+
+
+class TargetRow(BaseModel):
+    rank: int
+    player_id: str
+    name: str
+    position: str
+    nfl_team: str | None
+    owner: str | None = Field(None, description="Team name, 'Free agent', or None if unknown")
+    mine: bool
+    points: float = Field(description="Matchup-adjusted projected points (week or rest of season)")
+    neutral_points: float = Field(description="Same projection against an average schedule")
+    schedule_delta: float = Field(description="points - neutral_points: what the schedule adds")
+    avg_index: float | None
+    games: int
+    ppg: float
+    availability_note: str | None = None
+    cells: list[TargetCell] = Field(description="Weekly view: that week; ROS: next few opponents")
+
+
+class TargetWeek(BaseModel):
+    week: int
+    rows: list[TargetRow]
+
+
+class TargetPosition(BaseModel):
+    alpha: float = Field(description="How strongly matchups move this position (0 = not at all)")
+    ros: list[TargetRow]
+    weekly: list[TargetWeek]
+
+
+class TargetsOut(BaseModel):
+    team_id: str
+    week: int
+    last_week: int
+    weeks: list[int]
+    positions: dict[str, TargetPosition]
+
+
 # ───────── trades ─────────
 
 

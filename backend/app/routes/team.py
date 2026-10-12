@@ -23,6 +23,13 @@ def get_team(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.TeamOut:
     return views.team_view(ctx, team_id)
 
 
+@router.get("/{team_id}/targets", response_model=m.TargetsOut)
+def get_targets(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.TargetsOut:
+    """Top 10 per position by schedule-adjusted points, for each upcoming week and the rest of
+    the season (all players; owner labeled)."""
+    return views.targets_view(ctx, team_id)
+
+
 @router.get("/{team_id}/advice", response_model=m.AdviceOut)
 def get_advice(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.AdviceOut:
     """Ranked advisor feed (Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team grades."""

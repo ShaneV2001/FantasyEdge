@@ -489,3 +489,23 @@ def test_connect_lists_leagues_without_full_sync(client):
         json={"external_roster_id": mine["external_roster_id"]},
     )
     assert len(router.calls) == n_calls
+
+
+def test_targets_rank_every_position_by_week_and_rest_of_season(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    r = tc.get(f"/team/{team_id}/targets")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["weeks"] == list(range(body["week"], body["last_week"] + 1))
+    assert set(body["positions"]) == {"QB", "RB", "WR", "TE", "K", "DEF"}
+    wr = body["positions"]["WR"]
+    assert 0 < len(wr["ros"]) <= 10
+    assert [x["rank"] for x in wr["ros"]] == list(range(1, len(wr["ros"]) + 1))
+    pts = [x["points"] for x in wr["ros"]]
+    assert pts == sorted(pts, reverse=True)
+    assert [w["week"] for w in wr["weekly"]] == body["weeks"]
+    owners = {x["owner"] for p in body["positions"].values() for x in p["ros"]}
+    assert "Free agent" in owners or any(o and o != "Free agent" for o in owners)
+    mine = [x for p in body["positions"].values() for x in p["ros"] if x["mine"]]
+    assert all(x["owner"] == "Your team" for x in mine)

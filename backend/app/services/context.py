@@ -27,6 +27,8 @@ from signals.schedule import Schedule, build_schedule, fp_allowed_index, schedul
 
 log = logging.getLogger("ff_edge.context")
 
+MATCHUP_POSITIONS = (*SKILL_POSITIONS, "K", "DEF")
+
 ENGINE = BaselineEngine()
 DEFAULT_PLAYOFF_START = 15
 
@@ -106,6 +108,8 @@ class LeagueContext:
     market_format: str
     market_stale: bool
     built_at: datetime
+    # (opponent, position) -> fantasy points allowed vs league average (>1 = easier matchup)
+    matchup: dict[tuple[str, str], float] = field(default_factory=dict)
     memo: dict = field(default_factory=dict)  # per-context derived results (e.g. trade ideas)
 
     @property
@@ -342,7 +346,7 @@ def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueConte
         r["name"] = r.pop("full_name") or pid
         r["regression_score"] = report.score(pid)
         pos = r["position"]
-        if pos in SKILL_POSITIONS:
+        if pos in MATCHUP_POSITIONS:
             r["ease_next4"] = schedule_ease(
                 schedule,
                 matchup,
@@ -371,6 +375,7 @@ def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueConte
         market_format=fmt_used,
         market_stale=stale,
         built_at=datetime.now(),
+        matchup=matchup,
     )
 
 

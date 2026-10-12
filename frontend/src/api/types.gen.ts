@@ -835,6 +835,172 @@ export type StatusOut = {
 };
 
 /**
+ * TargetCell
+ */
+export type TargetCell = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Opponent
+     *
+     * None on a bye
+     */
+    opponent?: string | null;
+    /**
+     * Index
+     *
+     * Opponent's fantasy points allowed to the position vs average (>1 easier)
+     */
+    index?: number | null;
+    /**
+     * Points
+     *
+     * Matchup-adjusted projected points
+     */
+    points: number;
+};
+
+/**
+ * TargetPosition
+ */
+export type TargetPosition = {
+    /**
+     * Alpha
+     *
+     * How strongly matchups move this position (0 = not at all)
+     */
+    alpha: number;
+    /**
+     * Ros
+     */
+    ros: Array<TargetRow>;
+    /**
+     * Weekly
+     */
+    weekly: Array<TargetWeek>;
+};
+
+/**
+ * TargetRow
+ */
+export type TargetRow = {
+    /**
+     * Rank
+     */
+    rank: number;
+    /**
+     * Player Id
+     */
+    player_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position: string;
+    /**
+     * Nfl Team
+     */
+    nfl_team: string | null;
+    /**
+     * Owner
+     *
+     * Team name, 'Free agent', or None if unknown
+     */
+    owner?: string | null;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Points
+     *
+     * Matchup-adjusted projected points (week or rest of season)
+     */
+    points: number;
+    /**
+     * Neutral Points
+     *
+     * Same projection against an average schedule
+     */
+    neutral_points: number;
+    /**
+     * Schedule Delta
+     *
+     * points - neutral_points: what the schedule adds
+     */
+    schedule_delta: number;
+    /**
+     * Avg Index
+     */
+    avg_index: number | null;
+    /**
+     * Games
+     */
+    games: number;
+    /**
+     * Ppg
+     */
+    ppg: number;
+    /**
+     * Availability Note
+     */
+    availability_note?: string | null;
+    /**
+     * Cells
+     *
+     * Weekly view: that week; ROS: next few opponents
+     */
+    cells: Array<TargetCell>;
+};
+
+/**
+ * TargetWeek
+ */
+export type TargetWeek = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Rows
+     */
+    rows: Array<TargetRow>;
+};
+
+/**
+ * TargetsOut
+ */
+export type TargetsOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Last Week
+     */
+    last_week: number;
+    /**
+     * Weeks
+     */
+    weeks: Array<number>;
+    /**
+     * Positions
+     */
+    positions: {
+        [key: string]: TargetPosition;
+    };
+};
+
+/**
  * TeamChoiceOut
  */
 export type TeamChoiceOut = {
@@ -1238,6 +1404,36 @@ export type GetTeamResponses = {
 };
 
 export type GetTeamResponse = GetTeamResponses[keyof GetTeamResponses];
+
+export type GetTargetsData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/targets';
+};
+
+export type GetTargetsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTargetsError = GetTargetsErrors[keyof GetTargetsErrors];
+
+export type GetTargetsResponses = {
+    /**
+     * Successful Response
+     */
+    200: TargetsOut;
+};
+
+export type GetTargetsResponse = GetTargetsResponses[keyof GetTargetsResponses];
 
 export type GetAdviceData = {
     body?: never;

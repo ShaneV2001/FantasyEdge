@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import polars as pl
@@ -145,7 +146,7 @@ def schedule_ease(
 
 
 def matchup_multiplier(
-    index: dict[tuple[str, str], float], opponent: str | None, position: str, alpha: float
+    index: Mapping[tuple[str, str], float], opponent: str | None, position: str, alpha: float
 ) -> float:
     """Scale for a player's per-game projection against `opponent` (1.0 = neutral)."""
     if opponent is None or alpha == 0:
