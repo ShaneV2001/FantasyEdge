@@ -3,6 +3,7 @@
     python -m models.run backtest [--seasons 2023,2024,2025] [--scoring half_ppr|ppr|standard]
     python -m models.run regression-eval [--seasons ...]
     python -m models.run tune [--seasons ...]   (last season is the holdout)
+    python -m models.run tune-matchups [--seasons ...]
 
 Downloads (once, then cached) the seasons plus the season before the first, runs the walk-forward
 backtest for every engine, prints a comparison and records one `model_runs` row per engine.
@@ -24,7 +25,7 @@ from db.conn import connect, upsert
 from models.backtest import metrics, metrics_json, walk_forward
 from models.data import load_seasons
 from models.regression_eval import flag_outcomes, summarize
-from models.tune import tune_thresholds, tune_weights
+from models.tune import tune_matchups, tune_thresholds, tune_weights
 from projections.baseline import BaselineEngine
 from projections.simple import Last3Engine, SeasonPpgEngine
 from scoring.rules import PRESETS
@@ -152,6 +153,25 @@ def cmd_tune(args: argparse.Namespace) -> None:
         print(f"    holdout: default {vd:.1f} ({nd} flags) vs best {vb:.1f} ({nb} flags)")
 
 
+def cmd_tune_matchups(args: argparse.Namespace) -> None:
+    seasons = _seasons(args.seasons)
+    train, valid = seasons[:-1], seasons[-1:]
+    stats, schedules = load_seasons([seasons[0] - 1, *seasons], backtest_dir(), args.refresh)
+    print(
+        f"\nMatchup strength alpha per position: next-week MAE, tuned on {train}, holdout {valid}"
+    )
+    print("(points x (1 + alpha x (opponent index - 1)); alpha 0 = ignore the schedule)\n")
+
+    def fmt(d: dict) -> str:
+        return "  ".join(f"{a:g}:{v:.3f}" for a, v in sorted(d.items()) if v is not None)
+
+    for r in tune_matchups(stats, schedules, PRESETS[args.scoring], train, valid):
+        print(f"{r['position']:<4} train  {fmt(r['train'])}")
+        print(f"     hold   {fmt(r['valid'])}")
+        print(f"     rho    {fmt(r['valid_rho'])}")
+        print(f"     best on train {r['best_train']:g} -> chosen {r['chosen']:g}\n")
+
+
 def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--seasons", help="comma-separated target seasons (default: last three)")
     p.add_argument("--scoring", choices=sorted(PRESETS), default="half_ppr")
@@ -171,6 +191,9 @@ def main(argv: list[str] | None = None) -> None:
     t = sub.add_parser("tune", help="search baseline weights and flag thresholds (holdout-checked)")
     _common(t)
     t.set_defaults(fn=cmd_tune)
+    mt = sub.add_parser("tune-matchups", help="how much each position should follow its schedule")
+    _common(mt)
+    mt.set_defaults(fn=cmd_tune_matchups)
     args = p.parse_args(argv)
     args.fn(args)
 

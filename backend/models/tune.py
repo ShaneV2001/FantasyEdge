@@ -12,7 +12,7 @@ from itertools import product
 
 import polars as pl
 
-from models.backtest import metrics, walk_forward
+from models.backtest import POSITIONS, metrics, walk_forward
 from models.regression_eval import flag_outcomes, summarize
 from projections.baseline import BaselineEngine
 from signals.regression import RegressionConfig
@@ -126,3 +126,59 @@ def tune_thresholds(
             }
         )
     return out
+
+
+MATCHUP_ALPHAS = (0.0, 0.25, 0.5, 0.75, 1.0)
+
+
+def matchup_table(
+    stats: pl.DataFrame,
+    schedules: Mapping[int, Schedule],
+    rules: dict[str, float],
+    seasons: Sequence[int],
+) -> pl.DataFrame:
+    """Next-week MAE and Spearman per (alpha, position), all projected players who played.
+
+    A position's multiplier only touches that position's rows, so one run per alpha (applied to
+    every position at once) covers all positions.
+    """
+    from projections.matchup import MatchupAdjusted
+
+    out = []
+    for a in MATCHUP_ALPHAS:
+        engine = MatchupAdjusted(BaselineEngine(), dict.fromkeys(POSITIONS, a))
+        m = metrics(walk_forward(engine, stats, schedules, rules, seasons))
+        out.append(m.select("position", "mae_1", "spearman").with_columns(pl.lit(a).alias("alpha")))
+    return pl.concat(out).filter(pl.col("position") != "ALL")
+
+
+def tune_matchups(
+    stats: pl.DataFrame,
+    schedules: Mapping[int, Schedule],
+    rules: dict[str, float],
+    train: Sequence[int],
+    valid: Sequence[int],
+) -> list[dict]:
+    """Per position: alpha with the lowest train MAE, kept only if the holdout improves too."""
+    tr = matchup_table(stats, schedules, rules, train)
+    va = matchup_table(stats, schedules, rules, valid)
+    rows = []
+    for pos in POSITIONS:
+        t = tr.filter(pl.col("position") == pos).sort("alpha")
+        v = va.filter(pl.col("position") == pos).sort("alpha")
+        if t.is_empty():
+            continue
+        best = float(t.sort("mae_1")["alpha"][0])
+        v_at = dict(zip(v["alpha"].to_list(), v["mae_1"].to_list(), strict=True))
+        keep = best if v_at.get(best, float("inf")) < v_at.get(0.0, float("inf")) else 0.0
+        rows.append(
+            {
+                "position": pos,
+                "train": dict(zip(t["alpha"].to_list(), t["mae_1"].to_list(), strict=True)),
+                "valid": v_at,
+                "valid_rho": dict(zip(v["alpha"].to_list(), v["spearman"].to_list(), strict=True)),
+                "best_train": best,
+                "chosen": keep,
+            }
+        )
+    return rows

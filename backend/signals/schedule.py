@@ -9,6 +9,15 @@ import polars as pl
 
 REG_SEASON_WEEKS = 18
 
+# How far a matchup moves a weekly projection: points × (1 + α × (index − 1)). α = 0 means the
+# schedule is ignored for that position. Chosen per position by `python -m models.run
+# tune-matchups` (walk-forward, tuned on earlier seasons and checked on the latest).
+# 2025 holdout, next-week MAE at chosen α vs α=0: QB 6.46/6.49, RB 4.08/4.09, WR 3.72/3.72,
+# K 3.77/3.79, DEF 4.18/4.30 (weekly Spearman 0.12 → 0.23). TE: matchups didn't help.
+MATCHUP_ALPHA: dict[str, float] = {
+    "QB": 0.25, "RB": 0.5, "WR": 0.25, "TE": 0.0, "K": 0.25, "DEF": 0.75,
+}  # fmt: skip
+
 
 @dataclass(frozen=True)
 class Schedule:
@@ -64,12 +73,14 @@ def build_schedule(games: pl.DataFrame, season: int) -> Schedule:
 def fp_allowed_index(
     scored: pl.DataFrame, season: int, through_week: int, prior_weight: float = 3.0
 ) -> dict[tuple[str, str], float]:
-    """Defense × position → fantasy points allowed per game relative to league average (1.0).
+    """Opponent × position → fantasy points allowed per game relative to league average (1.0).
 
-    >1 means the defense gives up more than average (an easier matchup). The current season is
-    shrunk toward the prior season with `prior_weight` pseudo-games.
+    >1 means the opponent gives up more than average (an easier matchup). For skill players and
+    kickers the opponent is a defense; for team defenses (DEF rows) it is the offense they faced,
+    so (KC, "DEF") is how many DEF points defenses score against KC. The current season is shrunk
+    toward the prior season with `prior_weight` pseudo-games.
     """
-    keep = pl.col("position").is_in(["QB", "RB", "WR", "TE"])
+    keep = pl.col("position").is_not_null() & pl.col("opponent").is_not_null()
     cur = scored.filter((pl.col("season") == season) & (pl.col("week") <= through_week) & keep)
     prior = scored.filter((pl.col("season") == season - 1) & keep)
 
@@ -131,3 +142,12 @@ def schedule_ease(
         if (opp := sched.opponent(team, w)) is not None
     ]
     return sum(vals) / len(vals) if vals else None
+
+
+def matchup_multiplier(
+    index: dict[tuple[str, str], float], opponent: str | None, position: str, alpha: float
+) -> float:
+    """Scale for a player's per-game projection against `opponent` (1.0 = neutral)."""
+    if opponent is None or alpha == 0:
+        return 1.0
+    return max(1.0 + alpha * (index.get((opponent, position), 1.0) - 1.0), 0.0)
