@@ -89,3 +89,23 @@ def test_projection_settings_change_team_numbers(client):  # noqa: F811
     rb = tc.get(f"/team/{team_id}/rankings").json()["positions"]["RB"]
     assert rb["alpha"] == 0.0
     assert all(r["schedule_delta"] == 0 for r in rb["ros"])
+
+
+def test_verdict_settings_change_buy_targets(client):  # noqa: F811
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+
+    def buys():
+        pos = tc.get(f"/team/{team_id}/buy-targets").json()["positions"]
+        return pos, sum(len(p["buy"]) for p in pos.values())
+
+    tc.put("/settings", json={"gap_min_points": 0, "gap_min_share": 0})
+    _, loose = buys()
+    tc.put("/settings", json={"gap_min_points": 50, "gap_min_share": 0.5})
+    _, strict = buys()
+    assert loose > 0 and strict <= loose
+    tc.put("/settings", json={"gap_min_points": 0, "gap_min_share": 0, "targets_per_tier": 3})
+    pos, _ = buys()
+    for p in pos.values():
+        for tier in ("starter", "depth"):
+            assert sum(r["tier"] == tier for r in p["buy"]) <= 3

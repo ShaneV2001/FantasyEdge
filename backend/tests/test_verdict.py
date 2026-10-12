@@ -60,3 +60,15 @@ def test_deep_players_get_no_call():
     assert vals["w66"].gap > 0 and vals["w66"].signal == "hold"
     assert signal_for(-50, 100, model_rank=10, market_rank=80, startable=60) == "hold"
     assert signal_for(-50, 100, model_rank=80, market_rank=10, startable=60) == "sell"
+
+
+def test_thresholds_and_startable_depth_are_parameters():
+    assert signal_for(15, 50) == "buy"
+    assert signal_for(15, 50, min_points=20) == "hold"
+    assert signal_for(25, 200, min_share=0.2) == "hold"  # needs 40 at 20%
+    players = {"a": P("RB", 900), "b": P("RB", 800), "c": P("RB", 700)}
+    pts = {"a": 100, "b": 200, "c": 150}
+    vals = value_players(players, pts, ["RB"], startable={"RB": 1})
+    assert vals["b"].signal == "buy"  # our RB1
+    assert vals["c"].signal == "hold"  # our RB2: beyond the startable depth
+    assert vals["a"].signal == "sell"  # market RB1

@@ -40,8 +40,10 @@ class Valuation:
         return round(self.model_points - self.market_implied, 1)
 
 
-def threshold(market_implied: float) -> float:
-    return max(GAP_MIN_POINTS, GAP_MIN_SHARE * market_implied)
+def threshold(
+    market_implied: float, min_points: float = GAP_MIN_POINTS, min_share: float = GAP_MIN_SHARE
+) -> float:
+    return max(min_points, min_share * market_implied)
 
 
 def signal_for(
@@ -50,10 +52,13 @@ def signal_for(
     model_rank: int | None = None,
     market_rank: int | None = None,
     startable: int | None = None,
+    *,
+    min_points: float = GAP_MIN_POINTS,
+    min_share: float = GAP_MIN_SHARE,
 ) -> str:
     if gap is None or market_implied is None:
         return "hold"
-    t = threshold(market_implied)
+    t = threshold(market_implied, min_points, min_share)
     if gap >= t and (startable is None or (model_rank or 10**6) <= startable):
         return "buy"
     if gap <= -t and (startable is None or (market_rank or 10**6) <= startable):
@@ -65,6 +70,10 @@ def value_players(
     players: Mapping[str, Mapping],
     model_points: Mapping[str, float],
     positions: Iterable[str],
+    *,
+    startable: Mapping[str, int] = STARTABLE_RANK,
+    min_points: float = GAP_MIN_POINTS,
+    min_share: float = GAP_MIN_SHARE,
 ) -> dict[str, Valuation]:
     """Valuation for every player in `model_points` (market fields only where valued)."""
     out = {pid: Valuation(round(pts, 1)) for pid, pts in model_points.items()}
@@ -81,8 +90,9 @@ def value_players(
             v.market_rank, v.model_rank = r, model_rank[pid]
             v.market_implied = round(model_points[by_model[r - 1]], 1)
             v.signal = signal_for(
-                v.gap, v.market_implied, v.model_rank, v.market_rank, STARTABLE_RANK.get(pos)
-            )
+                v.gap, v.market_implied, v.model_rank, v.market_rank, startable.get(pos),
+                min_points=min_points, min_share=min_share,
+            )  # fmt: skip
     return out
 
 

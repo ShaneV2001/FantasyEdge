@@ -313,7 +313,12 @@ def _value_players(
     }  # fmt: skip
     cells = all_cells(pool, schedule, matchup, tuning.alpha, start, end, tuning.injury)
     model_pts = {pid: ros_points(c) for pid, c in cells.items()}
-    values = value_players(info, model_pts, MATCHUP_POSITIONS)
+    values = value_players(
+        info, model_pts, MATCHUP_POSITIONS,
+        startable=tuning.startable,
+        min_points=tuning.gap_min_points,
+        min_share=tuning.gap_min_share,
+    )  # fmt: skip
     label = MARKET_LABEL.get(market_source or "", "Market")
     for pid, r in info.items():
         v = values.get(pid)

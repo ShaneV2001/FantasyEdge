@@ -658,9 +658,10 @@ def _buy_row(
     )
 
 
-def buy_targets_view(ctx: LeagueContext, team_id: str, top: int = 10) -> m.BuyTargetsOut:
+def buy_targets_view(ctx: LeagueContext, team_id: str, top: int | None = None) -> m.BuyTargetsOut:
     """Per position: undervalued players you don't own (would-be starters first, then bench depth
     and sleepers, each best projection first), and your overvalued ones."""
+    top = top or ctx.tuning.targets_per_tier
     team = ctx.team(team_id)
     mine = set(team.player_ids)
     lines = replacement_ranks(ctx.shape)
