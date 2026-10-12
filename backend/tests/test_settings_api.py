@@ -2,6 +2,7 @@ import json
 
 from app import deps
 from app.services import context, leagues
+from app.services.context import ENGINE, engine_for
 from app.user_settings import UserSettings
 from tests.test_api import client, connect_and_pick  # noqa: F401  (pytest fixture)
 
@@ -66,3 +67,25 @@ def test_context_cache_is_keyed_on_settings(client):  # noqa: F811
     assert context.get_context(deps._con, lid, UserSettings()) is a
     b = context.get_context(deps._con, lid, UserSettings(gap_min_points=20))
     assert b is not a and b.tuning.gap_min_points == 20
+
+
+def test_engine_follows_settings():
+    assert engine_for(UserSettings()) == ENGINE
+    e = engine_for(UserSettings(usage_weight=0.2, shrink_games=3))
+    assert (e.w_usage, e.w_season, e.w_l3, e.shrink_games) == (0.2, 0.8, 0.0, 3)
+
+
+def test_projection_settings_change_team_numbers(client):  # noqa: F811
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+
+    def ppg():
+        return {p["player_id"]: p["ppg"] for p in tc.get(f"/team/{team_id}").json()["roster"]}
+
+    before = ppg()
+    tc.put("/settings", json={"usage_weight": 0.0})
+    assert ppg() != before
+    tc.put("/settings", json={"matchup_alpha_rb": 0.0})
+    rb = tc.get(f"/team/{team_id}/rankings").json()["positions"]["RB"]
+    assert rb["alpha"] == 0.0
+    assert all(r["schedule_delta"] == 0 for r in rb["ros"])

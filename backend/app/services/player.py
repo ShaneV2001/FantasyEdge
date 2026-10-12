@@ -13,10 +13,9 @@ import polars as pl
 
 from app.errors import NotFound
 from app.schemas import models as m
-from app.services.context import ENGINE, LeagueContext
+from app.services.context import LeagueContext, engine_for
 from projections.base import ProjectionInputs
 from projections.matchup import MatchupAdjusted
-from signals.schedule import MATCHUP_ALPHA
 
 SLEEPER_HEADSHOT = "https://sleepercdn.com/content/nfl/players/{}.jpg"
 SLEEPER_TEAM_LOGO = "https://sleepercdn.com/images/team_logos/nfl/{}.png"
@@ -53,7 +52,7 @@ def past_projections(ctx: LeagueContext) -> dict[int, dict[str, tuple[float, flo
     """{week: {player_id: (ppg, p10, p90)}} projected before each played week (memoized)."""
     if "past_projections" in ctx.memo:
         return ctx.memo["past_projections"]
-    engine = MatchupAdjusted(ENGINE, MATCHUP_ALPHA)
+    engine = MatchupAdjusted(engine_for(ctx.tuning), ctx.tuning.alpha)
     players = _players_frame(ctx)
     s = ctx.season
     out: dict[int, dict[str, tuple[float, float, float]]] = {}

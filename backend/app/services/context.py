@@ -25,7 +25,6 @@ from scoring.rules import describe, normalize, score
 from signals.lineup import SKILL_POSITIONS
 from signals.regression import RegressionReport, build_report
 from signals.schedule import (
-    MATCHUP_ALPHA,
     Schedule,
     build_schedule,
     fp_allowed_index,
@@ -40,6 +39,17 @@ log = logging.getLogger("ff_edge.context")
 MATCHUP_POSITIONS = (*SKILL_POSITIONS, "K", "DEF")
 
 ENGINE = BaselineEngine()
+
+
+def engine_for(tuning: UserSettings) -> BaselineEngine:
+    """The app's engine with the user's projection weights (defaults = ENGINE)."""
+    return BaselineEngine(
+        w_season=1.0 - tuning.usage_weight,
+        w_usage=tuning.usage_weight,
+        shrink_games=tuning.shrink_games,
+    )
+
+
 DEFAULT_PLAYOFF_START = 15
 
 
@@ -301,7 +311,7 @@ def _value_players(
         pid: r for pid, r in info.items()
         if r.get("position") in MATCHUP_POSITIONS and r.get("nfl_team")
     }  # fmt: skip
-    cells = all_cells(pool, schedule, matchup, MATCHUP_ALPHA, start, end, tuning.injury)
+    cells = all_cells(pool, schedule, matchup, tuning.alpha, start, end, tuning.injury)
     model_pts = {pid: ros_points(c) for pid, c in cells.items()}
     values = value_players(info, model_pts, MATCHUP_POSITIONS)
     label = MARKET_LABEL.get(market_source or "", "Market")
@@ -365,7 +375,7 @@ def build_context(
     inputs = ProjectionInputs(
         scored, players, schedule, league.rules, league.season, week, shape, tuning.injury
     )
-    proj = run(ENGINE, inputs)
+    proj = run(engine_for(tuning), inputs)
 
     rates = position_rates(norms_window(scored, league.season, through), league.rules)
     report = build_report(scored, rates, league.season, through)

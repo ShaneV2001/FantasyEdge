@@ -14,7 +14,6 @@ from signals import trade as tr
 from signals.byes import RosterEntry, bye_grid
 from signals.lineup import starting_slots
 from signals.regression import TDOE_THRESHOLD, USAGE_SHIFT, Z_THRESHOLD, RegressionFlag
-from signals.schedule import MATCHUP_ALPHA
 from signals.targets import POSITIONS as TARGET_POSITIONS
 from signals.targets import TargetRow, rank_targets, ros_row
 from signals.team import RosMath, TeamProfile, simulate_league, team_profiles
@@ -611,7 +610,7 @@ def rankings_view(ctx: LeagueContext, team_id: str) -> m.RankingsOut:
         weeks=list(range(start, end + 1)),
         positions={
             pos: m.RankingPosition(
-                alpha=MATCHUP_ALPHA.get(pos, 0.0),
+                alpha=ctx.tuning.alpha.get(pos, 0.0),
                 ros=[_ranking_row(ctx, team_id, i + 1, r) for i, r in enumerate(v["ros"])],
                 weekly=[
                     m.RankingWeek(
