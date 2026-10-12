@@ -15,6 +15,7 @@ import duckdb
 import polars as pl
 
 from app.errors import NotFound, NotReady
+from app.user_settings import UserSettings
 from db.conn import query_df
 from ingest.market_values import MarketFormat, market_format_for
 from projections.base import LeagueShape, ProjectionInputs, run
@@ -123,6 +124,7 @@ class LeagueContext:
     cells: dict[str, list[WeekCell]] = field(default_factory=dict)
     stats: pl.DataFrame = field(default_factory=pl.DataFrame)  # league-scored history
     memo: dict = field(default_factory=dict)  # per-context derived results (e.g. trade ideas)
+    tuning: UserSettings = field(default_factory=UserSettings)  # user settings it was built with
 
     @property
     def shape(self) -> LeagueShape:
@@ -331,7 +333,10 @@ def _value_players(
     return cells
 
 
-def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueContext:
+def build_context(
+    con: duckdb.DuckDBPyConnection, league_id: str, tuning: UserSettings | None = None
+) -> LeagueContext:
+    tuning = tuning or UserSettings()
     league = load_league(con, league_id)
     teams = load_teams(con, league_id)
 
@@ -424,6 +429,7 @@ def build_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueConte
         matchup=matchup,
         cells=cells,
         stats=scored,
+        tuning=tuning,
     )
 
 
@@ -457,13 +463,16 @@ def _version(con: duckdb.DuckDBPyConnection, league_id: str) -> tuple:
     return (lsync[0] if lsync else None, dsync[0] if dsync else None, roster_n)
 
 
-def get_context(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueContext:
-    key = _version(con, league_id)
+def get_context(
+    con: duckdb.DuckDBPyConnection, league_id: str, tuning: UserSettings | None = None
+) -> LeagueContext:
+    tuning = tuning or UserSettings()
+    key = (_version(con, league_id), tuning.fingerprint())
     with _lock:
         hit = _cache.get(league_id)
         if hit and hit[0] == key:
             return hit[1]
-        ctx = build_context(con, league_id)
+        ctx = build_context(con, league_id, tuning)
         _cache[league_id] = (key, ctx)
         return ctx
 

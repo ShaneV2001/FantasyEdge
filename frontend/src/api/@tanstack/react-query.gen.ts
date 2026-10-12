@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { connectLeague, evaluateTrade, getAdvice, getBuyTargets, getByes, getPlayer, getRankings, getRegression, getStatus, getTeam, health, manualLeague, type Options, refresh, searchPlayers, selectTeam, suggestTrades, updateRoster } from '../sdk.gen';
-import type { ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, RefreshData, RefreshError, RefreshResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse } from '../types.gen';
+import { connectLeague, evaluateTrade, getAdvice, getBuyTargets, getByes, getPlayer, getRankings, getRegression, getStatus, getTeam, getUserSettings, health, manualLeague, type Options, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
+import type { ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -351,6 +351,64 @@ export const searchPlayersOptions = (options?: Options<SearchPlayersData>) => qu
     },
     queryKey: searchPlayersQueryKey(options)
 });
+
+/**
+ * Reset User Settings
+ *
+ * Back to the defaults (deletes settings.json).
+ */
+export const resetUserSettingsMutation = (options?: Partial<Options<ResetUserSettingsData>>): UseMutationOptions<ResetUserSettingsResponse, DefaultError, Options<ResetUserSettingsData>> => {
+    const mutationOptions: UseMutationOptions<ResetUserSettingsResponse, DefaultError, Options<ResetUserSettingsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await resetUserSettings({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getUserSettingsQueryKey = (options?: Options<GetUserSettingsData>) => createQueryKey('getUserSettings', options);
+
+/**
+ * Get User Settings
+ *
+ * Every setting with its current value, default, allowed range and help text.
+ */
+export const getUserSettingsOptions = (options?: Options<GetUserSettingsData>) => queryOptions<GetUserSettingsResponse, DefaultError, GetUserSettingsResponse, ReturnType<typeof getUserSettingsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getUserSettings({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getUserSettingsQueryKey(options)
+});
+
+/**
+ * Update User Settings
+ *
+ * Change some settings (others keep their saved values). Every page recomputes.
+ */
+export const updateUserSettingsMutation = (options?: Partial<Options<UpdateUserSettingsData>>): UseMutationOptions<UpdateUserSettingsResponse, UpdateUserSettingsError, Options<UpdateUserSettingsData>> => {
+    const mutationOptions: UseMutationOptions<UpdateUserSettingsResponse, UpdateUserSettingsError, Options<UpdateUserSettingsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateUserSettings({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const healthQueryKey = (options?: Options<HealthData>) => createQueryKey('health', options);
 

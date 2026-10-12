@@ -1284,6 +1284,76 @@ export type SelectTeamRequest = {
 };
 
 /**
+ * SettingFieldOut
+ */
+export type SettingFieldOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Group
+     */
+    group: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Help
+     */
+    help: string;
+    /**
+     * Default
+     */
+    default: number;
+    /**
+     * Min
+     */
+    min: number;
+    /**
+     * Max
+     */
+    max: number;
+    /**
+     * Integer
+     */
+    integer: boolean;
+    /**
+     * Tuned
+     *
+     * Default was picked by the walk-forward backtest
+     */
+    tuned: boolean;
+    /**
+     * Value
+     */
+    value: number;
+};
+
+/**
+ * SettingsOut
+ */
+export type SettingsOut = {
+    /**
+     * Fields
+     */
+    fields: Array<SettingFieldOut>;
+    /**
+     * Warning
+     *
+     * Set when settings.json was unreadable
+     */
+    warning?: string | null;
+    /**
+     * Path
+     *
+     * Where the settings file lives
+     */
+    path: string;
+};
+
+/**
  * SlotCellOut
  */
 export type SlotCellOut = {
@@ -2104,6 +2174,68 @@ export type SearchPlayersResponses = {
 };
 
 export type SearchPlayersResponse = SearchPlayersResponses[keyof SearchPlayersResponses];
+
+export type ResetUserSettingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/settings';
+};
+
+export type ResetUserSettingsResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettingsOut;
+};
+
+export type ResetUserSettingsResponse = ResetUserSettingsResponses[keyof ResetUserSettingsResponses];
+
+export type GetUserSettingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/settings';
+};
+
+export type GetUserSettingsResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettingsOut;
+};
+
+export type GetUserSettingsResponse = GetUserSettingsResponses[keyof GetUserSettingsResponses];
+
+export type UpdateUserSettingsData = {
+    /**
+     * Changes
+     */
+    body: {
+        [key: string]: number;
+    };
+    path?: never;
+    query?: never;
+    url: '/settings';
+};
+
+export type UpdateUserSettingsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateUserSettingsError = UpdateUserSettingsErrors[keyof UpdateUserSettingsErrors];
+
+export type UpdateUserSettingsResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettingsOut;
+};
+
+export type UpdateUserSettingsResponse = UpdateUserSettingsResponses[keyof UpdateUserSettingsResponses];
 
 export type HealthData = {
     body?: never;

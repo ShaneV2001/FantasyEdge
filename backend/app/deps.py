@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Iterator
+from pathlib import Path
 
 import duckdb
 
+from app import user_settings
 from app.config import get_settings
 from db.conn import connect
 from ingest.run import Clients, make_clients
@@ -41,3 +43,11 @@ def get_clients() -> Clients:
         init()
     assert _clients is not None
     return _clients
+
+
+def settings_path() -> Path:
+    return get_clients().settings.data_dir / "settings.json"
+
+
+def get_tuning() -> user_settings.UserSettings:
+    return user_settings.load(settings_path())[0]

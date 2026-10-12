@@ -733,6 +733,92 @@
         }
       }
     },
+    "/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get User Settings",
+        "description": "Every setting with its current value, default, allowed range and help text.",
+        "operationId": "get_user_settings",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Update User Settings",
+        "description": "Change some settings (others keep their saved values). Every page recomputes.",
+        "operationId": "update_user_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object",
+                "title": "Changes"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Reset User Settings",
+        "description": "Back to the defaults (deletes settings.json).",
+        "operationId": "reset_user_settings",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -3080,6 +3166,99 @@
           "external_roster_id"
         ],
         "title": "SelectTeamRequest"
+      },
+      "SettingFieldOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "help": {
+            "type": "string",
+            "title": "Help"
+          },
+          "default": {
+            "type": "number",
+            "title": "Default"
+          },
+          "min": {
+            "type": "number",
+            "title": "Min"
+          },
+          "max": {
+            "type": "number",
+            "title": "Max"
+          },
+          "integer": {
+            "type": "boolean",
+            "title": "Integer"
+          },
+          "tuned": {
+            "type": "boolean",
+            "title": "Tuned",
+            "description": "Default was picked by the walk-forward backtest"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "group",
+          "label",
+          "help",
+          "default",
+          "min",
+          "max",
+          "integer",
+          "tuned",
+          "value"
+        ],
+        "title": "SettingFieldOut"
+      },
+      "SettingsOut": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/SettingFieldOut"
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning",
+            "description": "Set when settings.json was unreadable"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "Where the settings file lives"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fields",
+          "path"
+        ],
+        "title": "SettingsOut"
       },
       "SlotCellOut": {
         "properties": {

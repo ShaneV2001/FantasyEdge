@@ -3,16 +3,21 @@ from __future__ import annotations
 import duckdb
 from fastapi import APIRouter, Depends
 
-from app.deps import get_con, write_lock
+from app.deps import get_con, get_tuning, write_lock
 from app.schemas import models as m
 from app.services import context, leagues, player, views
 from app.services.context import LeagueContext, get_context
+from app.user_settings import UserSettings
 
 router = APIRouter(prefix="/team", tags=["team"])
 
 
-def team_ctx(team_id: str, con: duckdb.DuckDBPyConnection = Depends(get_con)) -> LeagueContext:
-    ctx = get_context(con, leagues.league_id_for_team(con, team_id))
+def team_ctx(
+    team_id: str,
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+    tuning: UserSettings = Depends(get_tuning),
+) -> LeagueContext:
+    ctx = get_context(con, leagues.league_id_for_team(con, team_id), tuning)
     ctx.team(team_id)  # 404 if the team vanished from the league
     return ctx
 

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, RefreshData, RefreshErrors, RefreshResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses } from './types.gen';
+import type { ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -170,6 +170,34 @@ export const refresh = <ThrowOnError extends boolean = false>(options: Options<R
  * Player search (used by manual team entry). Full players table arrives in phase 3.
  */
 export const searchPlayers = <ThrowOnError extends boolean = false>(options?: Options<SearchPlayersData, ThrowOnError>): RequestResult<SearchPlayersResponses, SearchPlayersErrors, ThrowOnError> => (options?.client ?? client).get<SearchPlayersResponses, SearchPlayersErrors, ThrowOnError>({ url: '/players', ...options });
+
+/**
+ * Reset User Settings
+ *
+ * Back to the defaults (deletes settings.json).
+ */
+export const resetUserSettings = <ThrowOnError extends boolean = false>(options?: Options<ResetUserSettingsData, ThrowOnError>): RequestResult<ResetUserSettingsResponses, unknown, ThrowOnError> => (options?.client ?? client).delete<ResetUserSettingsResponses, unknown, ThrowOnError>({ url: '/settings', ...options });
+
+/**
+ * Get User Settings
+ *
+ * Every setting with its current value, default, allowed range and help text.
+ */
+export const getUserSettings = <ThrowOnError extends boolean = false>(options?: Options<GetUserSettingsData, ThrowOnError>): RequestResult<GetUserSettingsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetUserSettingsResponses, unknown, ThrowOnError>({ url: '/settings', ...options });
+
+/**
+ * Update User Settings
+ *
+ * Change some settings (others keep their saved values). Every page recomputes.
+ */
+export const updateUserSettings = <ThrowOnError extends boolean = false>(options: Options<UpdateUserSettingsData, ThrowOnError>): RequestResult<UpdateUserSettingsResponses, UpdateUserSettingsErrors, ThrowOnError> => (options.client ?? client).put<UpdateUserSettingsResponses, UpdateUserSettingsErrors, ThrowOnError>({
+    url: '/settings',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Health

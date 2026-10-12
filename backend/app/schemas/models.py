@@ -514,3 +514,25 @@ class RefreshOut(BaseModel):
     ok: bool
     detail: list[str]
     last_synced_at: datetime | None = None
+
+
+# ───────── settings ─────────
+
+
+class SettingFieldOut(BaseModel):
+    key: str
+    group: str
+    label: str
+    help: str
+    default: float
+    min: float
+    max: float
+    integer: bool
+    tuned: bool = Field(description="Default was picked by the walk-forward backtest")
+    value: float
+
+
+class SettingsOut(BaseModel):
+    fields: list[SettingFieldOut]
+    warning: str | None = Field(None, description="Set when settings.json was unreadable")
+    path: str = Field(description="Where the settings file lives")
