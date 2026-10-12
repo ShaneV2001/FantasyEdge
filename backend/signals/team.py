@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from projections.base import weekly_points
+from projections.base import DEFAULT_INJURY, InjuryAssumptions, weekly_points
 from signals.lineup import (
     SKILL_POSITIONS,
     SLOT_ELIGIBILITY,
@@ -29,8 +29,10 @@ class RosMath:
         start_week: int,
         end_week: int,
         slots: Sequence[str],
+        inj: InjuryAssumptions = DEFAULT_INJURY,
     ):
         self.players = players
+        self.inj = inj
         self.schedule = schedule
         self.start, self.end = start_week, end_week
         self.slots = list(slots)
@@ -51,6 +53,7 @@ class RosMath:
                     self.schedule,
                     self.start,
                     self.end,
+                    self.inj,
                 )
         return self._weekly[pid]
 

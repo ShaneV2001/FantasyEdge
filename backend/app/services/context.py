@@ -294,13 +294,14 @@ def _value_players(
     start: int,
     end: int,
     market_source: str | None,
+    tuning: UserSettings,
 ) -> dict[str, list[WeekCell]]:
     """Schedule-adjusted ROS points and the single buy/hold/sell verdict for every player."""
     pool = {
         pid: r for pid, r in info.items()
         if r.get("position") in MATCHUP_POSITIONS and r.get("nfl_team")
     }  # fmt: skip
-    cells = all_cells(pool, schedule, matchup, MATCHUP_ALPHA, start, end)
+    cells = all_cells(pool, schedule, matchup, MATCHUP_ALPHA, start, end, tuning.injury)
     model_pts = {pid: ros_points(c) for pid, c in cells.items()}
     values = value_players(info, model_pts, MATCHUP_POSITIONS)
     label = MARKET_LABEL.get(market_source or "", "Market")
@@ -361,7 +362,9 @@ def build_context(
     through = week  # games already final this week are included; unplayed ones don't exist yet
 
     shape = LeagueShape(league.num_teams, tuple(league.roster_positions), league.last_week)
-    inputs = ProjectionInputs(scored, players, schedule, league.rules, league.season, week, shape)
+    inputs = ProjectionInputs(
+        scored, players, schedule, league.rules, league.season, week, shape, tuning.injury
+    )
     proj = run(ENGINE, inputs)
 
     rates = position_rates(norms_window(scored, league.season, through), league.rules)
@@ -411,7 +414,7 @@ def build_context(
             r["ease_next4"] = r["ease_playoffs"] = None
         info[pid] = r
     _add_unprojected(info, teams, proj.columns)
-    cells = _value_players(info, report, schedule, matchup, week, league.last_week, source)
+    cells = _value_players(info, report, schedule, matchup, week, league.last_week, source, tuning)
 
     return LeagueContext(
         league=league,

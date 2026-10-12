@@ -16,7 +16,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from projections.base import IR_WEEKS_MISSED, STATUS_THIS_WEEK
+from projections.base import IR_WEEKS_MISSED, STATUS_THIS_WEEK, InjuryAssumptions
 from projections.baseline import SHRINK_GAMES, W_USAGE
 from signals import advisor, trade
 from signals.schedule import MATCHUP_ALPHA
@@ -145,6 +145,12 @@ class UserSettings(BaseModel):
             "QB": self.startable_qb, "RB": self.startable_rb,
             "WR": self.startable_wr, "TE": self.startable_te,
         }  # fmt: skip
+
+    @property
+    def injury(self) -> InjuryAssumptions:
+        return InjuryAssumptions(
+            self.play_chance_questionable, self.play_chance_doubtful, self.ir_weeks_out
+        )
 
     def fingerprint(self) -> str:
         return self.model_dump_json()

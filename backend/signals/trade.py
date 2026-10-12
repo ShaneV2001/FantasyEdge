@@ -80,7 +80,9 @@ def danger_weeks(
         for p in pids
         if p in players
     ]  # fmt: skip
-    rows = bye_grid(entries, math.slots, math.schedule, math.start, math.end, dict(viable_ppg))
+    rows = bye_grid(
+        entries, math.slots, math.schedule, math.start, math.end, dict(viable_ppg), math.inj
+    )
     return sum(1 for r in rows if r.danger)
 
 

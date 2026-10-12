@@ -30,6 +30,7 @@ def ros_math(ctx: LeagueContext) -> RosMath:
             ctx.week,
             ctx.league.last_week,
             starting_slots(ctx.league.roster_positions),
+            inj=ctx.tuning.injury,
         )
     return ctx.memo["math"]
 
@@ -266,6 +267,7 @@ def _byes_rows(ctx: LeagueContext, team_id: str):
             ctx.week,
             ctx.league.last_week,
             ctx.replacement_ppg,
+            inj=ctx.tuning.injury,
         )
     return ctx.memo[key]
 

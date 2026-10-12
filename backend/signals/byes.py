@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from projections.base import availability
+from projections.base import DEFAULT_INJURY, InjuryAssumptions, availability
 from signals.lineup import LineupPlayer, optimal_lineup, slot_label
 from signals.schedule import Schedule
 
@@ -89,6 +89,7 @@ def bye_grid(
     start_week: int,
     end_week: int,
     viable_ppg: dict[str, float],
+    inj: InjuryAssumptions = DEFAULT_INJURY,
 ) -> list[ByeWeekRow]:
     roster = {e.player_id: e for e in roster_entries}
     full = [LineupPlayer(e.player_id, e.position, e.ppg) for e in roster_entries]
@@ -101,7 +102,7 @@ def bye_grid(
         for e in roster_entries:
             if not schedule.has_game(e.nfl_team, w):
                 continue
-            a = availability(e.injury_status, e.status, w, start_week)
+            a = availability(e.injury_status, e.status, w, start_week, inj)
             if a > 0:
                 avail.append(LineupPlayer(e.player_id, e.position, e.ppg * a))
         cells, pts = _cells(roster, avail, slots, viable_ppg)

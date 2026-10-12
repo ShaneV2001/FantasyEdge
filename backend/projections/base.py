@@ -21,6 +21,22 @@ IR_WEEKS_MISSED = 4  # assumption for IR/PUP/NFI designations without a return d
 STATUS_THIS_WEEK = {"Out": 0.0, "Sus": 0.0, "Doubtful": 0.25, "Questionable": 0.85}
 STATUS_LONG_TERM = {"IR", "PUP", "NFI", "Injured Reserve", "Physically Unable to Perform"}
 
+
+@dataclass(frozen=True)
+class InjuryAssumptions:
+    """Chance a player plays this week by designation, and weeks out for IR-type designations."""
+
+    questionable: float = STATUS_THIS_WEEK["Questionable"]
+    doubtful: float = STATUS_THIS_WEEK["Doubtful"]
+    ir_weeks: int = IR_WEEKS_MISSED
+
+    def this_week(self, injury_status: str | None) -> float | None:
+        table = STATUS_THIS_WEEK | {"Questionable": self.questionable, "Doubtful": self.doubtful}
+        return table.get(injury_status or "")
+
+
+DEFAULT_INJURY = InjuryAssumptions()
+
 # Share of each flex slot that typically goes to each position (league-wide starters).
 FLEX_SHARES: dict[str, dict[str, float]] = {
     "FLEX": {"RB": 0.45, "WR": 0.45, "TE": 0.10},
@@ -49,6 +65,7 @@ class ProjectionInputs:
     season: int
     week: int  # the upcoming week being projected; only data from earlier weeks is used
     league: LeagueShape = field(default_factory=LeagueShape)
+    injury: InjuryAssumptions = field(default_factory=InjuryAssumptions)
 
 
 class ProjectionEngine(Protocol):
@@ -62,23 +79,32 @@ class ProjectionEngine(Protocol):
 # ───────── availability & rest of season ─────────
 
 
-def availability(injury_status: str | None, status: str | None, week: int, start: int) -> float:
+def availability(
+    injury_status: str | None,
+    status: str | None,
+    week: int,
+    start: int,
+    inj: InjuryAssumptions = DEFAULT_INJURY,
+) -> float:
     """Expected fraction of a game the player suits up for in `week` (as of `start`)."""
     tags = {injury_status or "", status or ""}
     if tags & STATUS_LONG_TERM:
-        return 0.0 if week < start + IR_WEEKS_MISSED else 1.0
+        return 0.0 if week < start + inj.ir_weeks else 1.0
     if week == start:
-        return STATUS_THIS_WEEK.get(injury_status or "", 1.0)
+        p = inj.this_week(injury_status)
+        return 1.0 if p is None else p
     return 1.0
 
 
-def availability_note(injury_status: str | None, status: str | None) -> str | None:
+def availability_note(
+    injury_status: str | None, status: str | None, inj: InjuryAssumptions = DEFAULT_INJURY
+) -> str | None:
     tags = {injury_status or "", status or ""}
     if tags & STATUS_LONG_TERM:
-        return f"On {injury_status or status}: assumed out {IR_WEEKS_MISSED} more weeks"
-    if injury_status in STATUS_THIS_WEEK:
-        pct = int(STATUS_THIS_WEEK[injury_status] * 100)
-        return f"{injury_status} this week ({pct}% chance-weighted)"
+        return f"On {injury_status or status}: assumed out {inj.ir_weeks} more weeks"
+    p = inj.this_week(injury_status)
+    if p is not None:
+        return f"{injury_status} this week ({round(p * 100)}% chance-weighted)"
     return None
 
 
@@ -90,9 +116,12 @@ def weekly_points(
     schedule: Schedule,
     start: int,
     end: int,
+    inj: InjuryAssumptions = DEFAULT_INJURY,
 ) -> dict[int, float]:
     return {
-        w: ppg * availability(injury_status, status, w, start) if schedule.plays(team, w) else 0.0
+        w: ppg * availability(injury_status, status, w, start, inj)
+        if schedule.plays(team, w)
+        else 0.0
         for w in range(start, end + 1)
     }
 
@@ -119,7 +148,14 @@ def finalize(per_game: pl.DataFrame, inputs: ProjectionInputs) -> pl.DataFrame:
     rows = []
     for r in df.iter_rows(named=True):
         wk = weekly_points(
-            r["ppg"], r["nfl_team"], r["injury_status"], r["status"], inputs.schedule, start, end
+            r["ppg"],
+            r["nfl_team"],
+            r["injury_status"],
+            r["status"],
+            inputs.schedule,
+            start,
+            end,
+            inputs.injury,
         )
         bye = inputs.schedule.bye(r["nfl_team"])
         rows.append(
@@ -129,7 +165,7 @@ def finalize(per_game: pl.DataFrame, inputs: ProjectionInputs) -> pl.DataFrame:
                 "next4_points": round(sum(v for w, v in wk.items() if w < start + 4), 2),
                 "games_remaining": round(
                     sum(
-                        availability(r["injury_status"], r["status"], w, start)
+                        availability(r["injury_status"], r["status"], w, start, inputs.injury)
                         for w in wk
                         if inputs.schedule.plays(r["nfl_team"], w)
                     ),
@@ -137,7 +173,9 @@ def finalize(per_game: pl.DataFrame, inputs: ProjectionInputs) -> pl.DataFrame:
                 ),
                 "bye_week": bye,
                 "bye_upcoming": bye is not None and start <= bye <= end,
-                "availability_note": availability_note(r["injury_status"], r["status"]),
+                "availability_note": availability_note(
+                    r["injury_status"], r["status"], inputs.injury
+                ),
             }
         )
     df = df.join(pl.DataFrame(rows, infer_schema_length=None), on="player_id", how="left")
