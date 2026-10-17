@@ -6,6 +6,7 @@ import { getTeamOptions } from '@/api/@tanstack/react-query.gen'
 import { EmptyState, ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { type BuilderInitial, ManualRosterBuilder, type Picked } from '@/components/team/ManualRosterBuilder'
 import { Button } from '@/components/ui/button'
+import { platformName } from '@/lib/format'
 import { shapeFromRosterPositions } from '@/lib/lineup'
 import { useTeamStore } from '@/stores/team'
 
@@ -42,8 +43,8 @@ export function TeamEditPage() {
       {q.isPending && <ListSkeleton rows={4} height="h-24" />}
       {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
       {q.data && q.data.league.platform !== 'manual' && (
-        <EmptyState title="This team is synced from Sleeper">
-          Make roster moves in Sleeper, then press <b>Update</b> in the sidebar to pull them in.
+        <EmptyState title={`This team is synced from ${platformName(q.data.league.platform)}`}>
+          Make roster moves in {platformName(q.data.league.platform)}, then press <b>Update</b> in the sidebar to pull them in.
           <div className="mt-3">
             <Button asChild variant="outline" size="sm">
               <Link to="/team">Back to My Team</Link>

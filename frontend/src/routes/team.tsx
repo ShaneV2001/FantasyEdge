@@ -10,6 +10,7 @@ import { RosterTable } from '@/components/team/RosterTable'
 import { TeamGrades } from '@/components/team/TeamGrades'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { platformName } from '@/lib/format'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fmtNum } from '@/lib/format'
@@ -46,8 +47,11 @@ export function TeamPage() {
                   </Link>
                 </Button>
               ) : (
-                <Badge variant="secondary" title="Roster changes come from Sleeper — use Update in the sidebar">
-                  Synced from Sleeper
+                <Badge
+                  variant="secondary"
+                  title={`Roster changes come from ${platformName(data.league.platform)}: use Update in the sidebar`}
+                >
+                  Synced from {platformName(data.league.platform)}
                 </Badge>
               )}
             </>
@@ -64,7 +68,7 @@ export function TeamPage() {
               <CardHeader>
                 <CardTitle>Roster</CardTitle>
                 <CardDescription>
-                  Best lineup on top. ROS value = projected rest-of-season points above a replacement-level player at
+                  This week's best lineup on top (players on bye or ruled out can't start). ROS value = projected rest-of-season points above a replacement-level player at
                   the position for your league.
                 </CardDescription>
               </CardHeader>

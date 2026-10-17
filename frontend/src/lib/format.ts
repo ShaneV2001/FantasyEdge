@@ -75,3 +75,8 @@ export const GRADE_CLASS: Record<string, string> = {
 export function slotLabel(slot: string): string {
   return { SUPER_FLEX: 'SFLEX', WRRB_FLEX: 'W/R', REC_FLEX: 'W/T' }[slot] ?? slot
 }
+
+/** Display name of the platform a league syncs from. */
+export function platformName(platform: string): string {
+  return { sleeper: 'Sleeper', espn: 'ESPN', manual: 'manual entry' }[platform] ?? platform
+}

@@ -165,26 +165,34 @@ def league_out(ctx: LeagueContext) -> m.LeagueOut:
 
 
 def free_agents(ctx: LeagueContext) -> list[str] | None:
-    """Unrostered skill players with a projection — only knowable for synced platform leagues."""
+    """Unrostered players with a projection (K and DEF too, so byes there get a streamer) — only
+    knowable for synced platform leagues."""
     if ctx.league.platform == "manual":
         return None
     rostered = ctx.rostered
     return [
         pid
         for pid, p in ctx.players.items()
-        if pid not in rostered and p.get("position") in ("QB", "RB", "WR", "TE") and (p.get("ppg") or 0) > 0
-        and p.get("nfl_team")
+        if pid not in rostered and p.get("position") in ("QB", "RB", "WR", "TE", "K", "DEF")
+        and (p.get("ppg") or 0) > 0 and p.get("nfl_team")
     ]  # fmt: skip
 
 
 # ───────── /team/{id} ─────────
 
 
+def _on_bye(ctx: LeagueContext, pid: str) -> bool:
+    team = ctx.players[pid].get("nfl_team")
+    return bool(team) and not ctx.schedule.has_game(team, ctx.week)
+
+
 def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
     team = ctx.team(team_id)
     profs = profiles(ctx)
     prof = profs.get(team_id)
-    optimal = set(prof.starters) if prof else set()
+    # This week's best lineup: a player on bye (or ruled out) scores 0 and can't be in it. The
+    # full-strength profiles are for grades only.
+    optimal = ros_math(ctx).lineup_for_week(team.player_ids, ctx.week).starters
     slot_of = team.slots
     roster = []
     for pid in team.player_ids:
@@ -195,6 +203,7 @@ def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
                 **player_value(ctx, pid),
                 slot=slot_of.get(pid, "bench"),
                 optimal_starter=pid in optimal,
+                on_bye=_on_bye(ctx, pid),
                 flags=[flag_out(f) for f in ctx.regression.for_player(pid)],
             )
         )

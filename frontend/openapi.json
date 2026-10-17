@@ -3586,7 +3586,13 @@
           "optimal_starter": {
             "type": "boolean",
             "title": "Optimal Starter",
-            "description": "In our best full-strength lineup"
+            "description": "In this week's best lineup (players on bye or ruled out can't be in it)"
+          },
+          "on_bye": {
+            "type": "boolean",
+            "title": "On Bye",
+            "description": "His NFL team doesn't play this week",
+            "default": false
           },
           "flags": {
             "items": {

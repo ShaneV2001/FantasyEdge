@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import httpx
 import polars as pl
 import pytest
@@ -583,3 +585,21 @@ def test_past_projection_ignores_the_week_itself(client, monkeypatch):
     )
     after = player_svc.past_projections(ctx)
     assert after[w] == before[w]
+
+
+def test_best_lineup_leaves_out_players_on_bye(client):
+    """My Team's best lineup is this week's: a starter whose team is on bye drops out of it."""
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    before = tc.get(f"/team/{team_id}").json()
+    star = next(p for p in before["roster"] if p["optimal_starter"] and p["nfl_team"])
+    assert not star["on_bye"]
+    ctx = context.get_context(deps._con, f"sl-{LEAGUE}")
+    # put his team on bye this week (drop its game), then rebuild the view from the same context
+    games = {k: v for k, v in ctx.schedule.games.items() if k != (star["nfl_team"], ctx.week)}
+    ctx.schedule = dataclasses.replace(ctx.schedule, games=games)
+    ctx.memo.clear()
+    after = views.team_view(ctx, team_id)
+    row = next(p for p in after.roster if p.player_id == star["player_id"])
+    assert row.on_bye and not row.optimal_starter
+    assert all(not (p.on_bye and p.optimal_starter) for p in after.roster)

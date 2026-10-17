@@ -92,3 +92,29 @@ def test_gap_confidence_follows_gap_settings_and_survives_zero():
     inp.gap_min_points = 0.0
     inp.gap_min_share = 0.0
     assert conf(5.0) == "high"
+
+
+def test_sell_reason_says_bye_is_this_week():
+    seller = P("Seller", "WR", 15, team="BYE") | {"signal": "sell", "bye_week": 5}
+    players = {"wr": seller, "qb": P("QB", "QB", 20)}
+    sched = schedule(["AAA", "BYE"], weeks=17, byes={"BYE": 5})
+    (sell,) = adv.sell_actions(_inputs(players, list(players), [], sched, week=5))
+    assert "On bye this week (week 5)." in sell.reasons
+    assert not any("coming up" in r for r in sell.reasons)
+
+
+def test_bye_streamers_cover_every_short_slot():
+    """A WR and a D/ST both on bye: suggest a WR *and* a D/ST, not just the higher scorer."""
+    players = {
+        "fa_wr": P("Stream WR", "WR", 11.4),
+        "fa_wr_bye": P("Bye WR", "WR", 14.0, team="BYE"),
+        "fa_def": P("Stream DEF", "DEF", 6.0),
+        "qb": P("QB", "QB", 20),
+    }
+    sched = schedule(["AAA", "BYE"], weeks=17, byes={"BYE": 5})
+    inp = _inputs(players, ["qb"], [], sched)
+    inp.free_agents = ["fa_wr", "fa_wr_bye", "fa_def"]
+    assert adv._best_fa_for_slots(inp, ["WR", "DEF"], 5) == ["fa_wr", "fa_def"]
+    assert adv._best_fa_for_slots(inp, ["WR", "WR"], 5) == ["fa_wr"]  # no second healthy WR
+    inp.free_agents = None
+    assert adv._best_fa_for_slots(inp, ["WR"], 5) == []

@@ -100,7 +100,7 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
           const rankGap = p.market_rank != null && p.model_rank != null ? p.model_rank - p.market_rank : null
           const section =
             sort.key === 'default' && i === 0 && p.optimal_starter
-              ? 'Best lineup'
+              ? `Best lineup · week ${week}`
               : divider
                 ? `Bench${roster.some((r) => r.slot === 'ir') ? ' & IR' : ''}`
                 : null
@@ -124,18 +124,29 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
                   </PlayerLink>
                   <Trend p={p} />
                   <InjuryTag status={p.injury_status} />
+                  {p.on_bye && (
+                    <span
+                      className="rounded bg-sell/15 px-1 font-mono text-[10px] font-semibold text-sell"
+                      title={`His team doesn't play in week ${week}: he can't score for you this week`}
+                    >
+                      BYE
+                    </span>
+                  )}
                   {p.slot === 'ir' && (
                     <span className="rounded bg-muted px-1 font-mono text-[10px] font-semibold text-muted-foreground" title="On your IR slot">
                       IR SLOT
                     </span>
                   )}
                   {hasStarters && p.slot === 'starter' && !p.optimal_starter && (
-                    <span className="rounded bg-warn/15 px-1 text-[10px] font-semibold text-warn" title="You're starting him, but a bench player projects higher">
+                    <span
+                      className="rounded bg-warn/15 px-1 text-[10px] font-semibold text-warn"
+                      title={p.on_bye ? `On bye in week ${week}: swap him out` : `You're starting him, but a bench player projects higher in week ${week}`}
+                    >
                       STARTING
                     </span>
                   )}
                   {hasStarters && p.slot === 'bench' && p.optimal_starter && (
-                    <span className="rounded bg-buy/15 px-1 text-[10px] font-semibold text-buy" title="Benched, but projects as one of your best starters">
+                    <span className="rounded bg-buy/15 px-1 text-[10px] font-semibold text-buy" title={`Benched, but in your best lineup for week ${week}`}>
                       BENCHED
                     </span>
                   )}

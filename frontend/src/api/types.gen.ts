@@ -1436,9 +1436,15 @@ export type RosterPlayer = {
     /**
      * Optimal Starter
      *
-     * In our best full-strength lineup
+     * In this week's best lineup (players on bye or ruled out can't be in it)
      */
     optimal_starter: boolean;
+    /**
+     * On Bye
+     *
+     * His NFL team doesn't play this week
+     */
+    on_bye?: boolean;
     /**
      * Flags
      */

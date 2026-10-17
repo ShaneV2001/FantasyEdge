@@ -73,7 +73,10 @@ class FlagOut(BaseModel):
 
 class RosterPlayer(PlayerValue):
     slot: str = Field(description="Platform slot: starter | bench | ir | taxi")
-    optimal_starter: bool = Field(description="In our best full-strength lineup")
+    optimal_starter: bool = Field(
+        description="In this week's best lineup (players on bye or ruled out can't be in it)"
+    )
+    on_bye: bool = Field(False, description="His NFL team doesn't play this week")
     flags: list[FlagOut] = []
 
 

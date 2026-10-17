@@ -57,7 +57,7 @@ export function TradePage() {
           {ideas.data && ideas.data.ideas.length === 0 && (
             <EmptyState title={deadlinePassed ? 'No trade ideas after the deadline' : 'No mutually beneficial trades found'}>
               {team.platform === 'manual'
-                ? 'Manual teams have no league rosters to trade with. Connect a Sleeper league for trade ideas.'
+                ? 'Manual teams have no league rosters to trade with. Connect a Sleeper or ESPN league for trade ideas.'
                 : 'We only suggest deals where both starting lineups gain points and market values are close enough to be realistic.'}
             </EmptyState>
           )}

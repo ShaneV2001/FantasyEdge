@@ -149,13 +149,14 @@ def bye_actions(inp: AdvisorInputs) -> list[Action]:
         ]
         if row.starters_on_bye:
             reasons.append(f"On bye: {', '.join(row.starters_on_bye)}.")
-        fa = _best_fa_for_slots(inp, row.danger_slots, row.week)
-        pids = []
-        if fa:
-            reasons.append(
-                f"Streamer: {_name(inp.players, fa)} ({inp.players[fa]['ppg']:.1f} ppg) is available."
+        pids = _best_fa_for_slots(inp, row.danger_slots, row.week)
+        if pids:
+            picks = ", ".join(
+                f"{_name(inp.players, p)} ({inp.players[p]['position']}, "
+                f"{inp.players[p]['ppg']:.1f} ppg)"
+                for p in pids
             )
-            pids.append(fa)
+            reasons.append(f"Available to stream: {picks}.")
         urgency = "this_week" if row.weeks_away <= 1 else "before_byes"
         actions.append(
             Action("Bye prep", f"Week {row.week}: no viable {'/'.join(row.danger_slots)}", reasons,
@@ -172,16 +173,24 @@ def _slot_positions(labels: Sequence[str]) -> set[str]:
     return out
 
 
-def _best_fa_for_slots(inp: AdvisorInputs, labels: Sequence[str], week: int) -> str | None:
+def _best_fa_for_slots(inp: AdvisorInputs, labels: Sequence[str], week: int) -> list[str]:
+    """The best free agent playing that week for each short slot (a WR *and* a DEF, not just
+    whichever scores more)."""
     if not inp.free_agents:
-        return None
-    positions = _slot_positions(labels)
-    cands = [
-        p for p in inp.free_agents
-        if inp.players.get(p, {}).get("position") in positions
-        and inp.math.schedule.has_game(inp.players[p].get("nfl_team"), week)
-    ]  # fmt: skip
-    return max(cands, key=lambda p: inp.players[p].get("ppg") or 0, default=None)
+        return []
+    picks: list[str] = []
+    for label in labels:
+        positions = _slot_positions([label])
+        cands = [
+            p for p in inp.free_agents
+            if p not in picks
+            and inp.players.get(p, {}).get("position") in positions
+            and inp.math.schedule.has_game(inp.players[p].get("nfl_team"), week)
+        ]  # fmt: skip
+        best = max(cands, key=lambda p: inp.players[p].get("ppg") or 0, default=None)
+        if best:
+            picks.append(best)
+    return picks
 
 
 def _gap_confidence(p: Mapping, inp: AdvisorInputs) -> str:
@@ -211,7 +220,9 @@ def sell_actions(inp: AdvisorInputs) -> list[Action]:
             continue
         reasons = list(p.get("signal_reasons") or [])
         bye = p.get("bye_week")
-        if bye is not None and inp.week <= bye <= inp.week + 3:
+        if bye == inp.week:
+            reasons.append(f"On bye this week (week {bye}).")
+        elif bye is not None and inp.week < bye <= inp.week + 3:
             reasons.append(f"Bye in week {bye} is coming up.")
         if p.get("ease_playoffs") and p["ease_playoffs"] <= inp.tough_schedule:
             reasons.append(
