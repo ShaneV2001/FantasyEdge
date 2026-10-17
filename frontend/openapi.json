@@ -344,6 +344,176 @@
         }
       }
     },
+    "/team/{team_id}/players": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Players Table",
+        "description": "Every player with a projection: search, filter by position / NFL team / who has him,\nsort by PPG, ROS points, value, market value or verdict, paged on the server.",
+        "operationId": "get_players_table",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 60,
+              "description": "Name search (accents and case ignored)",
+              "default": "",
+              "title": "Q"
+            },
+            "description": "Name search (accents and case ignored)"
+          },
+          {
+            "name": "pos",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "QB",
+                    "RB",
+                    "WR",
+                    "TE",
+                    "K",
+                    "DEF"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pos"
+            }
+          },
+          {
+            "name": "team",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Team"
+            }
+          },
+          {
+            "name": "avail",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "mine",
+                "other",
+                "fa"
+              ],
+              "type": "string",
+              "description": "mine | other (another team) | fa",
+              "default": "all",
+              "title": "Avail"
+            },
+            "description": "mine | other (another team) | fa"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ppg",
+                "ros",
+                "value",
+                "market",
+                "verdict",
+                "name"
+              ],
+              "type": "string",
+              "default": "ros",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string",
+              "default": "desc",
+              "title": "Dir"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 10,
+              "default": 50,
+              "title": "Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayersTableOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/team/{team_id}/players/{player_id}": {
       "get": {
         "tags": [
@@ -2963,6 +3133,129 @@
         ],
         "title": "PlayerRef"
       },
+      "PlayerTableRow": {
+        "properties": {
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          },
+          "nfl_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nfl Team"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "Team name, 'Your team', 'Free agent', or None"
+          },
+          "mine": {
+            "type": "boolean",
+            "title": "Mine"
+          },
+          "ppg": {
+            "type": "number",
+            "title": "Ppg",
+            "description": "Projected points per game (league scoring)"
+          },
+          "ros_points": {
+            "type": "number",
+            "title": "Ros Points",
+            "description": "Schedule-adjusted projected points, rest of season"
+          },
+          "ros_value_par": {
+            "type": "number",
+            "title": "Ros Value Par",
+            "description": "Rest-of-season points above replacement"
+          },
+          "market_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value"
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "hold",
+              "sell"
+            ],
+            "title": "Signal",
+            "default": "hold"
+          },
+          "value_gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Gap"
+          },
+          "injury_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Injury Status"
+          },
+          "bye_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bye Week"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_id",
+          "name",
+          "position",
+          "mine",
+          "ppg",
+          "ros_points",
+          "ros_value_par"
+        ],
+        "title": "PlayerTableRow"
+      },
       "PlayerTradesOut": {
         "properties": {
           "team_id": {
@@ -3114,6 +3407,57 @@
           "played"
         ],
         "title": "PlayerWeekOut"
+      },
+      "PlayersTableOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerTableRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Players matching the filters (all pages)"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "nfl_teams": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Nfl Teams",
+            "description": "NFL teams in the pool, for the team filter"
+          },
+          "market_label": {
+            "type": "string",
+            "title": "Market Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "rows",
+          "total",
+          "page",
+          "size",
+          "nfl_teams",
+          "market_label"
+        ],
+        "title": "PlayersTableOut"
       },
       "PositionGradeOut": {
         "properties": {

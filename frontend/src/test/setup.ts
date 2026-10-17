@@ -24,3 +24,6 @@ window.matchMedia ??= ((q: string) => ({
   removeEventListener: () => {},
   dispatchEvent: () => false,
 })) as unknown as typeof window.matchMedia
+
+// the router restores scroll on navigation; jsdom has no scrolling
+window.scrollTo = (() => {}) as typeof window.scrollTo

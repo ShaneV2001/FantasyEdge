@@ -6,6 +6,7 @@ import { ByesPage } from '@/routes/byes'
 import { ConnectPage } from '@/routes/connect'
 import { BuyTargetsPage } from '@/routes/buy-targets'
 import { PlayerPage } from '@/routes/player'
+import { PlayersPage, playersSearchSchema } from '@/routes/players'
 import { RankingsPage } from '@/routes/rankings'
 import { SettingsPage } from '@/routes/settings'
 import { TeamPage } from '@/routes/team'
@@ -54,6 +55,13 @@ const buyTargetsRoute = createRoute({
   beforeLoad: requireTeam,
   component: BuyTargetsPage,
 })
+const playersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/players',
+  beforeLoad: requireTeam,
+  validateSearch: (search) => playersSearchSchema.parse(search),
+  component: PlayersPage,
+})
 const playerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/players/$playerId',
@@ -68,7 +76,7 @@ const tradeRoute = createRoute({
 })
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage })
 
-const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, byesRoute, rankingsRoute, buyTargetsRoute, playerRoute, tradeRoute, settingsRoute])
+const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, byesRoute, rankingsRoute, buyTargetsRoute, playersRoute, playerRoute, tradeRoute, settingsRoute])
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' })
 

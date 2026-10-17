@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayerTrades, getRankings, getRegression, getStatus, getTeam, getUserSettings, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
-import type { ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
+import { connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRegression, getStatus, getTeam, getUserSettings, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
+import type { ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -194,6 +194,89 @@ export const getTeamOptions = (options: Options<GetTeamData>) => queryOptions<Ge
     },
     queryKey: getTeamQueryKey(options)
 });
+
+export const getPlayersTableQueryKey = (options: Options<GetPlayersTableData>) => createQueryKey('getPlayersTable', options);
+
+/**
+ * Get Players Table
+ *
+ * Every player with a projection: search, filter by position / NFL team / who has him,
+ * sort by PPG, ROS points, value, market value or verdict, paged on the server.
+ */
+export const getPlayersTableOptions = (options: Options<GetPlayersTableData>) => queryOptions<GetPlayersTableResponse, GetPlayersTableError, GetPlayersTableResponse, ReturnType<typeof getPlayersTableQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getPlayersTable({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getPlayersTableQueryKey(options)
+});
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
+    const params = { ...queryKey[0] };
+    if (page.body) {
+        params.body = {
+            ...queryKey[0].body as any,
+            ...page.body as any
+        };
+    }
+    if (page.headers) {
+        params.headers = {
+            ...queryKey[0].headers,
+            ...page.headers
+        };
+    }
+    if (page.path) {
+        params.path = {
+            ...queryKey[0].path as any,
+            ...page.path as any
+        };
+    }
+    if (page.query) {
+        params.query = {
+            ...queryKey[0].query as any,
+            ...page.query as any
+        };
+    }
+    return params as unknown as typeof page;
+};
+
+export const getPlayersTableInfiniteQueryKey = (options: Options<GetPlayersTableData>): QueryKey<Options<GetPlayersTableData>> => createQueryKey('getPlayersTable', options, true);
+
+/**
+ * Get Players Table
+ *
+ * Every player with a projection: search, filter by position / NFL team / who has him,
+ * sort by PPG, ROS points, value, market value or verdict, paged on the server.
+ */
+export const getPlayersTableInfiniteOptions = (options: Options<GetPlayersTableData>) => {
+    const opts = infiniteQueryOptions<GetPlayersTableResponse, GetPlayersTableError, InfiniteData<GetPlayersTableResponse>, QueryKey<Options<GetPlayersTableData>>, number | Pick<QueryKey<Options<GetPlayersTableData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<GetPlayersTableData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await getPlayersTable({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: getPlayersTableInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const getPlayerQueryKey = (options: Options<GetPlayerData>) => createQueryKey('getPlayer', options);
 
@@ -396,35 +479,6 @@ export const suggestTradesOptions = (options: Options<SuggestTradesData>) => que
     },
     queryKey: suggestTradesQueryKey(options)
 });
-
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
-    const params = { ...queryKey[0] };
-    if (page.body) {
-        params.body = {
-            ...queryKey[0].body as any,
-            ...page.body as any
-        };
-    }
-    if (page.headers) {
-        params.headers = {
-            ...queryKey[0].headers,
-            ...page.headers
-        };
-    }
-    if (page.path) {
-        params.path = {
-            ...queryKey[0].path as any,
-            ...page.path as any
-        };
-    }
-    if (page.query) {
-        params.query = {
-            ...queryKey[0].query as any,
-            ...page.query as any
-        };
-    }
-    return params as unknown as typeof page;
-};
 
 export const suggestTradesInfiniteQueryKey = (options: Options<SuggestTradesData>): QueryKey<Options<SuggestTradesData>> => createQueryKey('suggestTrades', options, true);
 

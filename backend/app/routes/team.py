@@ -30,6 +30,26 @@ def get_team(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.TeamOut:
     return views.team_view(ctx, team_id)
 
 
+@router.get("/{team_id}/players", response_model=m.PlayersTableOut)
+def get_players_table(
+    team_id: str,
+    q: str = Query("", max_length=60, description="Name search (accents and case ignored)"),
+    pos: m.Position | None = None,
+    nfl_team: str | None = Query(None, max_length=4, alias="team"),
+    avail: m.Availability = Query("all", description="mine | other (another team) | fa"),
+    sort: m.PlayerSort = "ros",
+    dir: Literal["asc", "desc"] = "desc",
+    page: int = Query(0, ge=0),
+    size: int = Query(50, ge=10, le=100),
+    ctx: LeagueContext = Depends(team_ctx),
+) -> m.PlayersTableOut:
+    """Every player with a projection: search, filter by position / NFL team / who has him,
+    sort by PPG, ROS points, value, market value or verdict, paged on the server."""
+    return views.players_table(
+        ctx, team_id, q, pos, nfl_team, avail, sort, dir == "desc", page, size
+    )
+
+
 @router.get("/{team_id}/players/{player_id}", response_model=m.PlayerDetailOut)
 def get_player(
     team_id: str, player_id: str, ctx: LeagueContext = Depends(team_ctx)

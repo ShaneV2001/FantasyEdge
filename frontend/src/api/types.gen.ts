@@ -994,6 +994,76 @@ export type PlayerRef = {
 };
 
 /**
+ * PlayerTableRow
+ */
+export type PlayerTableRow = {
+    /**
+     * Player Id
+     */
+    player_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position: string;
+    /**
+     * Nfl Team
+     */
+    nfl_team?: string | null;
+    /**
+     * Owner
+     *
+     * Team name, 'Your team', 'Free agent', or None
+     */
+    owner?: string | null;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Ppg
+     *
+     * Projected points per game (league scoring)
+     */
+    ppg: number;
+    /**
+     * Ros Points
+     *
+     * Schedule-adjusted projected points, rest of season
+     */
+    ros_points: number;
+    /**
+     * Ros Value Par
+     *
+     * Rest-of-season points above replacement
+     */
+    ros_value_par: number;
+    /**
+     * Market Value
+     */
+    market_value?: number | null;
+    /**
+     * Signal
+     */
+    signal?: 'buy' | 'hold' | 'sell';
+    /**
+     * Value Gap
+     */
+    value_gap?: number | null;
+    /**
+     * Injury Status
+     */
+    injury_status?: string | null;
+    /**
+     * Bye Week
+     */
+    bye_week?: number | null;
+};
+
+/**
  * PlayerTradesOut
  *
  * Trades built around one player.
@@ -1066,6 +1136,44 @@ export type PlayerWeekOut = {
     statline?: {
         [key: string]: number | null;
     };
+};
+
+/**
+ * PlayersTableOut
+ */
+export type PlayersTableOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Rows
+     */
+    rows: Array<PlayerTableRow>;
+    /**
+     * Total
+     *
+     * Players matching the filters (all pages)
+     */
+    total: number;
+    /**
+     * Page
+     */
+    page: number;
+    /**
+     * Size
+     */
+    size: number;
+    /**
+     * Nfl Teams
+     *
+     * NFL teams in the pool, for the team filter
+     */
+    nfl_teams: Array<string>;
+    /**
+     * Market Label
+     */
+    market_label: string;
 };
 
 /**
@@ -2262,6 +2370,73 @@ export type GetTeamResponses = {
 };
 
 export type GetTeamResponse = GetTeamResponses[keyof GetTeamResponses];
+
+export type GetPlayersTableData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: {
+        /**
+         * Q
+         *
+         * Name search (accents and case ignored)
+         */
+        q?: string;
+        /**
+         * Pos
+         */
+        pos?: 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF' | null;
+        /**
+         * Team
+         */
+        team?: string | null;
+        /**
+         * Avail
+         *
+         * mine | other (another team) | fa
+         */
+        avail?: 'all' | 'mine' | 'other' | 'fa';
+        /**
+         * Sort
+         */
+        sort?: 'ppg' | 'ros' | 'value' | 'market' | 'verdict' | 'name';
+        /**
+         * Dir
+         */
+        dir?: 'asc' | 'desc';
+        /**
+         * Page
+         */
+        page?: number;
+        /**
+         * Size
+         */
+        size?: number;
+    };
+    url: '/team/{team_id}/players';
+};
+
+export type GetPlayersTableErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPlayersTableError = GetPlayersTableErrors[keyof GetPlayersTableErrors];
+
+export type GetPlayersTableResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlayersTableOut;
+};
+
+export type GetPlayersTableResponse = GetPlayersTableResponses[keyof GetPlayersTableResponses];
 
 export type GetPlayerData = {
     body?: never;

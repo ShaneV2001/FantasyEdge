@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import datetime
 
 from app.errors import InvalidInput, NotFound
@@ -15,7 +16,7 @@ from signals.byes import RosterEntry, bye_grid
 from signals.lineup import starting_slots
 from signals.regression import TDOE_THRESHOLD, USAGE_SHIFT, Z_THRESHOLD, RegressionFlag
 from signals.targets import POSITIONS as TARGET_POSITIONS
-from signals.targets import TargetRow, rank_targets, ros_row
+from signals.targets import TargetRow, rank_targets, ros_points, ros_row
 from signals.team import RosMath, TeamProfile, simulate_league, team_profiles
 
 # ───────── shared helpers ─────────
@@ -783,6 +784,138 @@ def buy_targets_view(ctx: LeagueContext, team_id: str, top: int | None = None) -
         last_week=ctx.league.last_week,
         market_label=market_label(ctx),
         positions=positions,
+    )
+
+
+# ───────── players table ─────────
+
+TABLE_POSITIONS = ("QB", "RB", "WR", "TE", "K", "DEF")
+_VERDICT_ORDER = {"buy": 0, "hold": 1, "sell": 2}
+
+
+def fold(text: str) -> str:
+    """Lower-case, accent-free, punctuation-free text for name search (Amon-Ra -> amonra)."""
+    plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return "".join(ch for ch in plain.lower() if ch.isalnum() or ch == " ")
+
+
+def _table_pool(ctx: LeagueContext) -> list[str]:
+    if "table_pool" not in ctx.memo:
+        rostered = ctx.rostered
+        ctx.memo["table_pool"] = [
+            pid for pid, p in ctx.players.items()
+            if p.get("position") in TABLE_POSITIONS
+            and ((p.get("ppg") or 0) > 0 or pid in rostered)
+        ]  # fmt: skip
+    return ctx.memo["table_pool"]
+
+
+def _ros_points(ctx: LeagueContext, pid: str) -> float:
+    cells = ctx.cells.get(pid)
+    if cells is not None:
+        return ros_points(cells)
+    return ctx.players[pid].get("proj_ros_points") or 0.0
+
+
+def players_table(
+    ctx: LeagueContext,
+    team_id: str,
+    q: str = "",
+    pos: str | None = None,
+    nfl_team: str | None = None,
+    avail: str = "all",
+    sort: str = "ros",
+    desc: bool = True,
+    page: int = 0,
+    size: int = 50,
+) -> m.PlayersTableOut:
+    """Every player, filtered, sorted and paged on the server."""
+    team = ctx.team(team_id)
+    mine = set(team.player_ids)
+    rostered = ctx.rostered
+    pool = _table_pool(ctx)
+    needle = fold(q).replace(" ", "")
+
+    def keep(pid: str) -> bool:
+        p = ctx.players[pid]
+        if pos and p.get("position") != pos:
+            return False
+        if nfl_team and p.get("nfl_team") != nfl_team:
+            return False
+        if avail == "mine" and pid not in mine:
+            return False
+        if avail == "other" and (pid in mine or pid not in rostered):
+            return False
+        if avail == "fa" and pid in rostered:
+            return False
+        return not needle or needle in fold(p.get("name") or "").replace(" ", "")
+
+    hits = [pid for pid in pool if keep(pid)]
+
+    def value(pid: str) -> float | None:
+        p = ctx.players[pid]
+        if sort == "ppg":
+            return p.get("ppg") or 0.0
+        if sort == "ros":
+            return _ros_points(ctx, pid)
+        if sort == "value":
+            return p.get("ros_value_par") or 0.0
+        return p.get("market_value")  # market
+
+    def name(pid: str) -> str:
+        return fold(ctx.players[pid].get("name") or pid)
+
+    if sort == "name":
+        hits.sort(key=name, reverse=desc)
+    elif sort == "verdict":
+        # "desc" = best verdict first: buys with the largest gap, holds, then sells
+        def verdict_key(pid: str) -> tuple:
+            p = ctx.players[pid]
+            return (
+                _VERDICT_ORDER.get(p.get("signal") or "hold", 1),
+                -(p.get("value_gap") or 0.0),
+                name(pid),
+            )
+
+        hits.sort(key=verdict_key, reverse=not desc)
+    else:
+        known = [pid for pid in hits if value(pid) is not None]
+        unknown = [pid for pid in hits if value(pid) is None]  # no market value: always last
+        known.sort(key=name)
+        known.sort(key=lambda pid: value(pid), reverse=desc)  # stable: ties stay by name
+        unknown.sort(key=name)
+        hits = known + unknown
+
+    rows = []
+    for pid in hits[page * size : (page + 1) * size]:
+        p = ctx.players[pid]
+        owner, is_mine = _owner_label(ctx, pid, team_id)
+        rows.append(
+            m.PlayerTableRow(
+                player_id=pid,
+                name=p.get("name") or pid,
+                position=p["position"],
+                nfl_team=p.get("nfl_team"),
+                owner=owner,
+                mine=is_mine,
+                ppg=_r(p.get("ppg")) or 0.0,
+                ros_points=round(_ros_points(ctx, pid), 1),
+                ros_value_par=_r(p.get("ros_value_par"), 1) or 0.0,
+                market_value=p.get("market_value"),
+                signal=p.get("signal") or "hold",
+                value_gap=_r(p.get("value_gap"), 1),
+                injury_status=p.get("injury_status"),
+                bye_week=p.get("bye_week"),
+            )
+        )
+    return m.PlayersTableOut(
+        team_id=team_id,
+        rows=rows,
+        total=len(hits),
+        page=page,
+        size=size,
+        nfl_teams=sorted({t for pid in pool if (t := ctx.players[pid].get("nfl_team"))}),
+        market_label=market_label(ctx),
     )
 
 

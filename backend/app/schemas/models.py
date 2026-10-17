@@ -606,6 +606,35 @@ class TradeFindOut(BaseModel):
     ideas: list[TradeOut]
 
 
+# ───────── players table ─────────
+
+PlayerSort = Literal["ppg", "ros", "value", "market", "verdict", "name"]
+Availability = Literal["all", "mine", "other", "fa"]
+
+
+class PlayerTableRow(PlayerRef):
+    owner: str | None = Field(None, description="Team name, 'Your team', 'Free agent', or None")
+    mine: bool
+    ppg: float = Field(description="Projected points per game (league scoring)")
+    ros_points: float = Field(description="Schedule-adjusted projected points, rest of season")
+    ros_value_par: float = Field(description="Rest-of-season points above replacement")
+    market_value: float | None = None
+    signal: Literal["buy", "hold", "sell"] = "hold"
+    value_gap: float | None = None
+    injury_status: str | None = None
+    bye_week: int | None = None
+
+
+class PlayersTableOut(BaseModel):
+    team_id: str
+    rows: list[PlayerTableRow]
+    total: int = Field(description="Players matching the filters (all pages)")
+    page: int
+    size: int
+    nfl_teams: list[str] = Field(description="NFL teams in the pool, for the team filter")
+    market_label: str
+
+
 # ───────── meta ─────────
 
 

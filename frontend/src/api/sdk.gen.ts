@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
+import type { ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayersTableData, GetPlayersTableErrors, GetPlayersTableResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -109,6 +109,14 @@ export const manualLeague = <ThrowOnError extends boolean = false>(options: Opti
  * Roster with projections, ROS value, market value, flags and grades vs the league.
  */
 export const getTeam = <ThrowOnError extends boolean = false>(options: Options<GetTeamData, ThrowOnError>): RequestResult<GetTeamResponses, GetTeamErrors, ThrowOnError> => (options.client ?? client).get<GetTeamResponses, GetTeamErrors, ThrowOnError>({ url: '/team/{team_id}', ...options });
+
+/**
+ * Get Players Table
+ *
+ * Every player with a projection: search, filter by position / NFL team / who has him,
+ * sort by PPG, ROS points, value, market value or verdict, paged on the server.
+ */
+export const getPlayersTable = <ThrowOnError extends boolean = false>(options: Options<GetPlayersTableData, ThrowOnError>): RequestResult<GetPlayersTableResponses, GetPlayersTableErrors, ThrowOnError> => (options.client ?? client).get<GetPlayersTableResponses, GetPlayersTableErrors, ThrowOnError>({ url: '/team/{team_id}/players', ...options });
 
 /**
  * Get Player

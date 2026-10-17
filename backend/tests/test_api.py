@@ -690,3 +690,82 @@ def test_rankings_can_show_more_than_ten(client):
         assert [r["rank"] for r in v["ros"]] == list(range(1, len(v["ros"]) + 1))
     assert any(len(v["ros"]) > 10 for v in twenty["positions"].values())
     assert tc.get(f"/team/{team_id}/rankings", params={"top": 500}).status_code == 422
+
+
+def test_players_table_filters_sorts_and_pages(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    url = f"/team/{team_id}/players"
+    # the fixture league rosters every fixture player: release one so there's a free agent
+    ctx = context.get_context(deps._con, f"sl-{LEAGUE}")
+    holder = next(t for t in ctx.teams if not t.is_mine)
+    released = holder.player_ids.pop()
+    ctx.memo.clear()
+    everyone = tc.get(url, params={"size": 100}).json()
+    assert everyone["total"] == 60 and len(everyone["rows"]) == 60
+    ros = [r["ros_points"] for r in everyone["rows"]]
+    assert ros == sorted(ros, reverse=True)  # default: rest-of-season points, best first
+
+    # pages don't overlap and add up to the total
+    a = tc.get(url, params={"size": 10, "page": 0}).json()["rows"]
+    b = tc.get(url, params={"size": 10, "page": 1}).json()["rows"]
+    assert not {r["player_id"] for r in a} & {r["player_id"] for r in b}
+
+    mine = tc.get(url, params={"avail": "mine", "size": 100}).json()
+    assert mine["rows"] and all(r["mine"] and r["owner"] == "Your team" for r in mine["rows"])
+    other = tc.get(url, params={"avail": "other", "size": 100}).json()
+    assert other["rows"] and all(
+        not r["mine"] and r["owner"] not in (None, "Free agent") for r in other["rows"]
+    )
+    fa = tc.get(url, params={"avail": "fa", "size": 100}).json()
+    assert [r["player_id"] for r in fa["rows"]] == [released]
+    assert fa["rows"][0]["owner"] == "Free agent"
+    assert mine["total"] + other["total"] + fa["total"] == everyone["total"]
+
+    wr = tc.get(url, params={"pos": "WR", "sort": "ppg", "dir": "asc", "size": 100}).json()
+    assert {r["position"] for r in wr["rows"]} == {"WR"}
+    ppg = [r["ppg"] for r in wr["rows"]]
+    assert ppg == sorted(ppg)
+
+    team = everyone["rows"][0]["nfl_team"]
+    assert team in everyone["nfl_teams"]
+    by_team = tc.get(url, params={"team": team, "size": 100}).json()["rows"]
+    assert by_team and {r["nfl_team"] for r in by_team} == {team}
+
+    # market: players without a market value always sort last, either direction
+    for d in ("asc", "desc"):
+        rows = tc.get(url, params={"sort": "market", "dir": d, "size": 100}).json()["rows"]
+        vals = [r["market_value"] for r in rows]
+        seen_none = False
+        for v in vals:
+            seen_none = seen_none or v is None
+            assert not (seen_none and v is not None)
+        known = [v for v in vals if v is not None]
+        assert known == sorted(known, reverse=d == "desc")
+
+    verdict = tc.get(url, params={"sort": "verdict", "size": 100}).json()["rows"]
+    order = [{"buy": 0, "hold": 1, "sell": 2}[r["signal"]] for r in verdict]
+    assert order == sorted(order)
+
+    for bad in ({"sort": "height"}, {"avail": "nobody"}, {"size": 500}, {"pos": "OL"}):
+        assert tc.get(url, params=bad).status_code == 422
+
+
+def test_players_table_search_ignores_case_and_accents(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    first = tc.get(f"/team/{team_id}/players", params={"size": 10}).json()["rows"][0]
+    surname = first["name"].split()[-1]
+    hits = tc.get(f"/team/{team_id}/players", params={"q": surname.upper()}).json()["rows"]
+    assert first["player_id"] in {r["player_id"] for r in hits}
+    assert views.fold("Amon-Ra St. Brown") == "amonra st brown"
+    assert views.fold("Zoë Ñúñez") == "zoe nunez"
+
+
+def test_players_table_for_a_manual_team(client):
+    tc, _ = client
+    team_id, _, _ = _manual_team(tc)
+    rows = tc.get(f"/team/{team_id}/players", params={"avail": "mine"}).json()["rows"]
+    assert rows and all(r["mine"] for r in rows)
+    others = tc.get(f"/team/{team_id}/players", params={"avail": "fa", "size": 10}).json()["rows"]
+    assert all(r["owner"] is None for r in others)  # a manual team can't know who's available
