@@ -160,6 +160,7 @@ def league_out(ctx: LeagueContext) -> m.LeagueOut:
         uses_faab=lg.uses_faab,
         faab_budget=lg.faab_budget,
         last_synced_at=lg.last_synced_at,
+        scoring_notes=lg.scoring_notes,
     )
 
 

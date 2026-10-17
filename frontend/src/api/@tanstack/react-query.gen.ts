@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { connectLeague, evaluateTrade, getAdvice, getBuyTargets, getByes, getPlayer, getRankings, getRegression, getStatus, getTeam, getUserSettings, health, manualLeague, type Options, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
-import type { ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
+import { connectEspn, connectLeague, espnDefaults, evaluateTrade, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getRankings, getRegression, getStatus, getTeam, getUserSettings, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
+import type { ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -15,6 +15,118 @@ export const connectLeagueMutation = (options?: Partial<Options<ConnectLeagueDat
     const mutationOptions: UseMutationOptions<ConnectLeagueResponse, ConnectLeagueError, Options<ConnectLeagueData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await connectLeague({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export type QueryKey<TOptions extends Options> = [
+    Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
+        _id: string;
+        _infinite?: boolean;
+        tags?: ReadonlyArray<string>;
+    }
+];
+
+const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions, infinite?: boolean, tags?: ReadonlyArray<string>): [
+    QueryKey<TOptions>[0]
+] => {
+    const params: QueryKey<TOptions>[0] = { _id: id, baseUrl: options?.baseUrl || (options?.client ?? client).getConfig().baseUrl } as QueryKey<TOptions>[0];
+    if (infinite) {
+        params._infinite = infinite;
+    }
+    if (tags) {
+        params.tags = tags;
+    }
+    if (options?.body) {
+        params.body = options.body;
+    }
+    if (options?.headers) {
+        params.headers = options.headers;
+    }
+    if (options?.path) {
+        params.path = options.path;
+    }
+    if (options?.query) {
+        params.query = options.query;
+    }
+    return [params];
+};
+
+export const espnDefaultsQueryKey = (options?: Options<EspnDefaultsData>) => createQueryKey('espnDefaults', options);
+
+/**
+ * Espn Defaults
+ *
+ * League ID and whether cookies are set in the local .env (the cookies themselves stay put).
+ */
+export const espnDefaultsOptions = (options?: Options<EspnDefaultsData>) => queryOptions<EspnDefaultsResponse, DefaultError, EspnDefaultsResponse, ReturnType<typeof espnDefaultsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await espnDefaults({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: espnDefaultsQueryKey(options)
+});
+
+/**
+ * Connect Espn
+ *
+ * Connect an ESPN league (private leagues need the espn_s2 and SWID cookies, which are
+ * stored only in the local database). Data flows in from ESPN only; nothing is written there.
+ */
+export const connectEspnMutation = (options?: Partial<Options<ConnectEspnData>>): UseMutationOptions<ConnectEspnResponse, ConnectEspnError, Options<ConnectEspnData>> => {
+    const mutationOptions: UseMutationOptions<ConnectEspnResponse, ConnectEspnError, Options<ConnectEspnData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await connectEspn({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getCredentialsQueryKey = (options: Options<GetCredentialsData>) => createQueryKey('getCredentials', options);
+
+/**
+ * Get Credentials
+ *
+ * Whether ESPN cookies are saved for this league (last 4 characters only).
+ */
+export const getCredentialsOptions = (options: Options<GetCredentialsData>) => queryOptions<GetCredentialsResponse, GetCredentialsError, GetCredentialsResponse, ReturnType<typeof getCredentialsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getCredentials({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getCredentialsQueryKey(options)
+});
+
+/**
+ * Put Credentials
+ *
+ * Replace expired ESPN cookies. They're checked against ESPN before being saved.
+ */
+export const putCredentialsMutation = (options?: Partial<Options<PutCredentialsData>>): UseMutationOptions<PutCredentialsResponse, PutCredentialsError, Options<PutCredentialsData>> => {
+    const mutationOptions: UseMutationOptions<PutCredentialsResponse, PutCredentialsError, Options<PutCredentialsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await putCredentials({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -61,39 +173,6 @@ export const manualLeagueMutation = (options?: Partial<Options<ManualLeagueData>
         }
     };
     return mutationOptions;
-};
-
-export type QueryKey<TOptions extends Options> = [
-    Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
-        _id: string;
-        _infinite?: boolean;
-        tags?: ReadonlyArray<string>;
-    }
-];
-
-const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions, infinite?: boolean, tags?: ReadonlyArray<string>): [
-    QueryKey<TOptions>[0]
-] => {
-    const params: QueryKey<TOptions>[0] = { _id: id, baseUrl: options?.baseUrl || (options?.client ?? client).getConfig().baseUrl } as QueryKey<TOptions>[0];
-    if (infinite) {
-        params._infinite = infinite;
-    }
-    if (tags) {
-        params.tags = tags;
-    }
-    if (options?.body) {
-        params.body = options.body;
-    }
-    if (options?.headers) {
-        params.headers = options.headers;
-    }
-    if (options?.path) {
-        params.path = options.path;
-    }
-    if (options?.query) {
-        params.query = options.query;
-    }
-    return [params];
 };
 
 export const getTeamQueryKey = (options: Options<GetTeamData>) => createQueryKey('getTeam', options);

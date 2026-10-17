@@ -35,6 +35,72 @@ def connect_league(
     )
 
 
+def _current_season(con: duckdb.DuckDBPyConnection, c: Clients) -> int:
+    row = con.execute("SELECT max(season) FROM nfl_games").fetchone()
+    return int(row[0]) if row and row[0] else c.settings.seasons[1]
+
+
+@router.get("/espn/defaults", response_model=m.EspnDefaultsOut)
+def espn_defaults(
+    con: duckdb.DuckDBPyConnection = Depends(get_con), c: Clients = Depends(get_clients)
+) -> m.EspnDefaultsOut:
+    """League ID and whether cookies are set in the local .env (the cookies themselves stay put)."""
+    return m.EspnDefaultsOut(
+        league_id=c.settings.espn_league_id,
+        cookies_in_env=bool(c.settings.espn_s2 and c.settings.espn_swid),
+        season=_current_season(con, c),
+    )
+
+
+def _espn_response(con: duckdb.DuckDBPyConnection, choice, res) -> m.EspnConnectResponse:
+    return m.EspnConnectResponse(
+        league=m.LeagueChoiceOut(
+            **{k: v for k, v in vars(choice).items() if k != "teams"},
+            teams=[m.TeamChoiceOut(**vars(t)) for t in choice.teams],
+        ),
+        unmatched=[m.UnmatchedPlayerOut(**vars(p)) for p in res.unmatched],
+        scoring_notes=res.scoring_notes,
+        credentials=m.CredentialsOut(**leagues.masked_credentials(con, res.league_id)),
+    )
+
+
+@router.post("/espn/connect", response_model=m.EspnConnectResponse)
+def connect_espn(
+    body: m.EspnConnectRequest,
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+    c: Clients = Depends(get_clients),
+) -> m.EspnConnectResponse:
+    """Connect an ESPN league (private leagues need the espn_s2 and SWID cookies, which are
+    stored only in the local database). Data flows in from ESPN only; nothing is written there."""
+    season = body.season or _current_season(con, c)
+    with write_lock:
+        choice, res = leagues.connect_espn(con, c, body.league_id, season, body.espn_s2, body.swid)
+    context.invalidate(choice.league_id)
+    return _espn_response(con, choice, res)
+
+
+@router.get("/{league_id}/credentials", response_model=m.CredentialsOut)
+def get_credentials(
+    league_id: str, con: duckdb.DuckDBPyConnection = Depends(get_con)
+) -> m.CredentialsOut:
+    """Whether ESPN cookies are saved for this league (last 4 characters only)."""
+    return m.CredentialsOut(**leagues.masked_credentials(con, league_id))
+
+
+@router.put("/{league_id}/credentials", response_model=m.CredentialsOut)
+def put_credentials(
+    league_id: str,
+    body: m.CredentialsRequest,
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+    c: Clients = Depends(get_clients),
+) -> m.CredentialsOut:
+    """Replace expired ESPN cookies. They're checked against ESPN before being saved."""
+    with write_lock:
+        leagues.replace_credentials(con, c, league_id, body.espn_s2, body.swid)
+    context.invalidate(league_id)
+    return m.CredentialsOut(**leagues.masked_credentials(con, league_id))
+
+
 @router.post("/{league_id}/select-team", response_model=m.TeamRef)
 def select_team(
     league_id: str,

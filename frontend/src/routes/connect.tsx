@@ -1,40 +1,44 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { Check, Loader2, UserRound } from 'lucide-react'
-import { useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { Loader2, UserRound } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { toast } from 'sonner'
 import { z } from 'zod'
 
-import type { LeagueChoiceOut } from '@/api'
-import { connectLeagueMutation, selectTeamMutation } from '@/api/@tanstack/react-query.gen'
+import { connectLeagueMutation } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, PageHeader } from '@/components/common/states'
+import { EspnConnect } from '@/components/connect/EspnConnect'
+import { LeagueCard } from '@/components/connect/LeagueCard'
 import { ManualRosterBuilder } from '@/components/team/ManualRosterBuilder'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { describeError } from '@/lib/errors'
-import { slotLabel } from '@/lib/format'
-import { useTeamStore } from '@/stores/team'
+
+const TABS = ['sleeper', 'espn', 'manual'] as const
+type Tab = (typeof TABS)[number]
 
 export function ConnectPage() {
+  const search = useSearch({ strict: false }) as { tab?: string }
+  const navigate = useNavigate()
+  const tab: Tab = TABS.includes(search.tab as Tab) ? (search.tab as Tab) : 'sleeper'
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <PageHeader
         title="Connect your team"
-        description="Pull your league from Sleeper, or enter a roster by hand for any platform. Nothing leaves your machine except calls to the public data sources."
+        description="Pull your league from Sleeper or ESPN, or enter a roster by hand for any platform. Data only flows in: FantasyEdge never changes anything on Sleeper or ESPN."
       />
-      <Tabs defaultValue="sleeper">
+      <Tabs value={tab} onValueChange={(t) => void navigate({ to: '/connect', search: { tab: t }, replace: true })}>
         <TabsList>
           <TabsTrigger value="sleeper">Sleeper</TabsTrigger>
+          <TabsTrigger value="espn">ESPN</TabsTrigger>
           <TabsTrigger value="manual">Manual entry</TabsTrigger>
         </TabsList>
         <TabsContent value="sleeper" className="mt-4">
           <SleeperConnect />
+        </TabsContent>
+        <TabsContent value="espn" className="mt-4">
+          <EspnConnect />
         </TabsContent>
         <TabsContent value="manual" className="mt-4">
           <ManualRosterBuilder />
@@ -97,72 +101,8 @@ function SleeperConnect() {
         </Card>
       )}
       {connect.data?.leagues.map((lg) => (
-        <LeagueCard key={lg.league_id} league={lg} username={connect.data.username} />
+        <LeagueCard key={lg.league_id} league={lg} platform="sleeper" username={connect.data.username} />
       ))}
     </div>
-  )
-}
-
-function LeagueCard({ league, username }: { league: LeagueChoiceOut; username: string }) {
-  const mine = league.teams.find((t) => t.is_user)
-  const [rosterId, setRosterId] = useState(mine?.external_roster_id ?? league.teams[0]?.external_roster_id ?? '')
-  const setTeam = useTeamStore((s) => s.setTeam)
-  const navigate = useNavigate()
-  const qc = useQueryClient()
-  const select = useMutation({
-    ...selectTeamMutation(),
-    onSuccess: (ref) => {
-      const t = league.teams.find((x) => x.external_roster_id === rosterId)
-      setTeam({
-        teamId: ref.team_id,
-        leagueId: ref.league_id,
-        teamName: t?.team_name ?? 'My team',
-        leagueName: league.name,
-        platform: 'sleeper',
-        username,
-      })
-      void qc.invalidateQueries()
-      toast.success(`Connected ${t?.team_name ?? 'team'}`)
-      void navigate({ to: '/advisor' })
-    },
-    onError: (e) => toast.error(describeError(e).message),
-  })
-  const starters = league.roster_positions.filter((p) => !['BN', 'IR', 'TAXI'].includes(p))
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {league.name}
-          <Badge variant="outline" className="font-mono">
-            {league.season}
-          </Badge>
-        </CardTitle>
-        <CardDescription>
-          {league.num_teams} teams · {league.scoring} · {starters.map(slotLabel).join(' ')}
-        </CardDescription>
-      </CardHeader>
-      <CardFooter className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Select value={rosterId} onValueChange={setRosterId}>
-          <SelectTrigger className="w-full sm:w-72" aria-label="Your team">
-            <SelectValue placeholder="Pick your team" />
-          </SelectTrigger>
-          <SelectContent>
-            {league.teams.map((t) => (
-              <SelectItem key={t.external_roster_id} value={t.external_roster_id}>
-                {t.team_name} {t.is_user ? '(you)' : `· ${t.owner_name}`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          disabled={!rosterId || select.isPending}
-          onClick={() => select.mutate({ path: { league_id: league.league_id }, body: { external_roster_id: rosterId } })}
-        >
-          {select.isPending ? <Loader2 className="animate-spin" /> : <Check />}
-          Use this team
-        </Button>
-      </CardFooter>
-    </Card>
   )
 }

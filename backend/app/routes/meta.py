@@ -19,6 +19,7 @@ log = logging.getLogger("fantasyedge.api")
 
 ATTRIBUTION = [
     "League, roster, player and trending data from the Sleeper API (non-commercial use).",
+    "ESPN league data read from fantasy.espn.com with your own login (read-only).",
     "NFL statistics, play-by-play, schedules and injuries from nflverse (CC-BY 4.0); FTN data CC-BY-SA 4.0.",
     "Market trade values from FantasyCalc; player ID crosswalk from DynastyProcess.",
     "FantasyEdge is not affiliated with Sleeper, ESPN, Yahoo, FantasyCalc, nflverse or the NFL.",
@@ -66,6 +67,9 @@ def refresh(
             if platform[0] == "sleeper":
                 rosters = leagues.sync_sleeper_league(con, c, platform[1], force=True)
                 detail.append(f"league: {len(rosters)} rosters synced")
+            elif platform[0] == "espn":
+                res = leagues.sync_espn_league(con, c, body.league_id, force=True)
+                detail.append(f"league: {len(res.teams)} ESPN rosters synced")
             else:
                 detail.append("league: manual league, nothing to sync")
         if body.scope in ("market", "all"):

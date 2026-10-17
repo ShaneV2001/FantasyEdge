@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.errors import InvalidInput, NotFound, NotReady
+from app.errors import AuthRequired, InvalidInput, NotFound, NotReady
 from app.routes import league, meta, settings, team, trade
 from ingest.http import SourceUnavailable
 
@@ -51,6 +51,13 @@ def _not_ready(_: Request, exc: NotReady) -> JSONResponse:
 @app.exception_handler(NotFound)
 def _not_found(_: Request, exc: NotFound) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": exc.detail, "kind": exc.kind})
+
+
+@app.exception_handler(AuthRequired)
+def _auth_required(_: Request, exc: AuthRequired) -> JSONResponse:
+    return JSONResponse(
+        status_code=401, content={"detail": exc.detail, "kind": exc.kind, "source": "espn"}
+    )
 
 
 @app.exception_handler(InvalidInput)

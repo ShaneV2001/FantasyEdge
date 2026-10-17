@@ -70,6 +70,8 @@ class LeagueRow:
     playoff_week_start: int | None
     last_synced_at: datetime | None
     league_type: str = "redraft"
+    final_week: int | None = None  # set by platforms whose playoffs don't fit playoff_start + 2
+    scoring_notes: list[str] = field(default_factory=list)  # league rules we can't model
 
     @property
     def market_format(self) -> MarketFormat:
@@ -79,8 +81,10 @@ class LeagueRow:
 
     @property
     def last_week(self) -> int:
-        # Fantasy season ends with the playoffs: playoff start + 2 (3-week playoffs), capped at
-        # week 18 (the last NFL regular-season week).
+        # Fantasy season ends with the playoffs: playoff start + 2 (3-week playoffs) unless the
+        # platform says otherwise, capped at week 18 (the last NFL regular-season week).
+        if self.final_week:
+            return min(max(self.final_week, self.playoff_start), 18)
         return min(self.playoff_start + 2, 18)
 
     @property
@@ -197,6 +201,8 @@ def load_league(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueRow:
         playoff_week_start=r["playoff_week_start"],
         last_synced_at=r["last_synced_at"],
         league_type=r.get("league_type") or "redraft",
+        final_week=r.get("final_week"),
+        scoring_notes=json.loads(r["scoring_notes"]) if r.get("scoring_notes") else [],
     )
 
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { ArrowLeftRight, CalendarRange, Crosshair, ListOrdered, Plug, RefreshCw, Settings2, Sparkles, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -34,6 +34,7 @@ export function AppSidebar() {
   const team = useTeamStore((s) => s.team)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const teamQuery = useQuery({
     ...getTeamOptions({ path: { team_id: team?.teamId ?? '' } }),
     enabled: !!team,
@@ -44,7 +45,13 @@ export function AppSidebar() {
       toast.success('Roster refreshed', { description: res.detail.join(' · ') })
       void qc.invalidateQueries()
     },
-    onError: (err) => toast.error(describeError(err).message, { description: describeError(err).hint }),
+    onError: (err) => {
+      const p = describeError(err)
+      toast.error(p.message, {
+        description: p.hint,
+        action: p.action ? { label: p.action.label, onClick: () => void navigate(p.action!) } : undefined,
+      })
+    },
   })
   const league = teamQuery.data?.league
 

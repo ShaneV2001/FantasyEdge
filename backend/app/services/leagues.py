@@ -11,11 +11,14 @@ from datetime import UTC, date, datetime, timedelta
 import duckdb
 import polars as pl
 
-from app.errors import InvalidInput, NotFound
+from app.errors import AuthRequired, InvalidInput, NotFound
 from db.conn import log_sync, query_df, replace_where, transaction, upsert
+from ingest import espn as es
 from ingest import sleeper as sl
+from ingest.http import AuthRejected, SourceUnavailable
 from ingest.market_values import market_format_for
 from ingest.run import Clients, market_sync
+from scoring.espn import from_espn
 from scoring.rules import PRESETS, describe, from_sleeper, normalize, profile_id
 from signals.lineup import NON_STARTING, SLOT_ELIGIBILITY, fit_to_slots, starting_slots
 
@@ -207,9 +210,12 @@ def ensure_synced(
     if row is None:
         raise NotFound("league", f"League not found: {league_id}")
     platform, external_id = row
-    if platform != "sleeper" or not needs_sync(con, league_id, max_age):
+    if platform not in ("sleeper", "espn") or not needs_sync(con, league_id, max_age):
         return False
-    sync_sleeper_league(con, c, external_id)
+    if platform == "espn":
+        sync_espn_league(con, c, league_id)
+    else:
+        sync_sleeper_league(con, c, external_id)
     return True
 
 
@@ -312,7 +318,7 @@ def _sync_transactions(
 
 
 def _ensure_market(
-    con: duckdb.DuckDBPyConnection, c: Clients, rules: dict, info: sl.LeagueInfo
+    con: duckdb.DuckDBPyConnection, c: Clients, rules: dict, info: sl.LeagueInfo | es.EspnLeague
 ) -> None:
     fmt = market_format_for(
         info.roster_positions, info.num_teams, normalize(rules)["rec"], info.league_type
@@ -341,6 +347,363 @@ def select_team(con: duckdb.DuckDBPyConnection, league_id: str, external_roster_
     con.execute("UPDATE teams SET is_mine = (team_id = ?) WHERE league_id = ?", [row[0], league_id])
     con.execute("UPDATE leagues SET last_synced_at = ? WHERE league_id = ?", [_now(), league_id])
     return row[0]
+
+
+# ───────── ESPN ─────────
+
+ESPN_EXPIRED = "Your ESPN login has expired — paste fresh cookies."
+ESPN_PRIVATE = "This ESPN league is private — add your espn_s2 and SWID cookies to connect it."
+
+
+def espn_league_id(external_id: str, season: int) -> str:
+    return f"es-{external_id}-{season}"
+
+
+def espn_team_id(external_id: str, season: int, team_id: str) -> str:
+    return f"es-{external_id}-{season}-{team_id}"
+
+
+def espn_cookies(c: Clients, espn_s2: str | None, swid: str | None) -> es.Cookies | None:
+    """Cookies from the request, else from .env; None for a public league."""
+    s2 = (espn_s2 or c.settings.espn_s2 or "").strip()
+    sw = (swid or c.settings.espn_swid or "").strip()
+    if not s2 and not sw:
+        return None
+    if not s2 or not sw:
+        raise InvalidInput("Private ESPN leagues need both cookies: espn_s2 and SWID.")
+    if not sw.startswith("{"):
+        sw = "{" + sw.strip("{}") + "}"  # SWID is a GUID in braces; people often drop them
+    return es.Cookies(s2, sw)
+
+
+def save_credentials(con: duckdb.DuckDBPyConnection, league_id: str, cookies: es.Cookies) -> None:
+    con.execute(
+        "INSERT OR REPLACE INTO league_credentials VALUES (?, ?, ?, ?)",
+        [league_id, cookies.espn_s2, cookies.swid, _now()],
+    )
+
+
+def load_credentials(con: duckdb.DuckDBPyConnection, league_id: str) -> es.Cookies | None:
+    row = con.execute(
+        "SELECT espn_s2, swid FROM league_credentials WHERE league_id = ?", [league_id]
+    ).fetchone()
+    return es.Cookies(row[0], row[1]) if row and row[0] and row[1] else None
+
+
+def masked_credentials(con: duckdb.DuckDBPyConnection, league_id: str) -> dict:
+    """What the UI may see: whether cookies are saved, and their last 4 characters only."""
+    row = con.execute(
+        "SELECT espn_s2, swid, updated_at FROM league_credentials WHERE league_id = ?", [league_id]
+    ).fetchone()
+    if not row:
+        return {"saved": False, "espn_s2_last4": None, "swid_last4": None, "updated_at": None}
+    return {
+        "saved": True,
+        "espn_s2_last4": (row[0] or "")[-4:] or None,
+        "swid_last4": (row[1] or "").rstrip("}")[-4:] or None,
+        "updated_at": row[2],
+    }
+
+
+def _auth_error(cookies: es.Cookies | None) -> AuthRequired:
+    if cookies:
+        return AuthRequired("espn_auth", ESPN_EXPIRED)
+    return AuthRequired("espn_private", ESPN_PRIVATE)
+
+
+def _fetch_espn(
+    c: Clients, external_id: str, season: int, cookies: es.Cookies | None, force: bool
+) -> dict:
+    assert c.espn is not None
+    try:
+        raw = c.espn.league(external_id, season, cookies, force=force)
+    except AuthRejected:
+        raise _auth_error(cookies) from None
+    except SourceUnavailable as exc:
+        if exc.status == 404:
+            raise NotFound("league", f"ESPN league {external_id} not found for {season}") from None
+        raise
+    if es.is_private_without_access(raw):
+        raise _auth_error(cookies)
+    return raw
+
+
+@dataclass
+class IdMatch:
+    ids: dict[int, str]  # ESPN player id -> internal player_id
+    unmatched: list[es.EspnPlayer]
+
+
+def espn_to_internal(
+    con: duckdb.DuckDBPyConnection, id_map: pl.DataFrame | None, players: list[es.EspnPlayer]
+) -> IdMatch:
+    """ESPN ids -> ours: Sleeper's espn_id, then the DynastyProcess crosswalk, then name + team +
+    position. D/ST map to `sl:<TEAM>`. Anything left is returned so it can be shown, not dropped."""
+    known = query_df(con, "SELECT player_id, espn_id, full_name, position, nfl_team FROM players")
+    have = set(known["player_id"].to_list())
+    by_espn = {
+        str(e): p for p, e in known.select("player_id", "espn_id").iter_rows() if e is not None
+    }
+    by_dp: dict[str, str] = {}
+    if id_map is not None and {"espn_id", "gsis_id"} <= set(id_map.columns):
+        for e, g in id_map.select("espn_id", "gsis_id").drop_nulls().iter_rows():
+            if g in have:
+                by_dp.setdefault(str(e).split(".")[0], g)
+    by_name: dict[tuple, list[str]] = {}
+    by_name_pos: dict[tuple, list[str]] = {}
+    for pid, _, name, pos, team in known.iter_rows():
+        by_name.setdefault((es.name_key(name or ""), pos, team), []).append(pid)
+        by_name_pos.setdefault((es.name_key(name or ""), pos), []).append(pid)
+
+    ids: dict[int, str] = {}
+    unmatched = []
+    for p in players:
+        key = str(p.espn_id)
+        if p.position == "DEF" or p.espn_id < 0:
+            team_def = f"sl:{p.nfl_team}"
+            pid = team_def if p.nfl_team and team_def in have else None
+        else:
+            pid = by_espn.get(key) or by_dp.get(key)
+            if pid is None:
+                hits = by_name.get((es.name_key(p.name), p.position, p.nfl_team)) or []
+                hits = hits or by_name_pos.get((es.name_key(p.name), p.position)) or []
+                pid = hits[0] if len(hits) == 1 else None
+        if pid is None:
+            unmatched.append(p)
+            pid = f"espn:{p.espn_id}"
+        ids[p.espn_id] = pid
+    return IdMatch(ids, unmatched)
+
+
+def _placeholder_players(con: duckdb.DuckDBPyConnection, unmatched: list[es.EspnPlayer]) -> None:
+    """Unmatched ESPN players get a name-only row so they show up (projected 0) instead of
+    vanishing. `players_sync` replaces the table; the next league sync adds them back."""
+    rows = [
+        {"player_id": f"espn:{p.espn_id}", "espn_id": str(p.espn_id), "full_name": p.name,
+         "position": p.position, "nfl_team": p.nfl_team, "status": "Unmatched (ESPN)",
+         "updated_at": _now()}
+        for p in unmatched
+        if p.position
+    ]  # fmt: skip
+    if rows:  # players has two unique keys, so replace rather than INSERT OR REPLACE
+        replace_where(
+            con,
+            "players",
+            pl.DataFrame(rows, schema_overrides={"nfl_team": pl.Utf8}),
+            "player_id IN (SELECT unnest(?))",
+            [[r["player_id"] for r in rows]],
+        )
+
+
+@dataclass
+class EspnSync:
+    league_id: str
+    info: es.EspnLeague
+    rules: dict[str, float]
+    teams: list[es.EspnTeam]
+    unmatched: list[es.EspnPlayer]
+    scoring_notes: list[str]
+
+
+def _week_starts(con: duckdb.DuckDBPyConnection, season: int) -> dict[int, datetime]:
+    rows = con.execute(
+        "SELECT week, min(kickoff) FROM nfl_games WHERE season = ? AND kickoff IS NOT NULL GROUP BY 1",
+        [season],
+    ).fetchall()
+    return {int(w): k for w, k in rows}
+
+
+def _sync_espn(
+    con: duckdb.DuckDBPyConnection, c: Clients, raw: dict, cookies: es.Cookies | None
+) -> EspnSync:
+    try:
+        info = es.parse_league(raw)
+        rules, notes = from_espn(info.scoring_items)
+    except ValueError as exc:  # includes UnsupportedLeague
+        raise InvalidInput(str(exc)) from exc
+    teams, players = es.parse_teams(raw, info)
+    try:
+        id_map = c.id_map()
+    except Exception as exc:  # the crosswalk is a fallback; Sleeper's ESPN ids cover most players
+        log.warning("DynastyProcess id map unavailable: %s", type(exc).__name__)
+        id_map = None
+    match = espn_to_internal(con, id_map, list(players.values()))
+    if match.unmatched:
+        log.info("%d ESPN player(s) not matched to the local store", len(match.unmatched))
+    league_id = espn_league_id(info.external_id, info.season)
+    deadline = es.deadline_week(info.trade_deadline, _week_starts(con, info.season))
+    now = _now()
+    with transaction(con):
+        prev_mine = con.execute(
+            "SELECT external_roster_id FROM teams WHERE league_id = ? AND is_mine", [league_id]
+        ).fetchone()
+        prof = ensure_profile(con, rules, f"{info.name} (ESPN, {describe(rules)})")
+        league_row = {
+            "league_id": league_id,
+            "platform": "espn",
+            "external_id": info.external_id,
+            "season": info.season,
+            "name": info.name,
+            "num_teams": info.num_teams,
+            "roster_positions": json.dumps(info.roster_positions),
+            "scoring_profile_id": prof,
+            "trade_deadline_week": deadline,
+            "uses_faab": info.uses_faab,
+            "faab_budget": info.faab_budget,
+            "playoff_week_start": info.playoff_week_start,
+            "league_type": info.league_type,
+            "last_synced_at": now,
+            "final_week": info.final_week,
+            "scoring_notes": json.dumps(notes),
+        }
+        upsert(
+            con,
+            "leagues",
+            pl.DataFrame(
+                [league_row],
+                schema_overrides={
+                    "trade_deadline_week": pl.Int32,
+                    "faab_budget": pl.Int32,
+                    "playoff_week_start": pl.Int32,
+                    "final_week": pl.Int32,
+                    "last_synced_at": pl.Datetime("us"),
+                },
+            ),
+        )
+        _placeholder_players(con, match.unmatched)
+        team_rows, spot_rows = [], []
+        for t in teams:
+            tid = espn_team_id(info.external_id, info.season, t.team_id)
+            team_rows.append(
+                {
+                    "team_id": tid,
+                    "league_id": league_id,
+                    "external_roster_id": t.team_id,
+                    "owner_name": t.owner_name,
+                    "team_name": t.team_name,
+                    "is_mine": bool(prev_mine and prev_mine[0] == t.team_id),
+                    "wins": t.wins,
+                    "losses": t.losses,
+                    "points_for": t.points_for,
+                    "faab_remaining": t.faab_remaining,
+                }
+            )
+            spot_rows += [
+                {"team_id": tid, "player_id": match.ids[eid], "slot": slot, "synced_at": now}
+                for eid, slot in t.roster
+            ]
+        replace_where(
+            con,
+            "teams",
+            pl.DataFrame(team_rows, schema_overrides={"faab_remaining": pl.Int32}),
+            "league_id = ?",
+            [league_id],
+        )
+        con.execute(
+            "DELETE FROM roster_spots WHERE team_id IN (SELECT team_id FROM teams WHERE league_id = ?) OR team_id LIKE ?",
+            [league_id, f"{league_id}-%"],
+        )
+        if spot_rows:
+            upsert(con, "roster_spots", pl.DataFrame(spot_rows).unique(["team_id", "player_id"]))
+        if cookies is not None:
+            save_credentials(con, league_id, cookies)
+    _sync_espn_transactions(con, c, info, league_id, cookies)
+    _ensure_market(con, c, rules, info)
+    log_sync(con, f"league:{league_id}", "ok", f"{len(teams)} teams")
+    return EspnSync(league_id, info, rules, teams, match.unmatched, notes)
+
+
+def _sync_espn_transactions(
+    con: duckdb.DuckDBPyConnection,
+    c: Clients,
+    info: es.EspnLeague,
+    league_id: str,
+    cookies: es.Cookies | None,
+) -> None:
+    assert c.espn is not None
+    try:
+        rows = []
+        for w in range(max(1, info.current_week - 1), info.current_week + 1):
+            for t in c.espn.transactions(info.external_id, info.season, cookies, w):
+                created = t.get("proposedDate") or t.get("processDate") or 0
+                rows.append(
+                    {
+                        "league_id": league_id,
+                        "external_id": str(t.get("id")),
+                        "kind": str(t.get("type") or "").lower(),
+                        "week": w,
+                        "created_at": datetime.fromtimestamp(created / 1000),
+                        "payload": json.dumps(t),
+                    }
+                )
+        if rows:
+            upsert(con, "transactions", pl.DataFrame(rows).unique("external_id"))
+    except Exception as exc:  # transactions are informational only (no cookie values in the log)
+        log.warning("transactions sync failed for %s: %s", league_id, type(exc).__name__)
+
+
+def connect_espn(
+    con: duckdb.DuckDBPyConnection,
+    c: Clients,
+    external_id: str,
+    season: int,
+    espn_s2: str | None = None,
+    swid: str | None = None,
+) -> tuple[LeagueChoice, EspnSync]:
+    """Fetch and store an ESPN league (one request has everything), and list its teams to pick."""
+    external_id = external_id.strip()
+    if not external_id.isdigit():
+        raise InvalidInput("The ESPN league ID is the number after leagueId= in your league's URL.")
+    cookies = espn_cookies(c, espn_s2, swid)
+    raw = _fetch_espn(c, external_id, season, cookies, force=True)
+    res = _sync_espn(con, c, raw, cookies)
+    choice = LeagueChoice(
+        league_id=res.league_id,
+        external_id=external_id,
+        name=res.info.name,
+        season=res.info.season,
+        num_teams=res.info.num_teams,
+        scoring=describe(res.rules),
+        roster_positions=res.info.roster_positions,
+        teams=[
+            TeamChoice(
+                t.team_id, t.team_name, t.owner_name, bool(cookies and cookies.swid in t.owner_ids)
+            )
+            for t in res.teams
+        ],
+    )
+    return choice, res
+
+
+def _espn_row(con: duckdb.DuckDBPyConnection, league_id: str) -> tuple[str, int]:
+    row = con.execute(
+        "SELECT external_id, season FROM leagues WHERE league_id = ? AND platform = 'espn'",
+        [league_id],
+    ).fetchone()
+    if row is None:
+        raise NotFound("league", f"League not found: {league_id}")
+    return row[0], int(row[1])
+
+
+def sync_espn_league(
+    con: duckdb.DuckDBPyConnection, c: Clients, league_id: str, force: bool = False
+) -> EspnSync:
+    external_id, season = _espn_row(con, league_id)
+    cookies = load_credentials(con, league_id)
+    raw = _fetch_espn(c, external_id, season, cookies, force=force)
+    return _sync_espn(con, c, raw, cookies)
+
+
+def replace_credentials(
+    con: duckdb.DuckDBPyConnection, c: Clients, league_id: str, espn_s2: str, swid: str
+) -> EspnSync:
+    """Check new cookies against ESPN first; only working cookies replace the saved ones."""
+    external_id, season = _espn_row(con, league_id)
+    cookies = espn_cookies(c, espn_s2, swid)
+    if cookies is None:
+        raise InvalidInput("Paste both cookies: espn_s2 and SWID.")
+    raw = _fetch_espn(c, external_id, season, cookies, force=True)
+    return _sync_espn(con, c, raw, cookies)
 
 
 # ───────── manual ─────────

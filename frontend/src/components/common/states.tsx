@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { AlertTriangle, Inbox, RotateCw } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -15,6 +16,13 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
       <AlertTitle>{p.message}</AlertTitle>
       <AlertDescription className="flex flex-col items-start gap-3">
         <span>{p.hint}</span>
+        {p.action && (
+          <Button size="sm" variant="outline" asChild>
+            <Link to={p.action.to} search={p.action.search}>
+              {p.action.label}
+            </Link>
+          </Button>
+        )}
         {onRetry && (
           <Button size="sm" variant="outline" onClick={onRetry}>
             <RotateCw /> Retry

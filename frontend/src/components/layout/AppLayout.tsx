@@ -47,7 +47,7 @@ function Footer() {
       <a className="underline underline-offset-2" href="https://docs.sleeper.com" target="_blank" rel="noreferrer">
         Sleeper API
       </a>
-      ; NFL stats, play-by-play, schedules &amp; injuries from{' '}
+      ; ESPN league data (read-only, your own login) from fantasy.espn.com; NFL stats, play-by-play, schedules &amp; injuries from{' '}
       <a className="underline underline-offset-2" href="https://github.com/nflverse" target="_blank" rel="noreferrer">
         nflverse
       </a>{' '}

@@ -384,6 +384,112 @@ export type ConnectResponse = {
 };
 
 /**
+ * CredentialsOut
+ *
+ * Saved ESPN cookies, masked: only the last 4 characters ever leave the backend.
+ */
+export type CredentialsOut = {
+    /**
+     * Saved
+     */
+    saved: boolean;
+    /**
+     * Espn S2 Last4
+     */
+    espn_s2_last4: string | null;
+    /**
+     * Swid Last4
+     */
+    swid_last4: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string | null;
+};
+
+/**
+ * CredentialsRequest
+ */
+export type CredentialsRequest = {
+    /**
+     * Espn S2
+     */
+    espn_s2: string;
+    /**
+     * Swid
+     */
+    swid: string;
+};
+
+/**
+ * EspnConnectRequest
+ */
+export type EspnConnectRequest = {
+    /**
+     * League Id
+     *
+     * The leagueId= number
+     */
+    league_id: string;
+    /**
+     * Season
+     *
+     * Defaults to the current NFL season
+     */
+    season?: number | null;
+    /**
+     * Espn S2
+     *
+     * Private leagues only
+     */
+    espn_s2?: string | null;
+    /**
+     * Swid
+     *
+     * Private leagues only
+     */
+    swid?: string | null;
+};
+
+/**
+ * EspnConnectResponse
+ */
+export type EspnConnectResponse = {
+    league: LeagueChoiceOut;
+    /**
+     * Unmatched
+     *
+     * ESPN players we couldn't match to our player data (shown with 0 projection)
+     */
+    unmatched: Array<UnmatchedPlayerOut>;
+    /**
+     * Scoring Notes
+     */
+    scoring_notes: Array<string>;
+    credentials: CredentialsOut;
+};
+
+/**
+ * EspnDefaultsOut
+ *
+ * What the local .env provides, so the Connect form can be pre-filled (never the cookies).
+ */
+export type EspnDefaultsOut = {
+    /**
+     * League Id
+     */
+    league_id: string | null;
+    /**
+     * Cookies In Env
+     */
+    cookies_in_env: boolean;
+    /**
+     * Season
+     */
+    season: number;
+};
+
+/**
  * FlagOut
  */
 export type FlagOut = {
@@ -533,6 +639,12 @@ export type LeagueOut = {
      * Last Synced At
      */
     last_synced_at: string | null;
+    /**
+     * Scoring Notes
+     *
+     * League scoring rules FantasyEdge can't model yet
+     */
+    scoring_notes?: Array<string>;
 };
 
 /**
@@ -1748,6 +1860,28 @@ export type TradeSuggestOut = {
 };
 
 /**
+ * UnmatchedPlayerOut
+ */
+export type UnmatchedPlayerOut = {
+    /**
+     * Espn Id
+     */
+    espn_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Position
+     */
+    position: string | null;
+    /**
+     * Nfl Team
+     */
+    nfl_team: string | null;
+};
+
+/**
  * ValidationError
  */
 export type ValidationError = {
@@ -1799,6 +1933,107 @@ export type ConnectLeagueResponses = {
 };
 
 export type ConnectLeagueResponse = ConnectLeagueResponses[keyof ConnectLeagueResponses];
+
+export type EspnDefaultsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/league/espn/defaults';
+};
+
+export type EspnDefaultsResponses = {
+    /**
+     * Successful Response
+     */
+    200: EspnDefaultsOut;
+};
+
+export type EspnDefaultsResponse = EspnDefaultsResponses[keyof EspnDefaultsResponses];
+
+export type ConnectEspnData = {
+    body: EspnConnectRequest;
+    path?: never;
+    query?: never;
+    url: '/league/espn/connect';
+};
+
+export type ConnectEspnErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConnectEspnError = ConnectEspnErrors[keyof ConnectEspnErrors];
+
+export type ConnectEspnResponses = {
+    /**
+     * Successful Response
+     */
+    200: EspnConnectResponse;
+};
+
+export type ConnectEspnResponse = ConnectEspnResponses[keyof ConnectEspnResponses];
+
+export type GetCredentialsData = {
+    body?: never;
+    path: {
+        /**
+         * League Id
+         */
+        league_id: string;
+    };
+    query?: never;
+    url: '/league/{league_id}/credentials';
+};
+
+export type GetCredentialsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCredentialsError = GetCredentialsErrors[keyof GetCredentialsErrors];
+
+export type GetCredentialsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CredentialsOut;
+};
+
+export type GetCredentialsResponse = GetCredentialsResponses[keyof GetCredentialsResponses];
+
+export type PutCredentialsData = {
+    body: CredentialsRequest;
+    path: {
+        /**
+         * League Id
+         */
+        league_id: string;
+    };
+    query?: never;
+    url: '/league/{league_id}/credentials';
+};
+
+export type PutCredentialsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PutCredentialsError = PutCredentialsErrors[keyof PutCredentialsErrors];
+
+export type PutCredentialsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CredentialsOut;
+};
+
+export type PutCredentialsResponse = PutCredentialsResponses[keyof PutCredentialsResponses];
 
 export type SelectTeamData = {
     body: SelectTeamRequest;

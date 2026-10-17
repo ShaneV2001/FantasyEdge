@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
+import type { ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -25,6 +25,49 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  */
 export const connectLeague = <ThrowOnError extends boolean = false>(options: Options<ConnectLeagueData, ThrowOnError>): RequestResult<ConnectLeagueResponses, ConnectLeagueErrors, ThrowOnError> => (options.client ?? client).post<ConnectLeagueResponses, ConnectLeagueErrors, ThrowOnError>({
     url: '/league/connect',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Espn Defaults
+ *
+ * League ID and whether cookies are set in the local .env (the cookies themselves stay put).
+ */
+export const espnDefaults = <ThrowOnError extends boolean = false>(options?: Options<EspnDefaultsData, ThrowOnError>): RequestResult<EspnDefaultsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<EspnDefaultsResponses, unknown, ThrowOnError>({ url: '/league/espn/defaults', ...options });
+
+/**
+ * Connect Espn
+ *
+ * Connect an ESPN league (private leagues need the espn_s2 and SWID cookies, which are
+ * stored only in the local database). Data flows in from ESPN only; nothing is written there.
+ */
+export const connectEspn = <ThrowOnError extends boolean = false>(options: Options<ConnectEspnData, ThrowOnError>): RequestResult<ConnectEspnResponses, ConnectEspnErrors, ThrowOnError> => (options.client ?? client).post<ConnectEspnResponses, ConnectEspnErrors, ThrowOnError>({
+    url: '/league/espn/connect',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Credentials
+ *
+ * Whether ESPN cookies are saved for this league (last 4 characters only).
+ */
+export const getCredentials = <ThrowOnError extends boolean = false>(options: Options<GetCredentialsData, ThrowOnError>): RequestResult<GetCredentialsResponses, GetCredentialsErrors, ThrowOnError> => (options.client ?? client).get<GetCredentialsResponses, GetCredentialsErrors, ThrowOnError>({ url: '/league/{league_id}/credentials', ...options });
+
+/**
+ * Put Credentials
+ *
+ * Replace expired ESPN cookies. They're checked against ESPN before being saved.
+ */
+export const putCredentials = <ThrowOnError extends boolean = false>(options: Options<PutCredentialsData, ThrowOnError>): RequestResult<PutCredentialsResponses, PutCredentialsErrors, ThrowOnError> => (options.client ?? client).put<PutCredentialsResponses, PutCredentialsErrors, ThrowOnError>({
+    url: '/league/{league_id}/credentials',
     ...options,
     headers: {
         'Content-Type': 'application/json',

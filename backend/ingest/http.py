@@ -32,10 +32,21 @@ USER_AGENT = "FantasyEdge/0.1 (+https://github.com/ShaneV2001/FantasyEdge; non-c
 class SourceUnavailable(RuntimeError):
     """An upstream data source failed and no cached copy could be used."""
 
-    def __init__(self, source: str, detail: str):
+    def __init__(self, source: str, detail: str, status: int | None = None):
         super().__init__(f"{source}: {detail}")
         self.source = source
         self.detail = detail
+        self.status = status  # HTTP status when the source answered with an error
+
+
+class AuthRejected(RuntimeError):
+    """The source refused our credentials (HTTP 401/403). Never answered from cache: a stale copy
+    would hide an expired login."""
+
+    def __init__(self, source: str, status: int):
+        super().__init__(f"{source}: HTTP {status}")
+        self.source = source
+        self.status = status
 
 
 def _is_retryable(exc: BaseException) -> bool:
@@ -78,8 +89,10 @@ class CachedHttp:
         self._lock = threading.Lock()
 
     # ---- cache helpers -------------------------------------------------
-    def _key(self, url: str, params: dict | None) -> Path:
+    def _key(self, url: str, params: dict | list | None, headers: dict | None = None) -> Path:
         raw = url + "?" + json.dumps(params or {}, sort_keys=True)
+        if headers:  # e.g. ESPN's X-Fantasy-Filter selects different data at the same URL
+            raw += "#" + json.dumps(headers, sort_keys=True)
         digest = hashlib.sha1(raw.encode()).hexdigest()[:20]
         return self.cache_dir / f"{digest}.bin"
 
@@ -110,9 +123,21 @@ class CachedHttp:
         stop=stop_after_attempt(4),
         reraise=True,
     )
-    def _fetch(self, url: str, params: dict | None) -> bytes:
+    def _fetch(
+        self,
+        url: str,
+        params: dict | list | None,
+        cookies: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> bytes:
         self._throttle()
-        resp = self.client.get(url, params=params)
+        # Cookies ride on this request only: never on the shared client, the cache key or a log.
+        if cookies:
+            headers = {
+                **(headers or {}),
+                "Cookie": "; ".join(f"{k}={v}" for k, v in cookies.items()),
+            }
+        resp = self.client.get(url, params=params, headers=headers)
         resp.raise_for_status()
         return resp.content
 
@@ -121,28 +146,40 @@ class CachedHttp:
         url: str,
         *,
         source: str,
-        params: dict | None = None,
+        params: dict | list | None = None,
         ttl: timedelta = timedelta(minutes=10),
         force: bool = False,
+        cookies: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> CachedResponse:
-        path = self._key(url, params)
+        path = self._key(url, params, headers)
         cached = self._read_cache(path)
         now = datetime.now(UTC)
         if cached and not force and now - cached.fetched_at < ttl:
             return cached
         try:
-            body = self._fetch(url, params)
+            body = self._fetch(url, params, cookies, headers)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (401, 403):
+                raise AuthRejected(source, exc.response.status_code) from None
+            return self._fallback(source, cached, exc)
         except (httpx.HTTPError, OSError) as exc:
-            if cached:
-                log.warning(
-                    "%s unavailable (%s); serving cache from %s", source, exc, cached.fetched_at
-                )
-                cached.stale = True
-                return cached
-            log.error("%s unavailable and no cache: %s", source, exc)
-            raise SourceUnavailable(source, str(exc)) from exc
+            return self._fallback(source, cached, exc)
         self._write_cache(path, body, now)
         return CachedResponse(body=body, fetched_at=now)
+
+    def _fallback(
+        self, source: str, cached: CachedResponse | None, exc: BaseException
+    ) -> CachedResponse:
+        if cached:
+            log.warning(
+                "%s unavailable (%s); serving cache from %s", source, exc, cached.fetched_at
+            )
+            cached.stale = True
+            return cached
+        log.error("%s unavailable and no cache: %s", source, exc)
+        status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+        raise SourceUnavailable(source, str(exc), status) from exc
 
     def get_json(self, url: str, **kwargs: Any) -> Any:
         return self.get(url, **kwargs).json()

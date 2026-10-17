@@ -21,6 +21,13 @@ class Settings:
     market_source: str
     sleeper_base: str
     fantasycalc_base: str
+    # Optional ESPN defaults from .env (the Connect page can supply them instead)
+    espn_s2: str | None = None
+    espn_swid: str | None = None
+    espn_league_id: str | None = None
+
+    def __repr__(self) -> str:  # never print the ESPN cookies
+        return f"Settings(data_dir={self.data_dir!r}, seasons={self.seasons!r})"
 
     @property
     def db_path(self) -> Path:
@@ -62,4 +69,7 @@ def get_settings() -> Settings:
         market_source=os.getenv("FF_MARKET_SOURCE", "fantasycalc"),
         sleeper_base=os.getenv("FF_SLEEPER_BASE", "https://api.sleeper.app/v1"),
         fantasycalc_base=os.getenv("FF_FANTASYCALC_BASE", "https://api.fantasycalc.com"),
+        espn_s2=os.getenv("ESPN_S2") or None,
+        espn_swid=os.getenv("ESPN_SWID") or None,
+        espn_league_id=os.getenv("ESPN_LEAGUE_ID") or None,
     )

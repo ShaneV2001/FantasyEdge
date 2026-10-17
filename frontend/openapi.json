@@ -48,6 +48,164 @@
         }
       }
     },
+    "/league/espn/defaults": {
+      "get": {
+        "tags": [
+          "league"
+        ],
+        "summary": "Espn Defaults",
+        "description": "League ID and whether cookies are set in the local .env (the cookies themselves stay put).",
+        "operationId": "espn_defaults",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EspnDefaultsOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/league/espn/connect": {
+      "post": {
+        "tags": [
+          "league"
+        ],
+        "summary": "Connect Espn",
+        "description": "Connect an ESPN league (private leagues need the espn_s2 and SWID cookies, which are\nstored only in the local database). Data flows in from ESPN only; nothing is written there.",
+        "operationId": "connect_espn",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EspnConnectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EspnConnectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/league/{league_id}/credentials": {
+      "get": {
+        "tags": [
+          "league"
+        ],
+        "summary": "Get Credentials",
+        "description": "Whether ESPN cookies are saved for this league (last 4 characters only).",
+        "operationId": "get_credentials",
+        "parameters": [
+          {
+            "name": "league_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "League Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "league"
+        ],
+        "summary": "Put Credentials",
+        "description": "Replace expired ESPN cookies. They're checked against ESPN before being saved.",
+        "operationId": "put_credentials",
+        "parameters": [
+          {
+            "name": "league_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "League Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/league/{league_id}/select-team": {
       "post": {
         "tags": [
@@ -1500,6 +1658,197 @@
         ],
         "title": "ConnectResponse"
       },
+      "CredentialsOut": {
+        "properties": {
+          "saved": {
+            "type": "boolean",
+            "title": "Saved"
+          },
+          "espn_s2_last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Espn S2 Last4"
+          },
+          "swid_last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Swid Last4"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "saved",
+          "espn_s2_last4",
+          "swid_last4",
+          "updated_at"
+        ],
+        "title": "CredentialsOut",
+        "description": "Saved ESPN cookies, masked: only the last 4 characters ever leave the backend."
+      },
+      "CredentialsRequest": {
+        "properties": {
+          "espn_s2": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Espn S2"
+          },
+          "swid": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 10,
+            "title": "Swid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "espn_s2",
+          "swid"
+        ],
+        "title": "CredentialsRequest"
+      },
+      "EspnConnectRequest": {
+        "properties": {
+          "league_id": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "League Id",
+            "description": "The leagueId= number"
+          },
+          "season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season",
+            "description": "Defaults to the current NFL season"
+          },
+          "espn_s2": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Espn S2",
+            "description": "Private leagues only"
+          },
+          "swid": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Swid",
+            "description": "Private leagues only"
+          }
+        },
+        "type": "object",
+        "required": [
+          "league_id"
+        ],
+        "title": "EspnConnectRequest"
+      },
+      "EspnConnectResponse": {
+        "properties": {
+          "league": {
+            "$ref": "#/components/schemas/LeagueChoiceOut"
+          },
+          "unmatched": {
+            "items": {
+              "$ref": "#/components/schemas/UnmatchedPlayerOut"
+            },
+            "type": "array",
+            "title": "Unmatched",
+            "description": "ESPN players we couldn't match to our player data (shown with 0 projection)"
+          },
+          "scoring_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scoring Notes"
+          },
+          "credentials": {
+            "$ref": "#/components/schemas/CredentialsOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "league",
+          "unmatched",
+          "scoring_notes",
+          "credentials"
+        ],
+        "title": "EspnConnectResponse"
+      },
+      "EspnDefaultsOut": {
+        "properties": {
+          "league_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "League Id"
+          },
+          "cookies_in_env": {
+            "type": "boolean",
+            "title": "Cookies In Env"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          }
+        },
+        "type": "object",
+        "required": [
+          "league_id",
+          "cookies_in_env",
+          "season"
+        ],
+        "title": "EspnDefaultsOut",
+        "description": "What the local .env provides, so the Connect form can be pre-filled (never the cookies)."
+      },
       "FlagOut": {
         "properties": {
           "kind": {
@@ -1712,6 +2061,14 @@
               }
             ],
             "title": "Last Synced At"
+          },
+          "scoring_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scoring Notes",
+            "description": "League scoring rules FantasyEdge can't model yet"
           }
         },
         "type": "object",
@@ -3943,6 +4300,48 @@
           "ideas"
         ],
         "title": "TradeSuggestOut"
+      },
+      "UnmatchedPlayerOut": {
+        "properties": {
+          "espn_id": {
+            "type": "integer",
+            "title": "Espn Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "nfl_team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nfl Team"
+          }
+        },
+        "type": "object",
+        "required": [
+          "espn_id",
+          "name",
+          "position",
+          "nfl_team"
+        ],
+        "title": "UnmatchedPlayerOut"
       },
       "ValidationError": {
         "properties": {

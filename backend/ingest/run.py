@@ -15,7 +15,7 @@ import polars as pl
 
 from app.config import Settings, get_settings
 from db.conn import connect, log_sync, query_df, replace_where, transaction, upsert
-from ingest import idmap, nflverse, sleeper
+from ingest import espn, idmap, nflverse, sleeper
 from ingest.http import CachedHttp, SourceUnavailable
 from ingest.market_values import (
     DynastyProcessSource,
@@ -33,6 +33,11 @@ class Clients:
     sleeper: sleeper.SleeperClient
     settings: Settings
     _id_map: pl.DataFrame | None = None
+    espn: espn.EspnClient | None = None
+
+    def __post_init__(self) -> None:
+        if self.espn is None:
+            self.espn = espn.EspnClient(self.http)
 
     def id_map(self) -> pl.DataFrame:
         if self._id_map is None:

@@ -98,6 +98,9 @@ class LeagueOut(BaseModel):
     uses_faab: bool
     faab_budget: int | None
     last_synced_at: datetime | None
+    scoring_notes: list[str] = Field(
+        default_factory=list, description="League scoring rules FantasyEdge can't model yet"
+    )
 
 
 class TeamChoiceOut(BaseModel):
@@ -126,6 +129,51 @@ class ConnectRequest(BaseModel):
 class ConnectResponse(BaseModel):
     username: str
     leagues: list[LeagueChoiceOut]
+
+
+class EspnConnectRequest(BaseModel):
+    league_id: str = Field(min_length=1, max_length=20, description="The leagueId= number")
+    season: int | None = Field(None, description="Defaults to the current NFL season")
+    espn_s2: str | None = Field(None, max_length=2000, description="Private leagues only")
+    swid: str | None = Field(None, max_length=100, description="Private leagues only")
+
+
+class CredentialsOut(BaseModel):
+    """Saved ESPN cookies, masked: only the last 4 characters ever leave the backend."""
+
+    saved: bool
+    espn_s2_last4: str | None
+    swid_last4: str | None
+    updated_at: datetime | None
+
+
+class UnmatchedPlayerOut(BaseModel):
+    espn_id: int
+    name: str
+    position: str | None
+    nfl_team: str | None
+
+
+class EspnConnectResponse(BaseModel):
+    league: LeagueChoiceOut
+    unmatched: list[UnmatchedPlayerOut] = Field(
+        description="ESPN players we couldn't match to our player data (shown with 0 projection)"
+    )
+    scoring_notes: list[str]
+    credentials: CredentialsOut
+
+
+class CredentialsRequest(BaseModel):
+    espn_s2: str = Field(min_length=10, max_length=2000)
+    swid: str = Field(min_length=10, max_length=100)
+
+
+class EspnDefaultsOut(BaseModel):
+    """What the local .env provides, so the Connect form can be pre-filled (never the cookies)."""
+
+    league_id: str | None
+    cookies_in_env: bool
+    season: int
 
 
 class SelectTeamRequest(BaseModel):

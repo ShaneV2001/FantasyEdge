@@ -24,5 +24,14 @@ class InvalidInput(ValueError):
     """The request is well-formed but asks for something impossible (HTTP 422)."""
 
 
+class AuthRequired(PermissionError):
+    """A platform refused our login (HTTP 401, body carries `kind` so the UI can say what to do)."""
+
+    def __init__(self, kind: Literal["espn_auth", "espn_private"], detail: str) -> None:
+        super().__init__(detail)
+        self.kind = kind
+        self.detail = detail
+
+
 class NotReady(RuntimeError):
     """Raised when the local store is missing data the request needs (run `tasks.py data`)."""

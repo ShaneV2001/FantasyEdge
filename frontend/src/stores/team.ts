@@ -6,7 +6,7 @@ export interface ConnectedTeam {
   leagueId: string
   teamName: string
   leagueName: string
-  platform: 'sleeper' | 'manual'
+  platform: 'sleeper' | 'espn' | 'manual'
   username?: string
 }
 

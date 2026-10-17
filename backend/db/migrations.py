@@ -57,6 +57,16 @@ MIGRATIONS: list[tuple[int, str]] = [
         "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS pass_yac INTEGER;"
         "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS pass_air_yards INTEGER;",
     ),
+    # v6: ESPN leagues. Login cookies for private leagues stay in this local file only (never
+    # returned by the API except as their last 4 characters); final_week covers ESPN's
+    # multi-week playoff rounds; scoring_notes lists league rules we can't model.
+    (
+        6,
+        "CREATE TABLE IF NOT EXISTS league_credentials ("
+        " league_id VARCHAR PRIMARY KEY, espn_s2 VARCHAR, swid VARCHAR, updated_at TIMESTAMP);"
+        "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS final_week INTEGER;"
+        "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS scoring_notes JSON;",
+    ),
 ]
 
 

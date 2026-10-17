@@ -54,6 +54,13 @@ PTS_ALLOW = (  # (rule key, lowest points allowed in the bracket)
     ("pts_allow_0", 0), ("pts_allow_1_6", 1), ("pts_allow_7_13", 7), ("pts_allow_14_20", 14),
     ("pts_allow_21_27", 21), ("pts_allow_28_34", 28), ("pts_allow_35p", 35),
 )  # fmt: skip
+# ESPN scores points allowed in its own, finer ranges (0, 1-6, 7-13, 14-17, 18-21, 22-27, 28-34,
+# 35-45, 46+). Kept as separate keys so one league's ranges never leak into the other's.
+PTS_ALLOW_ESPN = (
+    ("espn_pts_allow_0", 0), ("espn_pts_allow_1_6", 1), ("espn_pts_allow_7_13", 7),
+    ("espn_pts_allow_14_17", 14), ("espn_pts_allow_18_21", 18), ("espn_pts_allow_22_27", 22),
+    ("espn_pts_allow_28_34", 28), ("espn_pts_allow_35_45", 35), ("espn_pts_allow_46p", 46),
+)  # fmt: skip
 YDS_ALLOW = (
     ("yds_allow_0_100", 0), ("yds_allow_100_199", 100), ("yds_allow_200_299", 200),
     ("yds_allow_300_349", 300), ("yds_allow_350_399", 350), ("yds_allow_400_449", 400),
@@ -64,7 +71,7 @@ DEFENSE: dict[str, float] = {
     "safe": 2.0, "blk_kick": 2.0, "def_2pt": 2.0,
     "pts_allow_0": 10.0, "pts_allow_1_6": 7.0, "pts_allow_7_13": 4.0, "pts_allow_14_20": 1.0,
     "pts_allow_21_27": 0.0, "pts_allow_28_34": -1.0, "pts_allow_35p": -4.0,
-} | {k: 0.0 for k, _ in YDS_ALLOW}  # fmt: skip
+} | {k: 0.0 for k, _ in YDS_ALLOW} | {k: 0.0 for k, _ in PTS_ALLOW_ESPN}  # fmt: skip
 
 DEFAULTS: dict[str, float] = HALF_PPR | dict.fromkeys(EXTRA_KEYS, 0.0) | KICKING | DEFENSE
 RULE_KEYS: tuple[str, ...] = tuple(DEFAULTS)
@@ -224,6 +231,7 @@ def defense_points(r: dict[str, float]) -> pl.Expr:
     is_def = pl.col("position") == "DEF"
     allowed = pl.when(is_def & pl.col("pts_allow").is_not_null()).then(
         _bracket(pl.col("pts_allow"), PTS_ALLOW, r)
+        + _bracket(pl.col("pts_allow"), PTS_ALLOW_ESPN, r)
     ).otherwise(0.0) + pl.when(is_def & pl.col("yds_allow").is_not_null()).then(
         _bracket(pl.col("yds_allow"), YDS_ALLOW, r)
     ).otherwise(0.0)
