@@ -12,10 +12,11 @@ from app.services.context import MARKET_LABEL, LeagueContext
 from projections.base import replacement_ranks
 from scoring.rules import PRESETS, normalize
 from signals import advisor as adv
+from signals import startsit as ss
 from signals import trade as tr
 from signals import waivers as wv
 from signals.byes import RosterEntry, bye_grid
-from signals.lineup import starting_slots
+from signals.lineup import SLOT_ELIGIBILITY, slot_label, starting_slots
 from signals.regression import TDOE_THRESHOLD, USAGE_SHIFT, Z_THRESHOLD, RegressionFlag
 from signals.targets import POSITIONS as TARGET_POSITIONS
 from signals.targets import TargetRow, rank_targets, ros_points, ros_row
@@ -35,6 +36,37 @@ def ros_math(ctx: LeagueContext) -> RosMath:
             inj=ctx.tuning.injury,
         )
     return ctx.memo["math"]
+
+
+def week_math(ctx: LeagueContext) -> RosMath:
+    """Like `ros_math`, but each week uses the matchup-adjusted projections (`ctx.cells`). Used for
+    this week's lineup decisions (My Team's best lineup, start/sit advice, the planner) so they
+    all agree; season-long math (trades, waivers, byes) stays on `ros_math`."""
+    if "week_math" not in ctx.memo:
+        ctx.memo["week_math"] = RosMath(
+            ctx.players,
+            ctx.schedule,
+            ctx.week,
+            ctx.league.last_week,
+            starting_slots(ctx.league.roster_positions),
+            inj=ctx.tuning.injury,
+            weekly={pid: {c.week: c.points for c in cells} for pid, cells in ctx.cells.items()},
+        )
+    return ctx.memo["week_math"]
+
+
+def week_plan(ctx: LeagueContext, team_id: str, week: int | None = None) -> ss.WeekPlan:
+    """A team's real and best lineup for a week (this week by default), locks included."""
+    week = ctx.week if week is None else week
+    key = ("week_plan", team_id, week)
+    if key not in ctx.memo:
+        team = ctx.team(team_id)
+        ctx.memo[key] = ss.plan_week(
+            week_math(ctx), ctx.players, team.player_ids, team.starters, week,
+            locked=ss.locked_players(team.player_ids, ctx.players, ctx.schedule, week),
+            reserved={p for p, s in team.slots.items() if s in ("ir", "taxi")},
+        )  # fmt: skip
+    return ctx.memo[key]
 
 
 def profiles(ctx: LeagueContext) -> dict[str, TeamProfile]:
@@ -193,9 +225,9 @@ def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
     team = ctx.team(team_id)
     profs = profiles(ctx)
     prof = profs.get(team_id)
-    # This week's best lineup: a player on bye (or ruled out) scores 0 and can't be in it. The
-    # full-strength profiles are for grades only.
-    optimal = ros_math(ctx).lineup_for_week(team.player_ids, ctx.week).starters
+    # This week's best lineup (matchup-adjusted): a player on bye or ruled out can't be in it, and
+    # a starter whose game is already final keeps his spot. Full-strength profiles are for grades.
+    optimal = week_plan(ctx, team_id).starters
     slot_of = team.slots
     roster = []
     for pid in team.player_ids:
@@ -567,6 +599,7 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
         profiles=profs,
         byes=_byes_rows(ctx, team_id),
         math=ros_math(ctx),
+        week_plan=week_plan(ctx, team_id),
         week=ctx.week,
         trade_deadline_week=ctx.league.trade_deadline_week,
         trade_ideas=trade_ideas(ctx, team_id),
@@ -919,6 +952,55 @@ def players_table(
         size=size,
         nfl_teams=sorted({t for pid in pool if (t := ctx.players[pid].get("nfl_team"))}),
         market_label=market_label(ctx),
+    )
+
+
+# ───────── start / sit planner ─────────
+
+
+def startsit_view(ctx: LeagueContext, team_id: str, week: int | None = None) -> m.StartSitOut:
+    """Real lineup vs best lineup for a week, with what each slot accepts, for the planner."""
+    team = ctx.team(team_id)
+    week = ctx.week if week is None else week
+    if not ctx.week <= week <= ctx.league.last_week:
+        raise InvalidInput(f"week must be between {ctx.week} and {ctx.league.last_week}")
+    plan = week_plan(ctx, team_id, week)
+    reserved = {p for p, s in team.slots.items() if s in ("ir", "taxi")}
+    players = []
+    for pid in team.player_ids:
+        p = ctx.players.get(pid)
+        if p is None:
+            continue
+        cell = next((c for c in ctx.cells.get(pid, []) if c.week == week), None)
+        code = p.get("nfl_team")
+        players.append(
+            m.StartSitPlayer(
+                player=player_ref(ctx, pid),
+                points=plan.points.get(pid, 0.0),
+                opponent=ctx.schedule.opponent(code, week),
+                matchup_index=cell.index if cell else None,
+                on_bye=bool(code) and not ctx.schedule.has_game(code, week),
+                injury_status=p.get("injury_status"),
+                locked=pid in plan.locked,
+                reserved=pid in reserved,
+            )
+        )
+    players.sort(key=lambda x: -x.points)
+    return m.StartSitOut(
+        team_id=team_id,
+        week=week,
+        weeks=list(range(ctx.week, ctx.league.last_week + 1)),
+        slots=[
+            m.StartSitSlot(slot=s, label=slot_label(s), eligible=sorted(SLOT_ELIGIBILITY[s]))
+            for s in plan.slots
+        ],
+        players=players,
+        current=plan.current,
+        optimal=plan.optimal,
+        current_points=plan.current_points,
+        optimal_points=plan.optimal_points,
+        gap=round(plan.optimal_points - plan.current_points, 2),
+        has_lineup=bool(team.starters),
     )
 
 

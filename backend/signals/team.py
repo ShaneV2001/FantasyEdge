@@ -30,8 +30,12 @@ class RosMath:
         end_week: int,
         slots: Sequence[str],
         inj: InjuryAssumptions = DEFAULT_INJURY,
+        weekly: Mapping[str, Mapping[int, float]] | None = None,
     ):
+        """`weekly`: per-player week -> points to use instead of the flat ppg (e.g. this week's
+        matchup-adjusted projections); players missing from it fall back to ppg x availability."""
         self.players = players
+        self.weekly = weekly or {}
         self.inj = inj
         self.schedule = schedule
         self.start, self.end = start_week, end_week
@@ -42,7 +46,13 @@ class RosMath:
     def week_points(self, pid: str) -> dict[int, float]:
         if pid not in self._weekly:
             p = self.players.get(pid)
-            if p is None:
+            if pid in self.weekly:
+                given, team = self.weekly[pid], (p or {}).get("nfl_team")
+                self._weekly[pid] = {
+                    w: given.get(w, 0.0) if self.schedule.plays(team, w) else 0.0
+                    for w in range(self.start, self.end + 1)
+                }
+            elif p is None:
                 self._weekly[pid] = dict.fromkeys(range(self.start, self.end + 1), 0.0)
             else:
                 self._weekly[pid] = weekly_points(

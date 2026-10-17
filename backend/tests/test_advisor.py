@@ -1,4 +1,5 @@
 from signals import advisor as adv
+from signals.startsit import plan_week
 from signals.team import RosMath, team_profiles
 from tests.builders import schedule
 
@@ -33,6 +34,35 @@ def test_lineup_swaps_stay_position_legal():
     headlines = [a.headline for a in actions]
     assert "Start RB Three over RB Two" in headlines
     assert not any("Kicker" in h for h in headlines)  # no RB-for-K "swap"
+
+
+def test_start_sit_uses_this_weeks_matchups():
+    # two RBs with the same ppg: the matchup-adjusted week points decide who starts
+    players = {
+        "qb": P("QB", "QB", 20),
+        "rb1": P("RB One", "RB", 15),
+        "soft": P("Soft Matchup", "RB", 10),
+        "tough": P("Tough Matchup", "RB", 10),
+    }
+    sched = schedule(["AAA"], weeks=17)
+    inp = _inputs(players, list(players), ["qb", "rb1", "tough"], sched)
+    assert adv.lineup_actions(inp) == []  # flat ppg: a tie, no swap worth suggesting
+    weekly = {"soft": {5: 13.0}, "tough": {5: 7.5}}
+    week_math = RosMath(players, sched, 5, 17, SLOTS, weekly=weekly)
+    inp.week_plan = plan_week(week_math, players, list(players), ["qb", "rb1", "tough"], 5)
+    (swap,) = adv.lineup_actions(inp)
+    assert swap.headline == "Start Soft Matchup over Tough Matchup"
+    assert "13.0 vs 7.5" in swap.reasons[0]
+
+
+def test_weekly_points_override_flat_ppg():
+    players = {"a": P("A", "RB", 10), "b": P("B", "RB", 10)}
+    sched = schedule(["AAA"], weeks=17)
+    math = RosMath(players, sched, 5, 7, ["RB"], weekly={"a": {5: 14.0, 6: 4.0}})
+    assert math.week_points("a") == {5: 14.0, 6: 4.0, 7: 0.0}  # a missing week counts as 0
+    assert math.week_points("b") == {5: 10.0, 6: 10.0, 7: 10.0}  # not given: ppg each week
+    assert math.lineup_for_week(["a", "b"], 5).starters == {"a"}
+    assert math.lineup_for_week(["a", "b"], 6).starters == {"b"}
 
 
 def test_no_lineup_advice_without_starters():

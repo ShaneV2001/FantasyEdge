@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 
 from signals.byes import ByeWeekRow
 from signals.lineup import SLOT_ELIGIBILITY, fit_to_slots
+from signals.startsit import WeekPlan, plan_week
 from signals.team import RosMath, TeamProfile
 from signals.trade import TradeEvaluation
 from signals.verdict import GAP_MIN_POINTS, GAP_MIN_SHARE
@@ -66,6 +67,7 @@ class AdvisorInputs:
     free_agents: Sequence[str] | None  # None when the player pool is unknown (manual league)
     regression_messages: Mapping[str, list[str]]
     waivers: Sequence[WaiverPick] = ()  # ranked pickups (signals.waivers), best net gain first
+    week_plan: WeekPlan | None = None  # this week's real vs best lineup (signals.startsit)
     market_label: str = "Market"
     playoff_label: str = "weeks 15-17"
     waiver_min_gain: float = WAIVER_MIN_GAIN
@@ -96,13 +98,15 @@ def lineup_actions(inp: AdvisorInputs) -> list[Action]:
     if not inp.starters:
         return []
     my = list(inp.rosters[inp.my_team_id])
-    best = inp.math.lineup_for_week(my, inp.week)
-    best_ids = best.starters
+    plan = inp.week_plan or plan_week(inp.math, inp.players, my, inp.starters, inp.week)
+    best_ids, pts = plan.starters, plan.points
     current = [p for p in inp.starters if p in inp.players]
-    pts = {p: inp.math.week_points(p)[inp.week] for p in my}
     actions = []
     benched_better = sorted((p for p in best_ids if p not in current), key=lambda p: -pts[p])
-    sat = sorted((p for p in current if p not in best_ids), key=lambda p: pts[p])
+    # a starter whose game is already final can't be benched
+    sat = sorted(
+        (p for p in current if p not in best_ids and p not in plan.locked), key=lambda p: pts[p]
+    )
     pos = {p: inp.players[p]["position"] for p in my if p in inp.players}
     lineup = list(current)
     pairs = []

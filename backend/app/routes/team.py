@@ -91,6 +91,18 @@ def get_rankings(
     return views.rankings_view(ctx, team_id, top)
 
 
+@router.get("/{team_id}/startsit", response_model=m.StartSitOut)
+def get_startsit(
+    team_id: str,
+    week: int | None = Query(None, ge=1, le=18, description="Default: this week"),
+    ctx: LeagueContext = Depends(team_ctx),
+) -> m.StartSitOut:
+    """Your real lineup and the best lineup for a week (matchup-adjusted projections), with the
+    positions each slot accepts and who is locked (game already final) or on IR. Read-only: the
+    planner never changes your lineup on the platform."""
+    return views.startsit_view(ctx, team_id, week)
+
+
 @router.get("/{team_id}/waivers", response_model=m.WaiversOut)
 def get_waivers(
     team_id: str,

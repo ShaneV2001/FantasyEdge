@@ -860,3 +860,65 @@ def test_waivers_for_a_manual_team(client):
     body = tc.get(f"/team/{team_id}/waivers").json()
     assert body["rows"] == [] and "Connect your Sleeper or ESPN league" in body["message"]
     assert not body["faab"]["uses_faab"] and body["faab"]["remaining"] is None
+
+
+def test_startsit_agrees_with_my_team_and_the_advisor(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    plan = tc.get(f"/team/{team_id}/startsit").json()
+    team = tc.get(f"/team/{team_id}").json()
+    assert plan["week"] == team["league"]["week"] and plan["weeks"][0] == plan["week"]
+    assert len(plan["current"]) == len(plan["optimal"]) == len(plan["slots"])
+    assert plan["has_lineup"]
+    slots = [s["slot"] for s in plan["slots"]]
+    assert slots == [s for s in team["league"]["roster_positions"] if s not in ("BN", "IR", "TAXI")]
+    flex = next(s for s in plan["slots"] if s["slot"] == "FLEX")
+    assert flex["eligible"] == ["RB", "TE", "WR"] and flex["label"] == "FLEX"
+
+    # the planner's best lineup is My Team's "best lineup", and the real lineup is the platform's
+    best = {p for p in plan["optimal"] if p}
+    assert best == {p["player_id"] for p in team["roster"] if p["optimal_starter"]}
+    real = {p for p in plan["current"] if p}
+    platform = {p["player_id"] for p in team["roster"] if p["slot"] == "starter"}
+    # (the fixture's starters aren't a legal lineup: ones that fit no open slot sit on the bench)
+    assert real and real <= platform
+    points = {p["player"]["player_id"]: p["points"] for p in plan["players"]}
+    assert plan["optimal_points"] == pytest.approx(sum(points[p] for p in best), abs=0.05)
+    assert plan["gap"] == pytest.approx(plan["optimal_points"] - plan["current_points"], abs=0.01)
+    assert plan["gap"] >= 0
+
+    # every Advisor start/sit card starts someone from the best lineup over a real starter
+    advice = tc.get(f"/team/{team_id}/advice").json()["actions"]
+    for a in advice:
+        if a["type"] == "Lineup":
+            start, sit = (p["player_id"] for p in a["players"])
+            assert start in best and sit in platform and sit not in best
+
+    later = tc.get(f"/team/{team_id}/startsit", params={"week": plan["weeks"][-1]}).json()
+    assert later["week"] == plan["weeks"][-1] and not any(p["locked"] for p in later["players"])
+    assert tc.get(f"/team/{team_id}/startsit", params={"week": 1}).status_code == 422
+
+
+def test_startsit_locks_players_whose_game_is_final(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    plan = tc.get(f"/team/{team_id}/startsit").json()
+    ctx = context.get_context(deps._con, f"sl-{LEAGUE}")
+    # a starter whose team plays this week (one on bye has no game to finish)
+    starter = next(
+        p
+        for p in sorted(x for x in plan["current"] if x)
+        if ctx.schedule.has_game(ctx.players[p]["nfl_team"], ctx.week)
+    )
+    nfl = ctx.players[starter]["nfl_team"]
+    ctx.schedule = dataclasses.replace(
+        ctx.schedule, completed=ctx.schedule.completed | {(nfl, ctx.week)}
+    )
+    ctx.memo.clear()
+    plan = tc.get(f"/team/{team_id}/startsit").json()
+    row = next(p for p in plan["players"] if p["player"]["player_id"] == starter)
+    assert row["locked"] and row["points"] == 0
+    i = plan["current"].index(starter)
+    assert plan["optimal"][i] == starter  # already played: he keeps his slot
+    team = tc.get(f"/team/{team_id}").json()
+    assert next(p for p in team["roster"] if p["player_id"] == starter)["optimal_starter"]

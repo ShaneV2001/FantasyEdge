@@ -681,6 +681,37 @@ class WaiversOut(BaseModel):
     message: str | None = None
 
 
+class StartSitSlot(BaseModel):
+    slot: str = Field(description="Lineup slot key (QB, RB, FLEX, SUPER_FLEX, ...)")
+    label: str
+    eligible: list[str] = Field(description="Positions that can fill it")
+
+
+class StartSitPlayer(BaseModel):
+    player: PlayerRef
+    points: float = Field(description="Projected points this week (matchup-adjusted; 0 if done)")
+    opponent: str | None = None
+    matchup_index: float | None = Field(None, description=">1 = easier than average")
+    on_bye: bool
+    injury_status: str | None = None
+    locked: bool = Field(description="His game this week is already final: he can't be moved")
+    reserved: bool = Field(description="On IR or taxi: can't be started")
+
+
+class StartSitOut(BaseModel):
+    team_id: str
+    week: int
+    weeks: list[int] = Field(description="Weeks you can plan")
+    slots: list[StartSitSlot]
+    players: list[StartSitPlayer]
+    current: list[str | None] = Field(description="Your real lineup, one player id per slot")
+    optimal: list[str | None] = Field(description="The best lineup, one player id per slot")
+    current_points: float
+    optimal_points: float
+    gap: float = Field(description="optimal_points - current_points")
+    has_lineup: bool = Field(description="False when the platform gave no starters (manual team)")
+
+
 class PlayersTableOut(BaseModel):
     team_id: str
     rows: list[PlayerTableRow]
