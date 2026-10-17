@@ -7,25 +7,27 @@
 
 ![The Advisor page: team grades by position and a ranked list of recommended moves](docs/screenshots/advisor.png)
 
-Connect your Sleeper league (or enter a roster by hand) and FantasyEdge gives you:
+Connect your **Sleeper** or **ESPN** league (private ESPN leagues included), or enter a roster by
+hand, and FantasyEdge gives you:
 
 | Page | What you get |
 |---|---|
 | **Advisor** | A ranked list of 5–10 concrete moves (trade, sell, buy, waiver, lineup, bye prep), each with the numbers behind it, an urgency and a confidence level. |
-| **My Team** | Your roster with projections, rest-of-season value and a buy/hold/sell verdict for every player, plus team grades for QB, RB, WR, TE, K, DEF and each flex slot against the rest of your league. |
+| **My Team** | Your roster with projections, rest-of-season value and a buy/hold/sell verdict for every player, this week's best lineup (players on bye or ruled out are tagged and left out), plus team grades for QB, RB, WR, TE, K, DEF and each flex slot against the rest of your league. |
 | **Rankings** | The top 10 at every position for each upcoming week and for the rest of the season, adjusted for schedule. |
 | **Buy targets** | Players the market undervalues that you don't own (would-be starters first, then bench depth and sleepers), and your own players it overvalues. |
 | **Player pages** | Headshot and bio, the verdict and why, projected vs actual points for every week, upcoming matchups, a game log, and an **Analytics** card: snap %, target and rush share, air yards, WOPR, aDOT, efficiency, yards after catch and red-zone work over the last 3 games, last 5 or the season. |
 | **Byes** | A week-by-week grid of which lineup slots you can and can't fill, with "danger weeks" flagged before they arrive. |
-| **Trade** | A trade analyzer, plus 1-for-1 and 2-for-1 ideas where *both* teams' starting lineups improve, judged on rest-of-season lineup points rather than raw player value. |
+| **Trade** | **Trade ideas** where *both* starting lineups improve (ask for a fresh set any time), **Find a trade** ("these two players for a running back": every team searched), and an **Analyzer** for any deal. Each deal shows who would have to be dropped to make room and how every remaining week changes, bye weeks included. |
 | **Settings** | Tune the projection weights, buy/sell thresholds, injury assumptions and advisor rules, with the backtest-tuned defaults one click away. |
 
 Under the hood:
-- **Your league's scoring:** every stat line is re-scored under your Sleeper scoring settings, including kickers and team defense.
+- **Your league's scoring:** every stat line is re-scored under your league's own scoring settings (Sleeper or ESPN), including kickers and team defense.
 - **Measured accuracy:** a walk-forward backtest over 2023–2025 picked the projection weights and the schedule adjustment, and every number is published below.
 - **Regression flags:** who is scoring on unsustainable touchdowns or efficiency, and how well those flags have actually predicted declines.
 
-Everything runs locally on free, public data. There are no accounts, API keys or paid services.
+Everything runs on your computer with free data. There are no accounts, API keys or paid services.
+Data only flows **in**: FantasyEdge never changes anything on Sleeper or ESPN.
 
 ### Screenshots
 
@@ -46,9 +48,9 @@ Everything runs locally on free, public data. There are no accounts, API keys or
 
 **Settings**: every weight and threshold, with the backtest-tuned defaults
 
-> **Project status:** the team advisor, rankings, buy/sell verdicts, player pages with analytics and
-> settings all work end to end on live Sleeper + nflverse + FantasyCalc data, with CI on every
-> push. Projections are transparent formulas tuned by backtest; a machine-learning model replaces
+> **Project status:** the team advisor, rankings, buy/sell verdicts, player pages with analytics,
+> trades and settings all work end to end on live Sleeper or ESPN + nflverse + FantasyCalc data,
+> with CI on every push. Projections are transparent formulas tuned by backtest; a machine-learning model replaces
 > them only if it beats them on a held-out season (see [Roadmap](#roadmap)).
 
 ---
@@ -56,6 +58,7 @@ Everything runs locally on free, public data. There are no accounts, API keys or
 ## Contents
 
 - [Screenshots](#screenshots)
+- [Connecting your league](#connecting-your-league)
 - [How it works](#how-it-works)
 - [Quick start](#quick-start)
 - [Project layout](#project-layout)
@@ -67,6 +70,41 @@ Everything runs locally on free, public data. There are no accounts, API keys or
 
 ---
 
+## Connecting your league
+
+Open the **Connect** page and pick a tab.
+
+**Sleeper:** enter your Sleeper username, choose the league, and pick your team. Nothing else is
+needed: Sleeper's API is public.
+
+**ESPN:** enter your **League ID** (the number after `leagueId=` in your league's web address) and
+the season. A **public** league needs nothing more. A **private** league also needs two login
+cookies from your browser:
+1. On a computer, log in at fantasy.espn.com and open your league.
+2. Open the browser's developer tools (F12).
+3. **Chrome / Edge:** *Application* tab → *Cookies* → `https://fantasy.espn.com`.
+   **Firefox:** *Storage* tab → *Cookies* → `https://fantasy.espn.com`.
+4. Copy the values of `espn_s2` and `SWID` (keep SWID's curly braces) into the form.
+
+Your team is recognised from your SWID. You can also put the three values in your local `.env` file
+(`ESPN_LEAGUE_ID`, `ESPN_S2`, `ESPN_SWID`) and leave the cookie fields empty.
+
+- **Where the cookies go:** they're stored only in the database on your computer and are only ever
+  sent to ESPN. They're never logged, and the app only shows their last 4 characters.
+- **When they expire** (every few months), you'll see "Your ESPN login has expired — paste fresh
+  cookies". Copy new ones the same way and use **Replace cookies** on the ESPN tab.
+- **Your league's settings** come across as-is: lineup slots, scoring, trade deadline, playoff weeks
+  and FAAB. Any rostered player we can't match to our player data is listed, not silently dropped.
+- ESPN doesn't publish an official API. FantasyEdge reads the same data the ESPN website loads
+  (`lm-api-reads.fantasy.espn.com`), read-only, with your own login.
+
+**Manual entry:** build a roster for any platform (league size, lineup, scoring, bench and IR) and
+edit it later from My Team.
+
+The sidebar's **Update** button re-pulls your Sleeper or ESPN rosters at any time.
+
+---
+
 ## How it works
 
 Every number in FantasyEdge comes from a formula you can read and change. The constants live at the
@@ -74,14 +112,21 @@ top of each module, nothing is hidden inside a model, and the ones you'd most wa
 the [Settings](#settings) page.
 
 ### League-aware scoring
-Your Sleeper `scoring_settings` are read directly and every historical stat line is re-scored under
+Your league's scoring settings are read directly and every historical stat line is re-scored under
 them, so the same player has a different value in a PPR league than in a standard one. A setting your
-league doesn't list is worth 0, as it is on Sleeper. Supported: passing, rushing and receiving yards,
+league doesn't list is worth 0, as it is on Sleeper and ESPN. Supported: passing, rushing and receiving yards,
 TDs and receptions; TE/RB/WR reception bonuses; interceptions and pick-sixes; sacks taken; fumbles
 and fumbles lost; first downs; 2-point conversions; the 100/200/300/400-yard and 25-completion
 bonuses; kicking by distance, FG yards, misses and PATs; and team defense (sacks, takeaways, TDs,
 safeties, blocked kicks, points- and yards-allowed brackets). Other keys are ignored and logged.
 Manual leagues can pick Standard, Half-PPR or PPR (with Sleeper's standard K/DEF scoring).
+
+**ESPN leagues:** ESPN's scoring rules (including per-position values, such as a tight-end reception
+bonus) are converted to the same rules. ESPN's yardage bonuses don't stack (a 250-yard game earns
+only the 200+ bonus), and its D/ST points-allowed ranges differ from Sleeper's (14–17, 18–21, 22–27,
+35–45, 46+); both are handled exactly. Checked against a real league: every rostered player's
+weekly stat line scores the same as ESPN's own total. The few rules that can't be modelled from
+public stats (for example a 1-point safety) are listed on the Connect page as scored 0.
 
 ### Projections
 ```
@@ -199,12 +244,32 @@ each slot **ok**, **thin** (only a below-replacement option) or **empty**. A **d
 one where a slot is worse than it is at full strength, so a position that's weak all season doesn't
 flag every week.
 
+**This week's best lineup** (top of My Team, and the Advisor's start/sit advice) only uses players
+who play this week: anyone on bye or ruled out is tagged **BYE** / **OUT** and left on the bench. When
+a bye leaves a slot short, the Advisor suggests a free agent for **each** short slot (for example a
+WR *and* a D/ST), not just the highest scorer.
+
 ### Trades
 Each trade is scored by its effect on **both teams' rest-of-season starting-lineup points**,
 recomputed week by week with byes and injuries included. Model value and FantasyCalc market value are
-shown alongside. The trade finder only suggests deals where both sides gain and the market values
-are close enough that the other manager might accept. Trade advice is hidden once your league's
-trade deadline passes.
+shown alongside.
+
+- **Roster spots:** if a trade leaves a team over its roster limit (starting + bench spots), it has
+  to drop someone. FantasyEdge drops whoever costs that lineup the fewest points (never a player just
+  acquired), shows it as **Must drop**, and counts it in the result. Injured players sit on IR while
+  the team has an open IR spot.
+- **Bye weeks:** every remaining week is checked for both teams. Each card shows the week-by-week
+  change, and weeks a deal would leave a lineup slot unfilled are marked in red.
+- **Trade ideas** are 1-for-1 and 2-for-1 deals where both lineups gain after any drops, neither team
+  is left short in a week it can fill today, and the market values are close enough that the other
+  manager might accept. **Show different ideas** pages through new deals without repeats;
+  **Refresh** re-syncs your league first.
+- **Find a trade:** pick 1–3 of your players and the position you want back (or any), 1 or 2
+  players. Every team is searched for deals that improve your lineup. Deals the other lineup also
+  likes come first; the rest are marked **Unlikely to accept**. Any idea opens in the **Analyzer**
+  to adjust.
+- Trade ideas are hidden once your league's trade deadline passes (the analyzer still works for
+  what-ifs).
 
 ### The advisor feed
 Candidate actions are ranked by:
@@ -268,8 +333,9 @@ All data lives in `data/` (gitignored): a single DuckDB file, an HTTP response c
 > DuckDB allows one writing process at a time, so stop the API before running `python tasks.py data`
 > (or use the **Update** button / `POST /refresh` while it's running).
 
-**Using it:** open http://localhost:5173, enter your Sleeper username, pick your league and team, and
-the Advisor page opens. The **Update** button in the sidebar re-pulls rosters and transactions.
+**Using it:** open http://localhost:5173, connect your Sleeper or ESPN league (see
+[Connecting your league](#connecting-your-league)), pick your team, and the Advisor page opens. The
+**Update** button in the sidebar re-pulls rosters and transactions.
 
 ---
 
@@ -279,9 +345,9 @@ the Advisor page opens. The **Update** button in the sidebar re-pulls rosters an
 backend/
   app/          FastAPI app, Pydantic schemas, services (league sync, cached league context),
                 user_settings.py (the Settings values and data/settings.json)
-  ingest/       sleeper.py, nflverse.py, market_values.py, idmap.py, http.py (retry + cache)
+  ingest/       sleeper.py, espn.py, nflverse.py, market_values.py, idmap.py, http.py (retry + cache)
   db/           DuckDB schema (v1 baseline) + ordered migrations
-  scoring/      league scoring rules → fantasy points
+  scoring/      league scoring rules → fantasy points; espn.py converts ESPN scoring settings
   projections/  engine interface, phase-1 baseline, naive comparison engines, positional norms
   models/       walk-forward backtest, regression-flag evaluation, tuning CLI
   signals/      regression, byes, lineup optimizer, team grades, trades, advisor
@@ -290,7 +356,8 @@ frontend/       Vite + React + TypeScript + shadcn/ui, TanStack Router/Query, Zu
   src/api/      generated typed client + TanStack Query hooks (python tasks.py gen-api)
   src/routes/   connect, advisor, team, byes, rankings, buy-targets, player, trade, settings pages
   src/components/player/  analytics card, matchups, badges
-scripts/        fixture recorder
+  src/components/connect/ ESPN connect form, league/team picker
+scripts/        fixture recorders (the ESPN one anonymises a real league before saving it)
 .github/        CI: backend lint + tests, frontend lint + typecheck + tests, API-client drift check
 ```
 
@@ -306,6 +373,9 @@ FastAPI serves interactive docs at `http://localhost:8000/docs`. Endpoints:
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/league/connect` | Sleeper username → your leagues and teams |
+| POST | `/league/espn/connect` | ESPN league ID + season (+ cookies for a private league) → the league and its teams |
+| GET / PUT | `/league/{id}/credentials` | Saved ESPN cookies, masked (last 4 characters) / replace them (checked with ESPN first) |
+| GET | `/league/espn/defaults` | League ID and whether cookies are set in your local `.env` (never the cookies) |
 | POST | `/league/{id}/select-team` | Mark which team is yours |
 | POST | `/league/manual` | Create a league from a hand-entered roster |
 | GET | `/team/{id}` | Roster with projections, values, grades by position |
@@ -316,7 +386,8 @@ FastAPI serves interactive docs at `http://localhost:8000/docs`. Endpoints:
 | GET | `/team/{id}/buy-targets` | Undervalued players to buy and your overvalued players, per position |
 | GET | `/team/{id}/players/{player_id}` | Player page: bio, verdict, game log, projected vs actual by week, L3/L5/season analytics |
 | POST | `/trade/evaluate` | Score a proposed trade for both sides |
-| GET | `/trade/suggest` | Mutually beneficial trade ideas |
+| GET | `/trade/suggest?page=` | Mutually beneficial trade ideas; each page is new deals |
+| POST | `/trade/find` | Deals for players you name, for a position you want (1 or 2 players back) |
 | POST | `/refresh` | Re-sync league, market or all data |
 | GET | `/settings` | Every setting: value, default, range, help text (and a warning if `settings.json` was unreadable) |
 | PUT | `/settings` | Change some settings, e.g. `{"gap_min_points": 15}`; out-of-range values get a 422 |
@@ -330,11 +401,13 @@ FastAPI serves interactive docs at `http://localhost:8000/docs`. Endpoints:
 | Source | Used for | Terms |
 |---|---|---|
 | [Sleeper API](https://docs.sleeper.com) | Leagues, rosters, players, trending adds/drops | Free for non-commercial use. FantasyEdge stays far below the rate limit and fetches the player map at most once per day. Trending data is credited to Sleeper wherever it's shown. |
+| ESPN Fantasy (fantasy.espn.com) | Your ESPN league: settings, scoring, rosters, records, transactions | Read-only, with your own login cookies for a private league. No official public API; FantasyEdge reads the same data the ESPN site loads and never writes to it. |
 | [nflverse](https://github.com/nflverse) via [`nflreadpy`](https://github.com/nflverse/nflreadpy) | Weekly stats, play-by-play (red-zone splits), snap counts, schedules, injuries | Data licensed **CC-BY 4.0**; FTN charting data **CC-BY-SA 4.0**. |
 | [FantasyCalc](https://fantasycalc.com) | Crowd-sourced trade market values | Unofficial endpoint, cached for 24 h; the app falls back gracefully if it changes. |
 | [DynastyProcess data](https://github.com/dynastyprocess/data) | Player ID crosswalk (Sleeper ↔ nflverse ↔ ESPN/Yahoo), fallback market values | Open data repository. |
 
-FantasyEdge does not scrape any website. It uses only public APIs and published data files.
+FantasyEdge does not scrape web pages. It uses public APIs, published data files and, for ESPN,
+the JSON data the ESPN site itself loads for your league.
 
 ---
 
@@ -344,8 +417,10 @@ FantasyEdge does not scrape any website. It uses only public APIs and published 
 |---|---|---|
 | 1 | **Team Advisor MVP**: ingestion, rule-based projections, regression report, bye planner, trade analyzer and finder, advisor feed; Connect, Advisor, My Team, Byes and Trade pages | ✅ done |
 | 1.5 | **Measured and tuned**: walk-forward backtest, tuned baseline, K/DEF projections, schedule adjustment, one verdict per player, Rankings, Buy targets, player pages with analytics, team grades for every slot, Settings, CI | ✅ done |
+| 1.75 | **ESPN and smarter trades**: ESPN leagues (private too), this week's best lineup and bye advice, trades that account for roster spots and both teams' byes, more trade ideas on demand, the trade finder | ✅ done |
+| 1.9 | **Rest of this round**: Players table, saved teams with a team switcher, page-scroll fix after the player menus, a shorter regression report, Waivers page, Start/Sit lineup planner | in progress |
 | 2 | **Better projections** (each change ships only if the 2025 holdout improves) | next |
-| 3 | **Waivers and trades** | planned |
+| 3 | **Waivers** | planned |
 | 4 | **More leagues and easier running** | planned |
 
 **Phase 2: better projections**
@@ -359,17 +434,26 @@ FantasyEdge does not scrape any website. It uses only public APIs and published 
   0 until they play.
 - A LightGBM model with quantile bands, swapped in only if it beats the tuned baseline.
 
-**Phase 3: waivers and trades**
+**In progress (this round)**
+- **Players** page: every player, searchable, filtered by position, team and who owns him, sortable by
+  projection, value, market value and verdict; filters kept in the URL.
+- **Saved teams**: manual teams, Sleeper and ESPN connections kept between sessions, with a team
+  switcher in the sidebar.
+- **Page scroll fix** after using the player menus, with a browser test.
+- **Shorter regression report**: the 20 strongest flags first, filters, "show more".
+- **Waivers** page: best free agents for *your* lineup, the suggested drop, a FAAB bid range, and
+  Sleeper trending adds.
+- **Start/Sit** planner: this week's best lineup, drag-and-drop what-ifs with undo/redo, and a copyable
+  lineup (changes never touch Sleeper or ESPN).
+
+**Phase 3: waivers**
 - FAAB bid ranges, informed by Sleeper's trending adds and drops.
 - Waiver pickups that would upgrade your bench, not just your starters.
-- Trades that account for roster spots, so a 2-for-1 frees a slot for a waiver pickup.
-- Check suggested trades against your bye-week danger weeks.
 
 **Phase 4: more leagues and easier running**
-- ESPN and Yahoo league connectors.
+- Yahoo league connector.
 - Background data refresh with a progress indicator, incremental play-by-play downloads, and a
   data-freshness panel.
-- Switching between several of your teams.
 - Docker Compose.
 
 ---

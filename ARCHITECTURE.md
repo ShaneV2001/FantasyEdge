@@ -46,11 +46,12 @@
 flowchart LR
   subgraph Sources
     S[Sleeper API]
+    E[ESPN Fantasy, read-only]
     N[nflverse / nflreadpy]
     F[FantasyCalc]
     D[DynastyProcess CSVs]
   end
-  S & N & F & D --> I[ingest/*] --> R[(raw tables)]
+  S & E & N & F & D --> I[ingest/*] --> R[(raw tables)]
   R --> FE[features/*] --> FT[(player_week_features)]
   FT --> TR[models/train] --> MR[(model_runs)]
   FT --> SC[models/score] --> PJ[(projections)]
@@ -265,6 +266,14 @@ existing `ff.duckdb` picks up new columns when it is opened.
 - v2 `leagues.league_type`: redraft / keeper / dynasty (from Sleeper `settings.type`); dynasty leagues use dynasty market values.
 - v3 `player_week_stats`: `pass_fd`, `rush_fd`, `rec_fd`, `fumbles`, `sacks_taken`, `pass_int_td` (from play-by-play), and `pass_2pt` / `rush_2pt` / `rec_2pt`. Older `two_pt` totals are still scored.
 - v4 `player_week_stats`: kicking (`fgm_0_19` … `fgm_60p`, `fgmiss`, `fgm_yds`, `xpm`, `xpmiss`) and team defense (`def_sack`, `def_int`, `def_fum_rec`, `def_ff`, `def_td`, `def_st_td`, `def_safe`, `def_blk_kick`, `def_2pt`, `pts_allow`, `yds_allow`). DEF rows use player_id `sl:<TEAM>`, Sleeper's DEF id.
+- v5 `player_week_stats`: `rec_yac`, `pass_yac`, `pass_air_yards` (player-page analytics).
+- v6 ESPN leagues: `league_credentials (league_id PK, espn_s2, swid, updated_at)` holds a private
+  ESPN league's login cookies in the local file only (the API returns just their last 4
+  characters); `leagues.final_week` (ESPN playoff rounds can be 2 weeks long) and
+  `leagues.scoring_notes` (league scoring rules that can't be modelled, shown to the user).
+  ESPN league ids are `es-<leagueId>-<season>`, teams `es-<leagueId>-<season>-<teamId>`; ESPN
+  players map to internal ids via Sleeper's `espn_id`, then the DynastyProcess crosswalk, then name +
+  team + position (D/ST → `sl:<TEAM>`), and unmatched players get a name-only `espn:<id>` row.
 - `model_runs` now holds walk-forward backtest results: one row per engine, with metrics by position for all players and the fantasy-relevant subset. The `projections` table is not written yet (Phase 2).
 
 **Key decisions**
@@ -281,6 +290,8 @@ existing `ff.duckdb` picks up new columns when it is opened.
 | GET | `/players?pos=&q=&sort=&profile=` | Paged player list with projection, value, market, signal |
 | GET | `/players/{id}?profile=` | Player detail: weekly history, usage trends, projection band, reasons |
 | POST | `/league/connect` `{platform, username}` | User's leagues for selection |
+| POST | `/league/espn/connect` `{league_id, season?, espn_s2?, swid?}` | ESPN league + its teams; cookies saved locally, returned masked |
+| GET / PUT | `/league/{id}/credentials` | Masked ESPN cookies / replace them (validated against ESPN first). 401 `kind=espn_auth` when they expire |
 | POST | `/league/{id}/select-team` `{external_roster_id}` | Marks `is_mine`, syncs |
 | POST | `/league/manual` `{name, num_teams, roster_positions, scoring, player_ids, starters?, ir?}` | Creates manual league/team. `roster_positions` carries any bench (`BN`) / `IR` depth; `starters`/`ir` assign roles (validated against the slots) |
 | PUT | `/team/{id}/roster` (same body as `/league/manual`) | Edit a manual team: settings, players and starter/bench/IR roles. Sleeper teams sync from Sleeper instead |
@@ -291,7 +302,8 @@ existing `ff.duckdb` picks up new columns when it is opened.
 | GET | `/team/{id}/startsit?week=` | Optimal lineup + alternatives |
 | GET | `/team/{id}/waivers` | Ranked adds, suggested drops, FAAB range |
 | POST | `/trade/evaluate` `{team_id, give[], receive[]}` | Value both sides, lineup delta ROS, verdict. If `receive` players aren't on a league roster (manual teams, free agents, other leagues) it's a *hypothetical* trade and `partner` is null |
-| GET | `/trade/suggest?team_id=` | Mutually beneficial trade ideas |
+| GET | `/trade/suggest?team_id=&page=` | Mutually beneficial trade ideas after forced drops, never leaving either team short in a bye week; each page is new deals (`has_more`) |
+| POST | `/trade/find` `{team_id, give[1-3], want_position, receive_count}` | Deals across the league for the players you name; `partner_accepts` marks whether their lineup gains too |
 | GET | `/signals?profile=&pos=&dir=buy\|sell` | Buy-low / sell-high board |
 | POST | `/refresh` `{scope: league\|market\|all}` | Triggers sync jobs |
 | GET | `/model/report` | Active run metrics vs baselines, feature importance |
