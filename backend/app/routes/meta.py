@@ -71,7 +71,7 @@ def refresh(
                 res = leagues.sync_espn_league(con, c, body.league_id, force=True)
                 detail.append(f"league: {len(res.teams)} ESPN rosters synced")
             else:
-                detail.append("league: manual league, nothing to sync")
+                detail.append(f"league: {platform[0]} league, nothing to sync")
         if body.scope == "league":
             # Sleeper's trending adds feed the Waivers page; cheap, so every Update refreshes them
             try:

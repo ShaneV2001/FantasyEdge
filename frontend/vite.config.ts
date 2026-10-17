@@ -16,7 +16,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    exclude: [...configDefaults.exclude, 'e2e/**'], // Playwright specs
+    exclude: [...configDefaults.exclude, 'e2e/**', 'screenshots/**'], // Playwright specs
     css: false,
   },
 })

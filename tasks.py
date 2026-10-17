@@ -1,10 +1,11 @@
 """Cross-platform task runner (the Makefile delegates here so Windows works without `make`).
 
-Usage: python tasks.py <setup|data|dev|api|web|test|e2e|lint|fmt|gen-api|backtest|train>
+Usage: python tasks.py <setup|data|dev|demo|screenshots|api|web|test|e2e|lint|fmt|gen-api|backtest|train>
 """
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -62,6 +63,18 @@ def dev() -> None:
             p.terminate()
 
 
+def demo() -> None:
+    """Build a fictional demo league (data/demo/, none of your leagues) and run the app on it."""
+    run(["uv", "run", "python", "../scripts/demo_league.py"], BACKEND)
+    os.environ["FF_DATA_DIR"] = "./data/demo"
+    dev()
+
+
+def screenshots() -> None:
+    """README screenshots from the running demo app (start it with `python tasks.py demo`)."""
+    run([*pnpm(), "exec", "playwright", "test", "--config", "playwright.screenshots.config.ts"], FRONTEND)
+
+
 def lint() -> None:
     run(["uv", "run", "ruff", "check", "."], BACKEND)
     run(["uv", "run", "ruff", "format", "--check", "."], BACKEND)
@@ -103,6 +116,8 @@ TASKS = {
     "setup": setup,
     "data": data,
     "dev": dev,
+    "demo": demo,
+    "screenshots": screenshots,
     "api": api,
     "web": web,
     "test": test,

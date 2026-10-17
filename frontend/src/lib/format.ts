@@ -78,5 +78,5 @@ export function slotLabel(slot: string): string {
 
 /** Display name of the platform a league syncs from. */
 export function platformName(platform: string): string {
-  return { sleeper: 'Sleeper', espn: 'ESPN', manual: 'manual entry' }[platform] ?? platform
+  return { sleeper: 'Sleeper', espn: 'ESPN', manual: 'manual entry', demo: 'demo league' }[platform] ?? platform
 }

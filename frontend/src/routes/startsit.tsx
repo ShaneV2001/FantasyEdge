@@ -418,9 +418,9 @@ export function StartSitPage() {
       />
       <Alert>
         <Info />
-        <AlertTitle>Planner — changes here don't change your lineup on {team.platform === 'manual' ? 'ESPN/Sleeper' : platform}.</AlertTitle>
+        <AlertTitle>Planner — changes here don't change your lineup on {team.platform === 'manual' || team.platform === 'demo' ? 'ESPN/Sleeper' : platform}.</AlertTitle>
         <AlertDescription>
-          It's a what-if board. Set your real lineup in the {team.platform === 'manual' ? 'ESPN or Sleeper' : platform} app.
+          It's a what-if board. Set your real lineup in the {team.platform === 'manual' || team.platform === 'demo' ? 'ESPN or Sleeper' : platform} app.
         </AlertDescription>
       </Alert>
       {q.isPending && <ListSkeleton rows={6} height="h-12" />}
