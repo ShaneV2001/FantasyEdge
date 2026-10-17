@@ -502,6 +502,14 @@ def suggest(
 # ───────── targeted finder ─────────
 
 
+def _shortlist_key(my_gain: float, their_gain: float) -> tuple[bool, float]:
+    """Sort key for the quick screen (before drops and bye checks): deals both lineups like
+    first, best for both (then you); then the rest by your gain."""
+    if their_gain > 0:
+        return (False, -(min(my_gain, their_gain) + 0.5 * my_gain))
+    return (True, -my_gain)
+
+
 def find_for(
     math: RosMath,
     players: Mapping[str, Mapping],
@@ -533,12 +541,14 @@ def find_for(
     for their_id, their_roster in others.items():
         pool = [p for p in their_roster if players.get(p, {}).get("position") in positions]
         packages = [tuple(c) for c in combinations(pool, receive_count)]
+        their_base = math.ros_lineup_points(their_roster)
         quick = []
         for r in packages:
             md = math.ros_lineup_points(my_after_give + list(r)) - my_base
             if md > 0:
-                quick.append((md, r))
-        quick.sort(key=lambda x: -x[0])
+                td = math.ros_lineup_points([p for p in their_roster if p not in r] + list(give))
+                quick.append((_shortlist_key(md, td - their_base), r))
+        quick.sort(key=lambda x: x[0])
         evs = []
         for _, r in quick[:shortlist_per_partner]:
             ev = evaluate(
@@ -563,5 +573,67 @@ def find_for(
             evs.append(ev)
         evs.sort(key=lambda e: (not e.partner_accepts, -e.score))
         found += evs[:per_partner]
+    found.sort(key=lambda e: (not e.partner_accepts, -e.score))
+    return found[:limit]
+
+
+def acquire_for(
+    math: RosMath,
+    players: Mapping[str, Mapping],
+    my_team: tuple[str, Sequence[str]],
+    owner: tuple[str, Sequence[str]],
+    target: str,
+    *,
+    max_give: int = 2,
+    limit: int = 10,
+    shortlist: int = 10,
+    use_market: bool = True,
+    viable_ppg: Mapping[str, float] | None = None,
+    rules: RosterRules | None = None,
+    market_label: str = "Market",
+    accept_gain: float = ACCEPT_GAIN,
+    lean_gain: float = LEAN_GAIN,
+) -> list[TradeEvaluation]:
+    """ "What would it take to get him?": packages of 1..`max_give` of your players for `target`
+    that improve your lineup. Deals his team's lineup also likes come first."""
+    my_id, my_roster = my_team
+    owner_id, owner_roster = owner
+    if target not in owner_roster:
+        raise ValueError("that player isn't on the other team's roster")
+    mine = _tradeable(players, my_roster, use_market)
+    my_base = math.ros_lineup_points(my_roster)
+    found: list[TradeEvaluation] = []
+    their_base = math.ros_lineup_points(owner_roster)
+    their_after_out = [p for p in owner_roster if p != target]
+    for n in range(1, max_give + 1):
+        quick = []
+        for g in combinations(mine, n):
+            md = math.ros_lineup_points([p for p in my_roster if p not in g] + [target]) - my_base
+            if md > 0:
+                td = math.ros_lineup_points(their_after_out + list(g)) - their_base
+                quick.append((_shortlist_key(md, td), g))
+        quick.sort(key=lambda x: x[0])
+        for _, g in quick[:shortlist]:
+            ev = evaluate(
+                math, players, my_team, (owner_id, owner_roster), g, [target],
+                viable_ppg=viable_ppg, market_label=market_label,
+                accept_gain=accept_gain, lean_gain=lean_gain, rules=rules,
+            )  # fmt: skip
+            if ev.me.lineup_delta <= 0:
+                continue
+            assert ev.partner is not None
+            ev.headline = f"Give {_name(players, g)} for {_name(players, [target])}"
+            ev.tags = [f"{len(g)}-for-1"]
+            if not ev.partner_accepts:
+                loss = -ev.partner.lineup_delta
+                ev.reasons.insert(
+                    1,
+                    f"Their lineup would lose {loss:.1f} points, so they're unlikely to accept as is."
+                    if loss > 0
+                    else "Their lineup gains nothing (or a week goes short), so they're unlikely to accept as is.",
+                )
+            ev.score = ev.me.lineup_delta
+            found.append(ev)
+    # mutually good deals first; among those, the ones that leave your lineup best off
     found.sort(key=lambda e: (not e.partner_accepts, -e.score))
     return found[:limit]

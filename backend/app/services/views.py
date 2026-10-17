@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.errors import InvalidInput
+from app.errors import InvalidInput, NotFound
 from app.schemas import models as m
 from app.services.context import MARKET_LABEL, LeagueContext
 from projections.base import replacement_ranks
@@ -670,18 +670,20 @@ def _ranking_row(ctx: LeagueContext, team_id: str, rank: int, r: TargetRow) -> m
     )
 
 
-def rankings_view(ctx: LeagueContext, team_id: str) -> m.RankingsOut:
-    """Top players at each position by matchup-adjusted points: each week and rest of season."""
+def rankings_view(ctx: LeagueContext, team_id: str, top: int = 10) -> m.RankingsOut:
+    """Top `top` players at each position by matchup-adjusted points: each week and rest of season."""
     ctx.team(team_id)
     start, end = ctx.week, ctx.league.last_week
-    if "rankings" not in ctx.memo:
+    key = ("rankings", top)
+    if key not in ctx.memo:
         pool = {
             pid: p for pid, p in ctx.players.items() if pid in ctx.cells and (p.get("ppg") or 0) > 0
         }
-        ctx.memo["rankings"] = rank_targets(pool, ctx.cells, start, end)
-    ranked = ctx.memo["rankings"]
+        ctx.memo[key] = rank_targets(pool, ctx.cells, start, end, top=top)
+    ranked = ctx.memo[key]
     return m.RankingsOut(
         team_id=team_id,
+        top=top,
         week=start,
         last_week=end,
         weeks=list(range(start, end + 1)),
@@ -782,3 +784,84 @@ def buy_targets_view(ctx: LeagueContext, team_id: str, top: int | None = None) -
         market_label=market_label(ctx),
         positions=positions,
     )
+
+
+# ───────── trades for one player ─────────
+
+PLAYER_TRADE_LIMIT = 10
+
+
+def player_trades_view(
+    ctx: LeagueContext, team_id: str, player_id: str, want_position: str = "ANY"
+) -> m.PlayerTradesOut:
+    """Trades built around one player: shop him if he's yours, or what it takes to get him."""
+    team = ctx.team(team_id)
+    p = ctx.players.get(player_id)
+    if p is None:
+        raise NotFound("player", f"Player not found: {player_id}")
+    owner = ctx.owner_of(player_id)
+
+    def out(
+        mode: str,
+        ideas: tuple[tr.TradeEvaluation, ...] | list[tr.TradeEvaluation] = (),
+        message: str | None = None,
+    ) -> m.PlayerTradesOut:
+        return m.PlayerTradesOut(
+            team_id=team_id,
+            player=player_ref(ctx, player_id),
+            mode=mode,  # type: ignore[arg-type]
+            owner=owner.team_name if owner else None,
+            ideas=[trade_out(ctx, ev) for ev in ideas],
+            message=message,
+        )
+
+    if ctx.league.platform == "manual" or len(ctx.teams) < 2:
+        return out(
+            "unavailable",
+            message="Trades need a synced Sleeper or ESPN league (other rosters unknown). "
+            "Use the Trade page's analyzer for a hypothetical deal.",
+        )
+    if ctx.deadline_passed:
+        return out(
+            "unavailable",
+            message=f"Your league's trade deadline (week {ctx.league.trade_deadline_week}) has passed.",
+        )
+    if owner is None:
+        return out(
+            "free_agent",
+            message=f"{p['name']} is a free agent: add him off waivers instead of trading for him.",
+        )
+    if p.get("position") not in tr.SKILL:
+        return out("unavailable", message="Trade ideas cover QBs, RBs, WRs and TEs.")
+
+    common = dict(
+        viable_ppg=ctx.replacement_ppg,
+        rules=roster_rules(ctx),
+        market_label=market_label(ctx),
+        accept_gain=ctx.tuning.trade_accept_gain,
+        lean_gain=ctx.tuning.trade_lean_gain,
+    )
+    math = ros_math(ctx)
+    mine = (team.team_id, team.player_ids)
+    if owner.team_id == team_id:
+        others = {t.team_id: t.player_ids for t in ctx.teams if t.team_id != team_id}
+        ideas = [
+            ev
+            for n in (1, 2)
+            for ev in tr.find_for(
+                math, ctx.players, mine, others, [player_id], want_position, n, **common
+            )
+        ]
+        ideas.sort(key=lambda e: (not e.partner_accepts, -e.score))
+        return out("sell", ideas[:PLAYER_TRADE_LIMIT])
+    ideas = tr.acquire_for(
+        math,
+        ctx.players,
+        mine,
+        (owner.team_id, owner.player_ids),
+        player_id,
+        limit=PLAYER_TRADE_LIMIT,
+        use_market=ctx.market_source is not None,
+        **common,
+    )
+    return out("buy", ideas)

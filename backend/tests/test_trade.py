@@ -240,3 +240,45 @@ def test_finder_looks_for_the_position_you_want(league):
     assert all(len(ev.me.receives) == 2 for ev in pairs)
     with pytest.raises(ValueError):
         tr.find_for(math, players, ("A", rosters["A"]), {"B": rosters["B"]}, ["b_wr1"], "RB")
+
+
+def test_acquire_for_builds_packages_for_one_target(league):
+    players, rosters, math = league
+    found = tr.acquire_for(
+        math, players, ("A", rosters["A"]), ("B", rosters["B"]), "b_wr1",
+        rules=tr.RosterRules(active_limit=7),
+    )  # fmt: skip
+    assert found
+    sizes = set()
+    for ev in found:
+        assert ev.me.receives == ["b_wr1"]  # always the target, nothing else
+        assert set(ev.me.gives) <= set(rosters["A"]) and 1 <= len(ev.me.gives) <= 2
+        assert ev.me.lineup_delta > 0
+        sizes.add(len(ev.me.gives))
+    assert sizes == {1, 2}  # 1-for-1 and 2-for-1 packages both considered
+    order = [ev.partner_accepts for ev in found]
+    assert order == sorted(order, key=lambda a: not a)
+    with pytest.raises(ValueError):
+        tr.acquire_for(math, players, ("A", rosters["A"]), ("B", rosters["B"]), "a_rb1")
+
+
+def test_shopping_one_player(league):
+    players, rosters, math = league
+    found = tr.find_for(math, players, ("A", rosters["A"]), {"B": rosters["B"]}, ["a_rb4"], "ANY")
+    assert found and all(ev.me.gives == ["a_rb4"] for ev in found)
+
+
+def test_shortlists_keep_deals_both_teams_like(league):
+    """Even when only one package per size gets the full evaluation, it's a mutually good one if
+    any exists (it used to be whichever helped *you* most, which the other team usually hates)."""
+    players, rosters, math = league
+    full = tr.acquire_for(
+        math, players, ("A", rosters["A"]), ("B", rosters["B"]), "b_wr1", shortlist=50
+    )
+    assert any(ev.partner_accepts for ev in full)  # a deal B likes exists
+    tight = tr.acquire_for(
+        math, players, ("A", rosters["A"]), ("B", rosters["B"]), "b_wr1", shortlist=1
+    )
+    assert tight and tight[0].partner_accepts
+    assert tr._shortlist_key(10, 2) < tr._shortlist_key(30, -5)  # mutual beats one-sided
+    assert tr._shortlist_key(10, 8) < tr._shortlist_key(9, 8)  # then the better deal

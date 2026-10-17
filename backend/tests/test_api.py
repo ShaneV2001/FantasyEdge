@@ -636,3 +636,57 @@ def test_trade_idea_pages_and_finder(client):
         assert idea["partner_accepts"] in (True, False)
     bad = tc.post("/trade/find", json={"team_id": team_id, "give": [], "want_position": "RB"})
     assert bad.status_code == 422
+
+
+def test_trades_for_one_player(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    team = tc.get(f"/team/{team_id}").json()
+    mine = next(p for p in team["roster"] if p["position"] in ("RB", "WR"))
+    other = next(t for t in team["league_teams"] if not t["is_mine"])
+    theirs = next(
+        p
+        for p in tc.get(f"/team/{other['team_id']}").json()["roster"]
+        if p["position"] in ("RB", "WR")
+    )
+
+    sell = tc.get(f"/team/{team_id}/players/{mine['player_id']}/trades").json()
+    assert sell["mode"] == "sell" and sell["owner"] == team["team_name"]
+    for idea in sell["ideas"]:
+        assert [p["player_id"] for p in idea["me"]["gives"]] == [mine["player_id"]]
+        assert idea["me"]["lineup_delta"] > 0
+    wr_only = tc.get(f"/team/{team_id}/players/{mine['player_id']}/trades?want=WR").json()
+    assert all(p["position"] == "WR" for i in wr_only["ideas"] for p in i["me"]["receives"])
+
+    buy = tc.get(f"/team/{team_id}/players/{theirs['player_id']}/trades").json()
+    assert buy["mode"] == "buy" and buy["owner"] == other["team_name"]
+    for idea in buy["ideas"]:
+        assert [p["player_id"] for p in idea["me"]["receives"]] == [theirs["player_id"]]
+        assert idea["partner"]["team_id"] == other["team_id"]
+
+    # release him from his team (in the cached league context): now nobody rosters him
+    ctx = context.get_context(deps._con, f"sl-{LEAGUE}")
+    holder = ctx.team(other["team_id"])
+    fa = theirs["player_id"]
+    holder.player_ids = [p for p in holder.player_ids if p != fa]
+    ctx.memo.clear()
+    free = tc.get(f"/team/{team_id}/players/{fa}/trades").json()
+    assert free["mode"] == "free_agent" and free["ideas"] == [] and "waivers" in free["message"]
+
+    assert tc.get(f"/team/{team_id}/players/nobody/trades").status_code == 404
+    assert tc.get(f"/team/{team_id}/players/{fa}/trades?want=K").status_code == 422
+
+
+def test_rankings_can_show_more_than_ten(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    ten = tc.get(f"/team/{team_id}/rankings").json()
+    twenty = tc.get(f"/team/{team_id}/rankings", params={"top": 20}).json()
+    assert ten["top"] == 10 and twenty["top"] == 20
+    for pos, v in twenty["positions"].items():
+        short = ten["positions"][pos]["ros"]
+        assert len(short) <= 10 and len(v["ros"]) <= 20
+        assert v["ros"][: len(short)] == short  # the first 10 are the same players, in order
+        assert [r["rank"] for r in v["ros"]] == list(range(1, len(v["ros"]) + 1))
+    assert any(len(v["ros"]) > 10 for v in twenty["positions"].values())
+    assert tc.get(f"/team/{team_id}/rankings", params={"top": 500}).status_code == 422

@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getRankings, getRegression, getStatus, getTeam, getUserSettings, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
-import type { ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
+import { connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayerTrades, getRankings, getRegression, getStatus, getTeam, getUserSettings, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
+import type { ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -215,6 +215,28 @@ export const getPlayerOptions = (options: Options<GetPlayerData>) => queryOption
     queryKey: getPlayerQueryKey(options)
 });
 
+export const getPlayerTradesQueryKey = (options: Options<GetPlayerTradesData>) => createQueryKey('getPlayerTrades', options);
+
+/**
+ * Get Player Trades
+ *
+ * Trades built around one player: if he's yours, deals that give him away (1 or 2 players
+ * back); if he's on another team, packages of 1-2 of your players for him. Deals the other
+ * lineup also likes come first.
+ */
+export const getPlayerTradesOptions = (options: Options<GetPlayerTradesData>) => queryOptions<GetPlayerTradesResponse, GetPlayerTradesError, GetPlayerTradesResponse, ReturnType<typeof getPlayerTradesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getPlayerTrades({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getPlayerTradesQueryKey(options)
+});
+
 export const getBuyTargetsQueryKey = (options: Options<GetBuyTargetsData>) => createQueryKey('getBuyTargets', options);
 
 /**
@@ -240,7 +262,7 @@ export const getRankingsQueryKey = (options: Options<GetRankingsData>) => create
 /**
  * Get Rankings
  *
- * Top 10 per position by schedule-adjusted points, for each upcoming week and the rest of
+ * Top N per position by schedule-adjusted points, for each upcoming week and the rest of
  * the season (all players; owner labeled).
  */
 export const getRankingsOptions = (options: Options<GetRankingsData>) => queryOptions<GetRankingsResponse, GetRankingsError, GetRankingsResponse, ReturnType<typeof getRankingsQueryKey>>({

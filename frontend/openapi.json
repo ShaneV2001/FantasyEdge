@@ -396,6 +396,77 @@
         }
       }
     },
+    "/team/{team_id}/players/{player_id}/trades": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Player Trades",
+        "description": "Trades built around one player: if he's yours, deals that give him away (1 or 2 players\nback); if he's on another team, packages of 1-2 of your players for him. Deals the other\nlineup also likes come first.",
+        "operationId": "get_player_trades",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "player_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Player Id"
+            }
+          },
+          {
+            "name": "want",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "QB",
+                "RB",
+                "WR",
+                "TE",
+                "ANY"
+              ],
+              "type": "string",
+              "description": "When he's yours: the position you want back",
+              "default": "ANY",
+              "title": "Want"
+            },
+            "description": "When he's yours: the position you want back"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerTradesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/team/{team_id}/buy-targets": {
       "get": {
         "tags": [
@@ -445,7 +516,7 @@
           "team"
         ],
         "summary": "Get Rankings",
-        "description": "Top 10 per position by schedule-adjusted points, for each upcoming week and the rest of\nthe season (all players; owner labeled).",
+        "description": "Top N per position by schedule-adjusted points, for each upcoming week and the rest of\nthe season (all players; owner labeled).",
         "operationId": "get_rankings",
         "parameters": [
           {
@@ -456,6 +527,20 @@
               "type": "string",
               "title": "Team Id"
             }
+          },
+          {
+            "name": "top",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 5,
+              "description": "Players per position (10, 15, 20, 30 \u2026)",
+              "default": 10,
+              "title": "Top"
+            },
+            "description": "Players per position (10, 15, 20, 30 \u2026)"
           }
         ],
         "responses": {
@@ -2878,6 +2963,67 @@
         ],
         "title": "PlayerRef"
       },
+      "PlayerTradesOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "sell",
+              "buy",
+              "free_agent",
+              "unavailable"
+            ],
+            "title": "Mode",
+            "description": "sell: he's yours (deals giving him away); buy: on another team (what it takes to get him); free_agent / unavailable: no trades, see message"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "ideas": {
+            "items": {
+              "$ref": "#/components/schemas/TradeOut"
+            },
+            "type": "array",
+            "title": "Ideas"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "player",
+          "mode",
+          "owner",
+          "ideas"
+        ],
+        "title": "PlayerTradesOut",
+        "description": "Trades built around one player."
+      },
       "PlayerWeekOut": {
         "properties": {
           "week": {
@@ -3208,6 +3354,12 @@
           "team_id": {
             "type": "string",
             "title": "Team Id"
+          },
+          "top": {
+            "type": "integer",
+            "title": "Top",
+            "description": "How many players per position each list holds",
+            "default": 10
           },
           "week": {
             "type": "integer",

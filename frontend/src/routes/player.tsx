@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Area, Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 
 import type { PlayerDetailOut } from '@/api'
@@ -10,6 +10,7 @@ import { ErrorState, ListSkeleton } from '@/components/common/states'
 import { Analytics } from '@/components/player/analytics'
 import { InjuryTag, PositionBadge, SignalBadge } from '@/components/player/badges'
 import { Matchups, injuryStatus } from '@/components/player/matchups'
+import { PlayerTrades } from '@/components/player/PlayerTrades'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
@@ -133,7 +134,7 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-export function PlayerView({ d }: { d: PlayerDetailOut }) {
+export function PlayerView({ d, trades }: { d: PlayerDetailOut; trades?: ReactNode }) {
   const played = d.weeks.filter((w) => w.played)
   return (
     <div className="flex flex-col gap-6">
@@ -175,6 +176,8 @@ export function PlayerView({ d }: { d: PlayerDetailOut }) {
           </div>
         </CardContent>
       </Card>
+
+      {trades}
 
       <Card>
         <CardHeader>
@@ -281,7 +284,12 @@ export function PlayerPage() {
       </div>
       {q.isPending && <ListSkeleton rows={3} height="h-40" />}
       {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
-      {q.data && <PlayerView d={q.data} />}
+      {q.data && (
+        <PlayerView
+          d={q.data}
+          trades={<PlayerTrades key={q.data.player_id} d={q.data} teamId={team.teamId} manual={team.platform === 'manual'} />}
+        />
+      )}
     </div>
   )
 }

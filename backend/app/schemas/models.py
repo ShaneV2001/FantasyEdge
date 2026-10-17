@@ -445,6 +445,7 @@ class RankingPosition(BaseModel):
 
 class RankingsOut(BaseModel):
     team_id: str
+    top: int = Field(10, description="How many players per position each list holds")
     week: int
     last_week: int
     weeks: list[int]
@@ -582,6 +583,20 @@ class TradeFindRequest(BaseModel):
     give: list[str] = Field(min_length=1, max_length=3)
     want_position: Literal["QB", "RB", "WR", "TE", "ANY"] = "RB"
     receive_count: int = Field(1, ge=1, le=2)
+
+
+class PlayerTradesOut(BaseModel):
+    """Trades built around one player."""
+
+    team_id: str
+    player: PlayerRef
+    mode: Literal["sell", "buy", "free_agent", "unavailable"] = Field(
+        description="sell: he's yours (deals giving him away); buy: on another team (what it takes "
+        "to get him); free_agent / unavailable: no trades, see message"
+    )
+    owner: str | None
+    ideas: list[TradeOut]
+    message: str | None = None
 
 
 class TradeFindOut(BaseModel):

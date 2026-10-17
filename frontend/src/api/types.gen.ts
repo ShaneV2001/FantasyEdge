@@ -994,6 +994,37 @@ export type PlayerRef = {
 };
 
 /**
+ * PlayerTradesOut
+ *
+ * Trades built around one player.
+ */
+export type PlayerTradesOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    player: PlayerRef;
+    /**
+     * Mode
+     *
+     * sell: he's yours (deals giving him away); buy: on another team (what it takes to get him); free_agent / unavailable: no trades, see message
+     */
+    mode: 'sell' | 'buy' | 'free_agent' | 'unavailable';
+    /**
+     * Owner
+     */
+    owner: string | null;
+    /**
+     * Ideas
+     */
+    ideas: Array<TradeOut>;
+    /**
+     * Message
+     */
+    message?: string | null;
+};
+
+/**
  * PlayerWeekOut
  */
 export type PlayerWeekOut = {
@@ -1199,6 +1230,12 @@ export type RankingsOut = {
      * Team Id
      */
     team_id: string;
+    /**
+     * Top
+     *
+     * How many players per position each list holds
+     */
+    top?: number;
     /**
      * Week
      */
@@ -2260,6 +2297,47 @@ export type GetPlayerResponses = {
 
 export type GetPlayerResponse = GetPlayerResponses[keyof GetPlayerResponses];
 
+export type GetPlayerTradesData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+        /**
+         * Player Id
+         */
+        player_id: string;
+    };
+    query?: {
+        /**
+         * Want
+         *
+         * When he's yours: the position you want back
+         */
+        want?: 'QB' | 'RB' | 'WR' | 'TE' | 'ANY';
+    };
+    url: '/team/{team_id}/players/{player_id}/trades';
+};
+
+export type GetPlayerTradesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPlayerTradesError = GetPlayerTradesErrors[keyof GetPlayerTradesErrors];
+
+export type GetPlayerTradesResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlayerTradesOut;
+};
+
+export type GetPlayerTradesResponse = GetPlayerTradesResponses[keyof GetPlayerTradesResponses];
+
 export type GetBuyTargetsData = {
     body?: never;
     path: {
@@ -2298,7 +2376,14 @@ export type GetRankingsData = {
          */
         team_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Top
+         *
+         * Players per position (10, 15, 20, 30 …)
+         */
+        top?: number;
+    };
     url: '/team/{team_id}/rankings';
 };
 

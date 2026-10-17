@@ -32,6 +32,7 @@ const row = (rank: number, name: string, over: Partial<RankingRow> = {}): Rankin
 
 const DATA: RankingsOut = {
   team_id: 'sl-1-1',
+  top: 10,
   week: 6,
   last_week: 7,
   weeks: [6, 7],
@@ -80,6 +81,24 @@ describe('RankingsPage', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'By week' }))
     expect(screen.getByText('WR week-6 pick')).toBeInTheDocument()
     expect(screen.queryByText('WR ROS star')).not.toBeInTheDocument()
+  })
+
+  it('shows more players per position on request, and remembers the choice', async () => {
+    const fetchMock = vi.fn(async (input: Request | string) => {
+      const url = (input instanceof Request ? input : new Request(input)).url
+      const top = Number(new URL(url).searchParams.get('top') ?? 10)
+      return new Response(JSON.stringify({ ...DATA, top }), { headers: { 'Content-Type': 'application/json' } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.removeItem('fantasyedge:rankings-top')
+    renderPage()
+    expect(await screen.findByText(/Top 10 RB/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('radio', { name: 'Top 20' }))
+    expect(await screen.findByText(/Top 20 RB/)).toBeInTheDocument()
+    const last = fetchMock.mock.calls.at(-1)![0] as Request | string
+    expect((last instanceof Request ? last.url : last)).toContain('top=20')
+    expect(localStorage.getItem('fantasyedge:rankings-top')).toBe('20')
+    localStorage.removeItem('fantasyedge:rankings-top')
   })
 
   it('explains positions where matchups are ignored', async () => {

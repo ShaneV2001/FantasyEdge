@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RosterPlayer, TradeOut } from '@/api'
+import { useTeamStore } from '@/stores/team'
 import { renderPage } from '@/test/render'
 
-import { FindTrade } from './trade'
+import { FindTrade, TradePage } from './trade'
 
 const player = (id: string, name: string, position: string): RosterPlayer => ({
   player_id: id,
@@ -91,5 +92,31 @@ describe('FindTrade', () => {
   it('explains that manual teams have no one to trade with', async () => {
     renderPage(<FindTrade teamId="t" manual onOpenInAnalyzer={() => {}} />)
     expect(await screen.findByText('Finding trade partners needs a league')).toBeInTheDocument()
+  })
+})
+
+describe('TradePage from a link', () => {
+  beforeEach(() => {
+    useTeamStore.getState().setTeam({ teamId: 'me', leagueId: 'l', teamName: 'Mine', leagueName: 'L', platform: 'espn' })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: Request | string) => {
+        const req = input instanceof Request ? input : new Request(input)
+        const data = req.url.includes('/team/them')
+          ? { team_id: 'them', team_name: 'Them', roster: [player('rb9', 'Omarion Hampton', 'RB')], league_teams: [] }
+          : req.url.includes('/team/me')
+            ? { team_id: 'me', team_name: 'Mine', roster: ROSTER, league_teams: [{ team_id: 'them', team_name: 'Them', owner_name: 'o', is_mine: false }] }
+            : { team_id: 'me', week: 6, deadline_passed: false, trade_deadline_week: 12, ideas: [], page: 0, has_more: false }
+        return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
+      }),
+    )
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('opens the analyzer with the deal from the URL', async () => {
+    renderPage(<TradePage />, '/?tab=analyzer&partner=them&give=w1&receive=rb9')
+    expect(await screen.findByRole('tab', { name: /Analyzer/, selected: true })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Omarion Hampton/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Jaylen Waddle/ })).toHaveAttribute('aria-pressed', 'true')
   })
 })

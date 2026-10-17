@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from typing import Literal
+
 import duckdb
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.deps import get_con, get_tuning, write_lock
 from app.schemas import models as m
@@ -37,6 +39,21 @@ def get_player(
     return player.player_detail(ctx, team_id, player_id, flags)
 
 
+@router.get("/{team_id}/players/{player_id}/trades", response_model=m.PlayerTradesOut)
+def get_player_trades(
+    team_id: str,
+    player_id: str,
+    want: Literal["QB", "RB", "WR", "TE", "ANY"] = Query(
+        "ANY", description="When he's yours: the position you want back"
+    ),
+    ctx: LeagueContext = Depends(team_ctx),
+) -> m.PlayerTradesOut:
+    """Trades built around one player: if he's yours, deals that give him away (1 or 2 players
+    back); if he's on another team, packages of 1-2 of your players for him. Deals the other
+    lineup also likes come first."""
+    return views.player_trades_view(ctx, team_id, player_id, want)
+
+
 @router.get("/{team_id}/buy-targets", response_model=m.BuyTargetsOut)
 def get_buy_targets(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.BuyTargetsOut:
     """Players the market undervalues vs our projection (buy), and your overvalued ones (sell)."""
@@ -44,10 +61,14 @@ def get_buy_targets(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.B
 
 
 @router.get("/{team_id}/rankings", response_model=m.RankingsOut)
-def get_rankings(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.RankingsOut:
-    """Top 10 per position by schedule-adjusted points, for each upcoming week and the rest of
+def get_rankings(
+    team_id: str,
+    top: int = Query(10, ge=5, le=50, description="Players per position (10, 15, 20, 30 …)"),
+    ctx: LeagueContext = Depends(team_ctx),
+) -> m.RankingsOut:
+    """Top N per position by schedule-adjusted points, for each upcoming week and the rest of
     the season (all players; owner labeled)."""
-    return views.rankings_view(ctx, team_id)
+    return views.rankings_view(ctx, team_id, top)
 
 
 @router.get("/{team_id}/advice", response_model=m.AdviceOut)

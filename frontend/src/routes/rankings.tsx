@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Info } from 'lucide-react'
 import { useState } from 'react'
 
@@ -78,7 +78,9 @@ function RankingsTable({ rows, position, view }: { rows: RankingRow[]; position:
   )
 }
 
-function Rankings({ data }: { data: RankingsOut }) {
+export const TOP_CHOICES = [10, 15, 20, 30] as const
+
+function Rankings({ data, top, onTop, loading }: { data: RankingsOut; top: number; onTop: (n: number) => void; loading: boolean }) {
   const [position, setPosition] = useState<string>('RB')
   const [view, setView] = useState<'ros' | 'week'>('ros')
   const [week, setWeek] = useState(String(data.week))
@@ -98,7 +100,20 @@ function Rankings({ data }: { data: RankingsOut }) {
               ))}
             </TabsList>
           </Tabs>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={String(top)}
+              onValueChange={(v) => v && onTop(Number(v))}
+              aria-label="How many players to show"
+            >
+              {TOP_CHOICES.map((n) => (
+                <ToggleGroupItem key={n} value={String(n)} className="px-2.5 font-mono" aria-label={`Top ${n}`}>
+                  {n}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
             <ToggleGroup type="single" variant="outline" value={view} onValueChange={(v) => v && setView(v as 'ros' | 'week')}>
               <ToggleGroupItem value="ros">Rest of season</ToggleGroupItem>
               <ToggleGroupItem value="week">By week</ToggleGroupItem>
@@ -121,7 +136,8 @@ function Rankings({ data }: { data: RankingsOut }) {
         </div>
         <div>
           <CardTitle>
-            Top 10 {position} · {view === 'ros' ? `weeks ${data.week}–${data.last_week}` : `week ${week}`}
+            Top {data.top ?? top} {position} · {view === 'ros' ? `weeks ${data.week}–${data.last_week}` : `week ${week}`}
+            {loading && <span className="ml-2 text-xs font-normal text-muted-foreground">loading top {top}…</span>}
           </CardTitle>
           <CardDescription>
             {view === 'ros'
@@ -144,19 +160,42 @@ function Rankings({ data }: { data: RankingsOut }) {
   )
 }
 
+const TOP_KEY = 'fantasyedge:rankings-top'
+
+function savedTop(): number {
+  try {
+    const n = Number(localStorage.getItem(TOP_KEY))
+    return (TOP_CHOICES as readonly number[]).includes(n) ? n : 10
+  } catch {
+    return 10 // storage unavailable: default
+  }
+}
+
 export function RankingsPage() {
   const team = useTeamStore((s) => s.team)!
-  const q = useQuery(getRankingsOptions({ path: { team_id: team.teamId } }))
+  const [top, setTop] = useState(savedTop)
+  const q = useQuery({
+    ...getRankingsOptions({ path: { team_id: team.teamId }, query: { top } }),
+    placeholderData: keepPreviousData,
+  })
+  const chooseTop = (n: number) => {
+    setTop(n)
+    try {
+      localStorage.setItem(TOP_KEY, String(n))
+    } catch {
+      // not remembered this time; still works
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Rankings"
-        description="The top 10 at each position by schedule-adjusted projection, for each week and the rest of the season. Green opponents are soft matchups, red are tough. The badge is the player's buy/hold/sell verdict (our projection vs the market)."
+        description="The top players at each position (10, 15, 20 or 30) by schedule-adjusted projection, for each week and the rest of the season. Green opponents are soft matchups, red are tough. The badge is the player's buy/hold/sell verdict (our projection vs the market)."
       />
       {q.isPending && <ListSkeleton rows={6} height="h-12" />}
       {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
-      {q.data && <Rankings data={q.data} />}
+      {q.data && <Rankings data={q.data} top={top} onTop={chooseTop} loading={q.isPlaceholderData} />}
     </div>
   )
 }

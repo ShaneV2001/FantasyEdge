@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Lightbulb, Loader2, Plus, RefreshCw, Scale, Search, Shuffle } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
+import { useSearch } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
 import type { PlayerRef, RosterPlayer, TradeFindRequest, TradeOut } from '@/api'
@@ -44,12 +45,24 @@ function toPrefill(t: TradeOut): AnalyzerPrefill {
   }
 }
 
+/** A deal handed over in the URL (e.g. from a player page): /trade?tab=analyzer&partner=&give=&receive= */
+function prefillFromSearch(search: Record<string, unknown>): AnalyzerPrefill | null {
+  const list = (v: unknown) => (typeof v === 'string' && v ? v.split(',') : [])
+  const give = list(search.give)
+  const receive = list(search.receive)
+  if (!give.length && !receive.length) return null
+  return { key: `url:${String(search.partner ?? '')}:${give}:${receive}`, partnerId: String(search.partner ?? ''), give, receive }
+}
+
 export function TradePage() {
   const team = useTeamStore((s) => s.team)!
   const qc = useQueryClient()
-  const [tab, setTab] = useState(team.platform === 'manual' ? 'analyzer' : 'ideas')
+  const search = useSearch({ strict: false }) as Record<string, unknown>
+  const [tab, setTab] = useState(() =>
+    ['ideas', 'find', 'analyzer'].includes(String(search.tab)) ? String(search.tab) : team.platform === 'manual' ? 'analyzer' : 'ideas',
+  )
   const [page, setPage] = useState(0)
-  const [prefill, setPrefill] = useState<AnalyzerPrefill | null>(null)
+  const [prefill, setPrefill] = useState<AnalyzerPrefill | null>(() => prefillFromSearch(search))
   const ideas = useQuery({
     ...suggestTradesOptions({ query: { team_id: team.teamId, page } }),
     staleTime: 5 * 60_000,

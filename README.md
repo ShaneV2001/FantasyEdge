@@ -14,9 +14,9 @@ hand, and FantasyEdge gives you:
 |---|---|
 | **Advisor** | A ranked list of 5–10 concrete moves (trade, sell, buy, waiver, lineup, bye prep), each with the numbers behind it, an urgency and a confidence level. |
 | **My Team** | Your roster with projections, rest-of-season value and a buy/hold/sell verdict for every player, this week's best lineup (players on bye or ruled out are tagged and left out), plus team grades for QB, RB, WR, TE, K, DEF and each flex slot against the rest of your league. |
-| **Rankings** | The top 10 at every position for each upcoming week and for the rest of the season, adjusted for schedule. |
+| **Rankings** | The top 10, 15, 20 or 30 at every position for each upcoming week and for the rest of the season, adjusted for schedule. |
 | **Buy targets** | Players the market undervalues that you don't own (would-be starters first, then bench depth and sleepers), and your own players it overvalues. |
-| **Player pages** | Headshot and bio, the verdict and why, projected vs actual points for every week, upcoming matchups, a game log, and an **Analytics** card: snap %, target and rush share, air yards, WOPR, aDOT, efficiency, yards after catch and red-zone work over the last 3 games, last 5 or the season. |
+| **Player pages** | Headshot and bio, the verdict and why, projected vs actual points for every week, upcoming matchups, a game log, a **Trades** card (shop him if he's yours, or see what it would take to get him), and an **Analytics** card: snap %, target and rush share, air yards, WOPR, aDOT, efficiency, yards after catch and red-zone work over the last 3 games, last 5 or the season. |
 | **Byes** | A week-by-week grid of which lineup slots you can and can't fill, with "danger weeks" flagged before they arrive. |
 | **Trade** | **Trade ideas** where *both* starting lineups improve (ask for a fresh set any time), **Find a trade** ("these two players for a running back": every team searched), and an **Analyzer** for any deal. Each deal shows who would have to be dropped to make room and how every remaining week changes, bye weeks included. |
 | **Settings** | Tune the projection weights, buy/sell thresholds, injury assumptions and advisor rules, with the backtest-tuned defaults one click away. |
@@ -182,8 +182,8 @@ points per game, beating similar players 61–67% of the time. **Buy-low flags a
 coin flip** (46–50%, about 0 PPG of lift), so treat them as context rather than a reason to trade.
 
 ### Rankings (schedule)
-The **Rankings** page ranks the top 10 at every position, across all players, for each upcoming week
-and for the rest of the season. Each week's projection is the player's per-game projection × expected
+The **Rankings** page ranks the top 10 at every position (switch to 15, 20 or 30; your choice is
+remembered), across all players, for each upcoming week and for the rest of the season. Each week's projection is the player's per-game projection × expected
 availability × a matchup multiplier, `1 + α × (opponent index − 1)`:
 - **Opponent index:** fantasy points the opponent allows to that position vs league average, with
   this season shrunk toward last season. For a defense, the opponent is the offense it faces.
@@ -225,6 +225,14 @@ gap never outranks a would-be starter.
 ### Player pages
 Click any player for a headshot, bio, verdict and reasons, upcoming matchups, a game log, and a chart
 of what we projected before each week (using only earlier games) against what he scored.
+
+The **Trades** card builds deals around that one player when you press **Generate trades**:
+- **Your player ("Shop him"):** deals that give him away for 1 or 2 players from any team,
+  optionally only at the position you want back.
+- **Another team's player ("Trade for him"):** packages of 1 or 2 of your players for him.
+- Deals both lineups like come first; the rest are marked **Unlikely to accept**. Drops, bye weeks
+  and the week-by-week change work as on the Trade page, and **Open in analyzer** takes the deal
+  there to adjust. Free agents point you to waivers instead.
 
 The **Analytics** card shows how a player is used and what he does with it, over his last 3 games,
 last 5, or the season:
@@ -382,9 +390,10 @@ FastAPI serves interactive docs at `http://localhost:8000/docs`. Endpoints:
 | GET | `/team/{id}/advice` | Ranked advisor feed + team grade |
 | GET | `/team/{id}/regression` | Regression flags for your roster and the league |
 | GET | `/team/{id}/byes` | Week × slot bye grid and danger weeks |
-| GET | `/team/{id}/rankings` | Top 10 per position by schedule-adjusted points, each week and rest of season |
+| GET | `/team/{id}/rankings?top=` | Top 10 (up to 50) per position by schedule-adjusted points, each week and rest of season |
 | GET | `/team/{id}/buy-targets` | Undervalued players to buy and your overvalued players, per position |
 | GET | `/team/{id}/players/{player_id}` | Player page: bio, verdict, game log, projected vs actual by week, L3/L5/season analytics |
+| GET | `/team/{id}/players/{player_id}/trades?want=` | Trades built around one player: shop him (yours) or what it takes to get him |
 | POST | `/trade/evaluate` | Score a proposed trade for both sides |
 | GET | `/trade/suggest?page=` | Mutually beneficial trade ideas; each page is new deals |
 | POST | `/trade/find` | Deals for players you name, for a position you want (1 or 2 players back) |
