@@ -1,6 +1,6 @@
 """Cross-platform task runner (the Makefile delegates here so Windows works without `make`).
 
-Usage: python tasks.py <setup|data|dev|api|web|test|lint|fmt|gen-api|backtest|train>
+Usage: python tasks.py <setup|data|dev|api|web|test|e2e|lint|fmt|gen-api|backtest|train>
 """
 
 from __future__ import annotations
@@ -81,6 +81,11 @@ def test() -> None:
         run([*pnpm(), "run", "test"], FRONTEND)
 
 
+def e2e() -> None:
+    """Browser tests (Chromium + Firefox) against Vite with the API mocked; no backend needed."""
+    run([*pnpm(), "exec", "playwright", "test"], FRONTEND)
+
+
 def gen_api() -> None:
     run(["uv", "run", "python", "-m", "app.export_openapi", "../frontend/openapi.json"], BACKEND)
     run([*pnpm(), "run", "gen-api"], FRONTEND)
@@ -101,6 +106,7 @@ TASKS = {
     "api": api,
     "web": web,
     "test": test,
+    "e2e": e2e,
     "lint": lint,
     "fmt": fmt,
     "gen-api": gen_api,

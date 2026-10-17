@@ -1,0 +1,14 @@
+{
+  "team_id": "demo-1",
+  "team_name": "Demo Team",
+  "league": {
+    "league_id": "demo",
+    "platform": "sleeper",
+    "name": "Demo League",
+    "season": 2026,
+    "week": 7,
+    "num_teams": 10,
+    "scoring": "Half PPR",
+    "last_synced_at": null
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "team_id": "demo-1",
+  "week": 7,
+  "weeks": [7, 8, 9],
+  "slots": [
+    { "slot": "QB", "label": "QB", "eligible": ["QB"] },
+    { "slot": "RB", "label": "RB", "eligible": ["RB"] },
+    { "slot": "WR", "label": "WR", "eligible": ["WR"] },
+    { "slot": "TE", "label": "TE", "eligible": ["TE"] },
+    { "slot": "FLEX", "label": "FLEX", "eligible": ["RB", "TE", "WR"] }
+  ],
+  "players": [
+    { "player": { "player_id": "qb", "name": "Quarter Back", "position": "QB", "nfl_team": "KC" }, "points": 20.4, "opponent": "LV", "matchup_index": 1.12, "on_bye": false, "injury_status": null, "locked": false, "reserved": false },
+    { "player": { "player_id": "rb1", "name": "Run Ner", "position": "RB", "nfl_team": "ATL" }, "points": 15.1, "opponent": "TB", "matchup_index": 1.0, "on_bye": false, "injury_status": null, "locked": false, "reserved": false },
+    { "player": { "player_id": "wr1", "name": "Wide Out", "position": "WR", "nfl_team": "CIN" }, "points": 14.0, "opponent": "PIT", "matchup_index": 0.9, "on_bye": false, "injury_status": null, "locked": false, "reserved": false },
+    { "player": { "player_id": "wr2", "name": "Bench Star", "position": "WR", "nfl_team": "DET" }, "points": 12.2, "opponent": "MIN", "matchup_index": 1.2, "on_bye": false, "injury_status": null, "locked": false, "reserved": false },
+    { "player": { "player_id": "rb2", "name": "Slow Back", "position": "RB", "nfl_team": "NYG" }, "points": 8.6, "opponent": "PHI", "matchup_index": 0.85, "on_bye": false, "injury_status": "Questionable", "locked": false, "reserved": false },
+    { "player": { "player_id": "te", "name": "Tight End", "position": "TE", "nfl_team": "SF" }, "points": 7.5, "opponent": "SEA", "matchup_index": 1.0, "on_bye": false, "injury_status": null, "locked": false, "reserved": false },
+    { "player": { "player_id": "thu", "name": "Thursday Guy", "position": "WR", "nfl_team": "DEN" }, "points": 0, "opponent": "KC", "matchup_index": null, "on_bye": false, "injury_status": null, "locked": true, "reserved": false }
+  ],
+  "current": ["qb", "rb1", "wr1", "te", "rb2"],
+  "optimal": ["qb", "rb1", "wr1", "te", "wr2"],
+  "current_points": 65.6,
+  "optimal_points": 69.2,
+  "gap": 3.6,
+  "has_lineup": true
+}

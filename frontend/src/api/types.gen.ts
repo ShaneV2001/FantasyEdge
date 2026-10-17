@@ -1770,6 +1770,131 @@ export type SourceStatus = {
 };
 
 /**
+ * StartSitOut
+ */
+export type StartSitOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Weeks
+     *
+     * Weeks you can plan
+     */
+    weeks: Array<number>;
+    /**
+     * Slots
+     */
+    slots: Array<StartSitSlot>;
+    /**
+     * Players
+     */
+    players: Array<StartSitPlayer>;
+    /**
+     * Current
+     *
+     * Your real lineup, one player id per slot
+     */
+    current: Array<string | null>;
+    /**
+     * Optimal
+     *
+     * The best lineup, one player id per slot
+     */
+    optimal: Array<string | null>;
+    /**
+     * Current Points
+     */
+    current_points: number;
+    /**
+     * Optimal Points
+     */
+    optimal_points: number;
+    /**
+     * Gap
+     *
+     * optimal_points - current_points
+     */
+    gap: number;
+    /**
+     * Has Lineup
+     *
+     * False when the platform gave no starters (manual team)
+     */
+    has_lineup: boolean;
+};
+
+/**
+ * StartSitPlayer
+ */
+export type StartSitPlayer = {
+    player: PlayerRef;
+    /**
+     * Points
+     *
+     * Projected points this week (matchup-adjusted; 0 if done)
+     */
+    points: number;
+    /**
+     * Opponent
+     */
+    opponent?: string | null;
+    /**
+     * Matchup Index
+     *
+     * >1 = easier than average
+     */
+    matchup_index?: number | null;
+    /**
+     * On Bye
+     */
+    on_bye: boolean;
+    /**
+     * Injury Status
+     */
+    injury_status?: string | null;
+    /**
+     * Locked
+     *
+     * His game this week is already final: he can't be moved
+     */
+    locked: boolean;
+    /**
+     * Reserved
+     *
+     * On IR or taxi: can't be started
+     */
+    reserved: boolean;
+};
+
+/**
+ * StartSitSlot
+ */
+export type StartSitSlot = {
+    /**
+     * Slot
+     *
+     * Lineup slot key (QB, RB, FLEX, SUPER_FLEX, ...)
+     */
+    slot: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Eligible
+     *
+     * Positions that can fill it
+     */
+    eligible: Array<string>;
+};
+
+/**
  * StatusOut
  */
 export type StatusOut = {
@@ -2770,6 +2895,43 @@ export type GetRankingsResponses = {
 };
 
 export type GetRankingsResponse = GetRankingsResponses[keyof GetRankingsResponses];
+
+export type GetStartsitData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: {
+        /**
+         * Week
+         *
+         * Default: this week
+         */
+        week?: number | null;
+    };
+    url: '/team/{team_id}/startsit';
+};
+
+export type GetStartsitErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetStartsitError = GetStartsitErrors[keyof GetStartsitErrors];
+
+export type GetStartsitResponses = {
+    /**
+     * Successful Response
+     */
+    200: StartSitOut;
+};
+
+export type GetStartsitResponse = GetStartsitResponses[keyof GetStartsitResponses];
 
 export type GetWaiversData = {
     body?: never;
