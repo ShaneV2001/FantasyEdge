@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unicodedata
+from collections.abc import Sequence
 from datetime import datetime
 
 from app.errors import InvalidInput, NotFound
@@ -12,6 +13,7 @@ from projections.base import replacement_ranks
 from scoring.rules import PRESETS, normalize
 from signals import advisor as adv
 from signals import trade as tr
+from signals import waivers as wv
 from signals.byes import RosterEntry, bye_grid
 from signals.lineup import starting_slots
 from signals.regression import TDOE_THRESHOLD, USAGE_SHIFT, Z_THRESHOLD, RegressionFlag
@@ -570,6 +572,7 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
         trade_ideas=trade_ideas(ctx, team_id),
         free_agents=free_agents(ctx),
         regression_messages=msgs,
+        waivers=waiver_picks(ctx, team_id),
         market_label=market_label(ctx),
         playoff_label=ctx.league.playoff_label,
         waiver_min_gain=ctx.tuning.waiver_min_gain,
@@ -916,6 +919,109 @@ def players_table(
         size=size,
         nfl_teams=sorted({t for pid in pool if (t := ctx.players[pid].get("nfl_team"))}),
         market_label=market_label(ctx),
+    )
+
+
+# ───────── waivers ─────────
+
+TRENDING_LIMIT = 25
+
+
+def waiver_picks(ctx: LeagueContext, team_id: str) -> list[wv.WaiverPick]:
+    """Free agents ranked by net rest-of-season gain to this team's lineup (empty: manual)."""
+    key = ("waivers", team_id)
+    if key not in ctx.memo:
+        fas = free_agents(ctx)
+        prof = profiles(ctx).get(team_id)
+        ctx.memo[key] = (
+            []
+            if fas is None
+            else wv.rank_waivers(
+                ros_math(ctx), ctx.players, team_id, ctx.team(team_id).player_ids, fas,
+                roster_rules(ctx), ctx.replacement_ppg, prof.needs if prof else (),
+            )
+        )  # fmt: skip
+    return ctx.memo[key]
+
+
+def faab_remaining(ctx: LeagueContext, team_id: str) -> int | None:
+    if not ctx.league.uses_faab:
+        return None
+    left = ctx.team(team_id).faab_remaining
+    return left if left is not None else ctx.league.faab_budget
+
+
+def waivers_view(
+    ctx: LeagueContext, team_id: str, trending: Sequence[tuple[str, int, datetime]] = ()
+) -> m.WaiversOut:
+    """Free agents by what they add to your lineup (with the drop and a FAAB range), plus
+    Sleeper's trending adds and who has each of them in your league."""
+    ctx.team(team_id)  # 404 for an unknown team
+    t = ctx.tuning
+    remaining = faab_remaining(ctx, team_id)
+    rows = []
+    for i, w in enumerate(waiver_picks(ctx, team_id)):
+        p = ctx.players[w.player_id]
+        bid = wv.faab_bid(w.gain, remaining, t.faab_full_gain, t.faab_aggression, t.faab_min_bid)
+        rows.append(
+            m.WaiverRow(
+                rank=i + 1,
+                player=player_ref(ctx, w.player_id),
+                ppg=_r(p.get("ppg")) or 0.0,
+                ros_points=round(_ros_points(ctx, w.player_id), 1),
+                gain=w.gain,
+                gain_per_week=w.gain_per_week,
+                drop=player_ref(ctx, w.drop) if w.drop else None,
+                drop_ppg=_r(ctx.players[w.drop].get("ppg")) if w.drop in ctx.players else None,
+                fixes_weeks=w.fixes_weeks,
+                need=w.need,
+                injury_status=p.get("injury_status"),
+                bye_week=p.get("bye_week"),
+                signal=p.get("signal") or "hold",
+                faab=m.FaabBid(low=bid[0], bid=bid[1], high=bid[2]) if bid else None,
+            )
+        )
+    trend_rows = []
+    for pid, adds, _ in list(trending)[:TRENDING_LIMIT]:
+        p = ctx.players.get(pid)
+        if p is None:
+            continue
+        owner, mine = _owner_label(ctx, pid, team_id)
+        trend_rows.append(
+            m.TrendingRow(
+                player=player_ref(ctx, pid),
+                adds=adds,
+                owner=owner,
+                mine=mine,
+                ppg=_r(p.get("ppg")),
+                signal=p.get("signal") or "hold",
+            )
+        )
+    prof = profiles(ctx).get(team_id)
+    manual = ctx.league.platform == "manual"
+    return m.WaiversOut(
+        team_id=team_id,
+        week=ctx.week,
+        last_week=ctx.league.last_week,
+        rows=rows,
+        needs=prof.needs if prof else [],
+        faab=m.FaabInfo(
+            uses_faab=ctx.league.uses_faab,
+            budget=ctx.league.faab_budget,
+            remaining=remaining,
+            full_gain=t.faab_full_gain,
+            aggression=t.faab_aggression,
+            min_bid=t.faab_min_bid,
+        ),
+        trending=trend_rows,
+        trending_fetched_at=max((f for _, _, f in trending), default=None),
+        as_of=ctx.league.last_synced_at,
+        message=(
+            "A manual team doesn't know who's on other rosters, so it can't list free agents. "
+            "Connect your Sleeper or ESPN league to see waiver pickups."
+            if manual
+            else None
+        ),
     )
 
 

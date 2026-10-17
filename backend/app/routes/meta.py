@@ -72,6 +72,13 @@ def refresh(
                 detail.append(f"league: {len(res.teams)} ESPN rosters synced")
             else:
                 detail.append("league: manual league, nothing to sync")
+        if body.scope == "league":
+            # Sleeper's trending adds feed the Waivers page; cheap, so every Update refreshes them
+            try:
+                detail.append(f"trending: {jobs.trending_sync(con, c)}")
+            except Exception as exc:  # secondary data: report it, keep the roster sync result
+                log.exception("refresh trending failed")
+                detail.append(f"trending failed: {exc}")
         if body.scope in ("market", "all"):
             for fmt in _market_formats(con, body.league_id):
                 try:

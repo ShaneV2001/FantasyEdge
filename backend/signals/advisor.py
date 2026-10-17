@@ -14,6 +14,7 @@ from signals.team import RosMath, TeamProfile
 from signals.trade import TradeEvaluation
 from signals.verdict import GAP_MIN_POINTS, GAP_MIN_SHARE
 from signals.verdict import threshold as verdict_threshold
+from signals.waivers import WaiverPick
 
 URGENCY_WEIGHT = {
     "this_week": 3.0,
@@ -64,6 +65,7 @@ class AdvisorInputs:
     trade_ideas: Sequence[TradeEvaluation]
     free_agents: Sequence[str] | None  # None when the player pool is unknown (manual league)
     regression_messages: Mapping[str, list[str]]
+    waivers: Sequence[WaiverPick] = ()  # ranked pickups (signals.waivers), best net gain first
     market_label: str = "Market"
     playoff_label: str = "weeks 15-17"
     waiver_min_gain: float = WAIVER_MIN_GAIN
@@ -292,39 +294,40 @@ def trade_actions(inp: AdvisorInputs, top: int = 3) -> list[Action]:
     return out
 
 
+WAIVER_ACTIONS = 3
+
+
 def waiver_actions(inp: AdvisorInputs) -> list[Action]:
-    if not inp.free_agents:
-        return []
-    my = list(inp.rosters[inp.my_team_id])
-    mine = inp.profiles.get(inp.my_team_id)
-    starters = set(mine.starters) if mine else set()
-    actions = []
-    bench = [p for p in my if p in inp.players and p not in starters]
-    drop = min(bench, key=lambda p: inp.players[p].get("ros_value_par") or 0, default=None)
-    for pos in ("QB", "RB", "WR", "TE"):
-        my_pos = [p for p in my if inp.players.get(p, {}).get("position") == pos]
-        worst_starter = min(
-            (inp.players[p].get("ppg") or 0 for p in my_pos if p in starters), default=0.0
-        )
-        fas = [p for p in inp.free_agents if inp.players.get(p, {}).get("position") == pos]
-        best = max(fas, key=lambda p: inp.players[p].get("ros_value_par") or 0, default=None)
-        if best is None:
+    """The best pickups from the waiver ranking (same numbers as the Waivers page): one per
+    position, only when the net gain per week clears the threshold."""
+    actions: list[Action] = []
+    seen: set[str] = set()
+    for w in inp.waivers:
+        if len(actions) >= WAIVER_ACTIONS:
+            break
+        if w.position in seen or w.gain_per_week < inp.waiver_min_gain:
             continue
-        b = inp.players[best]
-        gain = (b.get("ppg") or 0) - worst_starter
-        if gain < inp.waiver_min_gain:
-            continue
+        seen.add(w.position)
+        b = inp.players[w.player_id]
         reasons = [
-            f"Projects {b['ppg']:.1f} ppg vs your weakest {pos} starter at {worst_starter:.1f}."
+            f"Adds {w.gain:.0f} rest-of-season points to your starting lineup "
+            f"({w.gain_per_week:.1f} a week), projecting {b.get('ppg') or 0:.1f} ppg."
         ]
-        reasons += inp.regression_messages.get(best, [])[:1]
-        if drop:
+        if w.fixes_weeks:
+            weeks = ", ".join(str(x) for x in w.fixes_weeks)
             reasons.append(
-                f"Drop candidate: {_name(inp.players, drop)} (lowest rest-of-season value on your bench)."
+                f"Fills a lineup hole in week{'s' if len(w.fixes_weeks) > 1 else ''} {weeks}."
+            )
+        reasons += inp.regression_messages.get(w.player_id, [])[:1]
+        if w.drop:
+            reasons.append(
+                f"Drop {_name(inp.players, w.drop)}: the player your lineup misses least "
+                "(already counted in the gain)."
             )
         actions.append(
-            Action("Waiver", f"Add {b['name']} ({pos})", reasons, "this_week",
-                   "medium" if gain >= 3 else "low", min(gain, 5.0), [best] + ([drop] if drop else []))
+            Action("Waiver", f"Add {b['name']} ({w.position})", reasons, "this_week",
+                   "high" if w.gain_per_week >= 4 else "medium" if w.gain_per_week >= 2.5 else "low",
+                   min(w.gain_per_week, 5.0), [w.player_id] + ([w.drop] if w.drop else []))
         )  # fmt: skip
     return actions
 

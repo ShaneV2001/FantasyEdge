@@ -16,7 +16,7 @@ def test_get_returns_defaults_and_schema(client):  # noqa: F811
     fields = {f["key"]: f for f in body["fields"]}
     assert fields["usage_weight"]["value"] == fields["usage_weight"]["default"] == 0.5
     assert {f["group"] for f in body["fields"]} == {
-        "Projections", "Buy/sell & targets", "Injuries", "Advisor & trades",
+        "Projections", "Buy/sell & targets", "Injuries", "Advisor & trades", "Waivers & FAAB",
     }  # fmt: skip
 
 

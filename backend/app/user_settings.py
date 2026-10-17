@@ -18,13 +18,14 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from projections.base import IR_WEEKS_MISSED, STATUS_THIS_WEEK, InjuryAssumptions
 from projections.baseline import SHRINK_GAMES, W_USAGE
-from signals import advisor, trade
+from signals import advisor, trade, waivers
 from signals.schedule import MATCHUP_ALPHA
 from signals.targets import TOP_N
 from signals.verdict import GAP_MIN_POINTS, GAP_MIN_SHARE, STARTABLE_RANK
 
 PROJ, VERDICT, INJ, ADV = "Projections", "Buy/sell & targets", "Injuries", "Advisor & trades"
-GROUPS = (PROJ, VERDICT, INJ, ADV)
+WAIV = "Waivers & FAAB"
+GROUPS = (PROJ, VERDICT, INJ, ADV, WAIV)
 
 
 def _f(default, lo, hi, group: str, label: str, help: str, tuned: bool = False):  # noqa: A002
@@ -102,8 +103,9 @@ class UserSettings(BaseModel):
     )  # fmt: skip
 
     waiver_min_gain: float = _f(
-        advisor.WAIVER_MIN_GAIN, 0, 10, ADV, "Waiver pickup: minimum gain (ppg)",
-        "Suggest a free agent only if he beats the player he'd replace by this many points per game.",
+        advisor.WAIVER_MIN_GAIN, 0, 10, ADV, "Waiver pickup: minimum gain (pts/week)",
+        "The Advisor suggests a free agent only if adding him (after the drop) raises your starting "
+        "lineup by at least this many points per week for the rest of the season.",
     )  # fmt: skip
     start_sit_min_gain: float = _f(
         advisor.START_SIT_MIN_GAIN, 0, 10, ADV, "Start/sit: minimum gain (pts)",
@@ -124,6 +126,21 @@ class UserSettings(BaseModel):
     trade_lean_gain: float = _f(
         trade.LEAN_GAIN, 0, 50, ADV, "Trade: lean accept at (pts)",
         "Gains between this and the accept line are a lean accept; losses beyond it are a decline.",
+    )  # fmt: skip
+
+    faab_full_gain: float = _f(
+        waivers.FAAB_FULL_GAIN, 5, 200, WAIV, "FAAB: gain worth a full bid (pts)",
+        "Net rest-of-season lineup points at which a pickup gets the full aggression share of your "
+        "remaining budget. Smaller gains get a proportional share.",
+    )  # fmt: skip
+    faab_aggression: float = _f(
+        waivers.FAAB_AGGRESSION, 0.05, 1, WAIV, "FAAB: aggression",
+        "Share of your remaining budget to bid on a pickup worth the full-bid gain or more "
+        "(0.5 = half of what's left).",
+    )  # fmt: skip
+    faab_min_bid: int = _f(
+        waivers.FAAB_MIN_BID, 0, 20, WAIV, "FAAB: minimum bid ($)",
+        "Never suggest less than this for a pickup that helps your lineup.",
     )  # fmt: skip
 
     @model_validator(mode="after")

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowLeftRight, CalendarRange, Crosshair, ListOrdered, Plug, RefreshCw, Settings2, Sparkles, UserSearch, Users } from 'lucide-react'
+import { ArrowLeftRight, CalendarRange, ClipboardPlus, Crosshair, ListOrdered, Plug, RefreshCw, Settings2, Sparkles, UserSearch, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { getTeamOptions, refreshMutation } from '@/api/@tanstack/react-query.gen'
@@ -29,6 +29,7 @@ const NAV = [
   { to: '/rankings', label: 'Rankings', icon: ListOrdered },
   { to: '/buy-targets', label: 'Buy targets', icon: Crosshair },
   { to: '/trade', label: 'Trade', icon: ArrowLeftRight },
+  { to: '/waivers', label: 'Waivers', icon: ClipboardPlus },
 ] as const
 
 export function AppSidebar() {

@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRegression, getStatus, getTeam, getUserSettings, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
-import type { ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
+import { connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRegression, getStatus, getTeam, getUserSettings, getWaivers, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
+import type { ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, GetWaiversData, GetWaiversError, GetWaiversResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -359,6 +359,27 @@ export const getRankingsOptions = (options: Options<GetRankingsData>) => queryOp
         return data;
     },
     queryKey: getRankingsQueryKey(options)
+});
+
+export const getWaiversQueryKey = (options: Options<GetWaiversData>) => createQueryKey('getWaivers', options);
+
+/**
+ * Get Waivers
+ *
+ * Free agents ranked by net rest-of-season gain to your starting lineup (after the best
+ * drop), with a FAAB bid range, plus Sleeper's most-added players of the last 24 hours.
+ */
+export const getWaiversOptions = (options: Options<GetWaiversData>) => queryOptions<GetWaiversResponse, GetWaiversError, GetWaiversResponse, ReturnType<typeof getWaiversQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getWaivers({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getWaiversQueryKey(options)
 });
 
 export const getAdviceQueryKey = (options: Options<GetAdviceData>) => createQueryKey('getAdvice', options);

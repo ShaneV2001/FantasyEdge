@@ -91,6 +91,21 @@ def get_rankings(
     return views.rankings_view(ctx, team_id, top)
 
 
+@router.get("/{team_id}/waivers", response_model=m.WaiversOut)
+def get_waivers(
+    team_id: str,
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.WaiversOut:
+    """Free agents ranked by net rest-of-season gain to your starting lineup (after the best
+    drop), with a FAAB bid range, plus Sleeper's most-added players of the last 24 hours."""
+    trending = con.execute(
+        """SELECT player_id, count, fetched_at FROM trending
+           WHERE kind = 'add' AND lookback_hours = 24 ORDER BY count DESC"""
+    ).fetchall()
+    return views.waivers_view(ctx, team_id, trending)
+
+
 @router.get("/{team_id}/advice", response_model=m.AdviceOut)
 def get_advice(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.AdviceOut:
     """Ranked advisor feed (Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team grades."""

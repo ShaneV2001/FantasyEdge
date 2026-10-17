@@ -12,6 +12,7 @@ import { SettingsPage } from '@/routes/settings'
 import { TeamPage } from '@/routes/team'
 import { TeamEditPage } from '@/routes/team-edit'
 import { TradePage } from '@/routes/trade'
+import { WaiversPage } from '@/routes/waivers'
 import { useTeamStore } from '@/stores/team'
 
 const rootRoute = createRootRoute({ component: AppLayout })
@@ -74,9 +75,15 @@ const tradeRoute = createRoute({
   beforeLoad: requireTeam,
   component: TradePage,
 })
+const waiversRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/waivers',
+  beforeLoad: requireTeam,
+  component: WaiversPage,
+})
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage })
 
-const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, byesRoute, rankingsRoute, buyTargetsRoute, playersRoute, playerRoute, tradeRoute, settingsRoute])
+const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, byesRoute, rankingsRoute, buyTargetsRoute, playersRoute, playerRoute, tradeRoute, waiversRoute, settingsRoute])
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' })
 

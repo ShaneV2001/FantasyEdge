@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+from datetime import datetime
 
 import httpx
 import polars as pl
@@ -51,6 +52,10 @@ def mock_sources(router: respx.MockRouter) -> None:
     router.get(url__regex=rf"{SL}/league/{LEAGUE}/transactions/\d+").mock(
         return_value=httpx.Response(200, json=[])
     )
+    router.get(f"{SL}/players/nfl/trending/add").mock(
+        return_value=httpx.Response(200, json=load_json("sleeper_trending_add.json"))
+    )
+    router.get(f"{SL}/players/nfl/trending/drop").mock(return_value=httpx.Response(200, json=[]))
     router.get(f"{SL}/players/nfl").mock(
         return_value=httpx.Response(200, json=load_json("sleeper_players.json"))
     )
@@ -226,6 +231,7 @@ def test_status_and_refresh(client):
     league_id = tc.get(f"/team/{team_id}").json()["league"]["league_id"]
     r = tc.post("/refresh", json={"scope": "league", "league_id": league_id})
     assert r.status_code == 200 and r.json()["ok"]
+    assert any(d.startswith("trending: ") for d in r.json()["detail"])  # Update refreshes them too
     # team stays selected across a re-sync
     assert tc.get(f"/team/{team_id}").json()["team_id"] == team_id
 
@@ -769,3 +775,88 @@ def test_players_table_for_a_manual_team(client):
     assert rows and all(r["mine"] for r in rows)
     others = tc.get(f"/team/{team_id}/players", params={"avail": "fa", "size": 10}).json()["rows"]
     assert all(r["owner"] is None for r in others)  # a manual team can't know who's available
+
+
+def _release(team_id: str, n: int) -> list[str]:
+    """Drop `n` players (skill positions) from a team in the store, so they're free agents."""
+    con = deps._con
+    pids = [
+        r[0]
+        for r in con.execute(
+            """SELECT r.player_id FROM roster_spots r JOIN players p USING (player_id)
+               WHERE r.team_id = ? AND p.position IN ('RB', 'WR', 'TE', 'QB')
+               ORDER BY r.player_id""",
+            [team_id],
+        ).fetchall()
+    ][:n]
+    con.execute(
+        f"DELETE FROM roster_spots WHERE team_id = ? AND player_id IN ({','.join('?' * len(pids))})",
+        [team_id, *pids],
+    )
+    context.invalidate()
+    return pids
+
+
+def test_waivers_rank_free_agents_with_drops_faab_and_trending(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    team = tc.get(f"/team/{team_id}").json()
+    other = next(t for t in team["league_teams"] if not t["is_mine"])
+    freed = _release(other["team_id"], 6)
+    mine = team["roster"][0]["player_id"]
+    theirs = next(
+        p["player_id"]
+        for p in tc.get(f"/team/{other['team_id']}").json()["roster"]
+        if p["player_id"] not in freed
+    )
+    now = datetime.now()
+    deps._con.executemany(
+        "INSERT INTO trending VALUES (?, 'add', ?, 24, ?)",
+        [(freed[0], 900, now), (mine, 500, now), (theirs, 100, now), ("nobody", 50, now)],
+    )
+
+    body = tc.get(f"/team/{team_id}/waivers").json()
+    rows = body["rows"]
+    assert rows, "freed players should help somebody's lineup"
+    assert {r["player"]["player_id"] for r in rows} <= set(freed)
+    gains = [r["gain"] for r in rows]
+    assert gains == sorted(gains, reverse=True) and all(g > 0 for g in gains)
+    assert [r["rank"] for r in rows] == list(range(1, len(rows) + 1))
+    weeks = body["last_week"] - body["week"] + 1
+    assert rows[0]["gain_per_week"] == pytest.approx(rows[0]["gain"] / weeks, abs=0.01)
+    # the fixture league has a bench spot open (15 players, 16 spots): nobody has to go
+    assert all(r["drop"] is None for r in rows)
+
+    faab = body["faab"]
+    assert faab["uses_faab"] and faab["budget"] == 100 and faab["remaining"] is not None
+    for r in rows:
+        b = r["faab"]
+        assert faab["min_bid"] <= b["low"] <= b["bid"] <= b["high"] <= faab["remaining"]
+
+    trend = {t["player"]["player_id"]: t for t in body["trending"]}
+    assert list(trend) == [freed[0], mine, theirs]  # most added first; unknown players skipped
+    assert trend[freed[0]]["owner"] == "Free agent"
+    assert trend[mine]["mine"] and trend[mine]["owner"] == "Your team"
+    assert trend[theirs]["owner"] == other["team_name"]
+    assert body["trending_fetched_at"] is not None and body["message"] is None
+
+    # the Advisor's waiver cards come from the same ranking
+    picks = {r["player"]["player_id"] for r in rows}
+    advice = tc.get(f"/team/{team_id}/advice").json()["actions"]
+    assert all(a["players"][0]["player_id"] in picks for a in advice if a["type"] == "Waiver")
+
+    # FAAB settings change the bids
+    top = rows[0]["faab"]["bid"]
+    assert tc.put("/settings", json={"faab_aggression": 1.0}).status_code == 200
+    again = tc.get(f"/team/{team_id}/waivers").json()
+    assert again["faab"]["aggression"] == 1.0
+    assert again["rows"][0]["faab"]["bid"] >= top
+    tc.delete("/settings")
+
+
+def test_waivers_for_a_manual_team(client):
+    tc, _ = client
+    team_id, _, _ = _manual_team(tc)
+    body = tc.get(f"/team/{team_id}/waivers").json()
+    assert body["rows"] == [] and "Connect your Sleeper or ESPN league" in body["message"]
+    assert not body["faab"]["uses_faab"] and body["faab"]["remaining"] is None

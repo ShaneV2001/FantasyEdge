@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayersTableData, GetPlayersTableErrors, GetPlayersTableResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
+import type { ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayersTableData, GetPlayersTableErrors, GetPlayersTableResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, GetWaiversData, GetWaiversErrors, GetWaiversResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -148,6 +148,14 @@ export const getBuyTargets = <ThrowOnError extends boolean = false>(options: Opt
  * the season (all players; owner labeled).
  */
 export const getRankings = <ThrowOnError extends boolean = false>(options: Options<GetRankingsData, ThrowOnError>): RequestResult<GetRankingsResponses, GetRankingsErrors, ThrowOnError> => (options.client ?? client).get<GetRankingsResponses, GetRankingsErrors, ThrowOnError>({ url: '/team/{team_id}/rankings', ...options });
+
+/**
+ * Get Waivers
+ *
+ * Free agents ranked by net rest-of-season gain to your starting lineup (after the best
+ * drop), with a FAAB bid range, plus Sleeper's most-added players of the last 24 hours.
+ */
+export const getWaivers = <ThrowOnError extends boolean = false>(options: Options<GetWaiversData, ThrowOnError>): RequestResult<GetWaiversResponses, GetWaiversErrors, ThrowOnError> => (options.client ?? client).get<GetWaiversResponses, GetWaiversErrors, ThrowOnError>({ url: '/team/{team_id}/waivers', ...options });
 
 /**
  * Get Advice

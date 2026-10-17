@@ -625,6 +625,62 @@ class PlayerTableRow(PlayerRef):
     bye_week: int | None = None
 
 
+class FaabBid(BaseModel):
+    low: int
+    bid: int
+    high: int
+
+
+class WaiverRow(BaseModel):
+    rank: int
+    player: PlayerRef
+    ppg: float
+    ros_points: float = Field(description="His schedule-adjusted projected points, rest of season")
+    gain: float = Field(
+        description="Net rest-of-season starting-lineup points from adding him (after the drop)"
+    )
+    gain_per_week: float
+    drop: PlayerRef | None = Field(None, description="Who you'd release (None: open roster spot)")
+    drop_ppg: float | None = None
+    fixes_weeks: list[int] = Field(description="Weeks you can't fill a slot today that he fills")
+    need: bool = Field(description="Fills a short week or a position you're weak at")
+    injury_status: str | None = None
+    bye_week: int | None = None
+    signal: Literal["buy", "hold", "sell"] = "hold"
+    faab: FaabBid | None = Field(None, description="Suggested bid range (FAAB leagues only)")
+
+
+class FaabInfo(BaseModel):
+    uses_faab: bool
+    budget: int | None
+    remaining: int | None
+    full_gain: float
+    aggression: float
+    min_bid: int
+
+
+class TrendingRow(BaseModel):
+    player: PlayerRef
+    adds: int = Field(description="Sleeper users who added him in the last 24 hours")
+    owner: str | None = Field(None, description="Team name, 'Your team', 'Free agent', or None")
+    mine: bool
+    ppg: float | None = None
+    signal: Literal["buy", "hold", "sell"] = "hold"
+
+
+class WaiversOut(BaseModel):
+    team_id: str
+    week: int
+    last_week: int
+    rows: list[WaiverRow]
+    needs: list[str]
+    faab: FaabInfo
+    trending: list[TrendingRow]
+    trending_fetched_at: datetime | None = None
+    as_of: datetime | None = Field(None, description="When rosters were last synced")
+    message: str | None = None
+
+
 class PlayersTableOut(BaseModel):
     team_id: str
     rows: list[PlayerTableRow]

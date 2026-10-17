@@ -737,6 +737,49 @@
         }
       }
     },
+    "/team/{team_id}/waivers": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Waivers",
+        "description": "Free agents ranked by net rest-of-season gain to your starting lineup (after the best\ndrop), with a FAAB bid range, plus Sleeper's most-added players of the last 24 hours.",
+        "operationId": "get_waivers",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaiversOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/team/{team_id}/advice": {
       "get": {
         "tags": [
@@ -2159,6 +2202,81 @@
         ],
         "title": "EspnDefaultsOut",
         "description": "What the local .env provides, so the Connect form can be pre-filled (never the cookies)."
+      },
+      "FaabBid": {
+        "properties": {
+          "low": {
+            "type": "integer",
+            "title": "Low"
+          },
+          "bid": {
+            "type": "integer",
+            "title": "Bid"
+          },
+          "high": {
+            "type": "integer",
+            "title": "High"
+          }
+        },
+        "type": "object",
+        "required": [
+          "low",
+          "bid",
+          "high"
+        ],
+        "title": "FaabBid"
+      },
+      "FaabInfo": {
+        "properties": {
+          "uses_faab": {
+            "type": "boolean",
+            "title": "Uses Faab"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "full_gain": {
+            "type": "number",
+            "title": "Full Gain"
+          },
+          "aggression": {
+            "type": "number",
+            "title": "Aggression"
+          },
+          "min_bid": {
+            "type": "integer",
+            "title": "Min Bid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uses_faab",
+          "budget",
+          "remaining",
+          "full_gain",
+          "aggression",
+          "min_bid"
+        ],
+        "title": "FaabInfo"
       },
       "FlagOut": {
         "properties": {
@@ -4985,6 +5103,62 @@
         ],
         "title": "TradeSuggestOut"
       },
+      "TrendingRow": {
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "adds": {
+            "type": "integer",
+            "title": "Adds",
+            "description": "Sleeper users who added him in the last 24 hours"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "Team name, 'Your team', 'Free agent', or None"
+          },
+          "mine": {
+            "type": "boolean",
+            "title": "Mine"
+          },
+          "ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ppg"
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "hold",
+              "sell"
+            ],
+            "title": "Signal",
+            "default": "hold"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player",
+          "adds",
+          "mine"
+        ],
+        "title": "TrendingRow"
+      },
       "UnmatchedPlayerOut": {
         "properties": {
           "espn_id": {
@@ -5066,6 +5240,212 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WaiverRow": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "ppg": {
+            "type": "number",
+            "title": "Ppg"
+          },
+          "ros_points": {
+            "type": "number",
+            "title": "Ros Points",
+            "description": "His schedule-adjusted projected points, rest of season"
+          },
+          "gain": {
+            "type": "number",
+            "title": "Gain",
+            "description": "Net rest-of-season starting-lineup points from adding him (after the drop)"
+          },
+          "gain_per_week": {
+            "type": "number",
+            "title": "Gain Per Week"
+          },
+          "drop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlayerRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who you'd release (None: open roster spot)"
+          },
+          "drop_ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drop Ppg"
+          },
+          "fixes_weeks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Fixes Weeks",
+            "description": "Weeks you can't fill a slot today that he fills"
+          },
+          "need": {
+            "type": "boolean",
+            "title": "Need",
+            "description": "Fills a short week or a position you're weak at"
+          },
+          "injury_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Injury Status"
+          },
+          "bye_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bye Week"
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "hold",
+              "sell"
+            ],
+            "title": "Signal",
+            "default": "hold"
+          },
+          "faab": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FaabBid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Suggested bid range (FAAB leagues only)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "player",
+          "ppg",
+          "ros_points",
+          "gain",
+          "gain_per_week",
+          "fixes_weeks",
+          "need"
+        ],
+        "title": "WaiverRow"
+      },
+      "WaiversOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "last_week": {
+            "type": "integer",
+            "title": "Last Week"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/WaiverRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "needs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Needs"
+          },
+          "faab": {
+            "$ref": "#/components/schemas/FaabInfo"
+          },
+          "trending": {
+            "items": {
+              "$ref": "#/components/schemas/TrendingRow"
+            },
+            "type": "array",
+            "title": "Trending"
+          },
+          "trending_fetched_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trending Fetched At"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of",
+            "description": "When rosters were last synced"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "week",
+          "last_week",
+          "rows",
+          "needs",
+          "faab",
+          "trending"
+        ],
+        "title": "WaiversOut"
       },
       "WeekPointsOut": {
         "properties": {

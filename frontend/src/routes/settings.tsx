@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { describeError } from '@/lib/errors'
+import { FAAB_FORMULA } from '@/lib/faab'
 
 const GROUP_NOTES: Record<string, string> = {
   Projections:
@@ -22,6 +23,7 @@ const GROUP_NOTES: Record<string, string> = {
   'Buy/sell & targets': 'When a player gets a buy or sell call, and how the Buy targets page is cut.',
   Injuries: 'How much an injury designation discounts a player.',
   'Advisor & trades': 'How big an edge the advisor needs before it suggests a move.',
+  'Waivers & FAAB': `How the Waivers page suggests FAAB bids. ${FAAB_FORMULA}`,
 }
 
 const fmt = (v: number) => String(Number(v.toFixed(3)))

@@ -490,6 +490,54 @@ export type EspnDefaultsOut = {
 };
 
 /**
+ * FaabBid
+ */
+export type FaabBid = {
+    /**
+     * Low
+     */
+    low: number;
+    /**
+     * Bid
+     */
+    bid: number;
+    /**
+     * High
+     */
+    high: number;
+};
+
+/**
+ * FaabInfo
+ */
+export type FaabInfo = {
+    /**
+     * Uses Faab
+     */
+    uses_faab: boolean;
+    /**
+     * Budget
+     */
+    budget: number | null;
+    /**
+     * Remaining
+     */
+    remaining: number | null;
+    /**
+     * Full Gain
+     */
+    full_gain: number;
+    /**
+     * Aggression
+     */
+    aggression: number;
+    /**
+     * Min Bid
+     */
+    min_bid: number;
+};
+
+/**
  * FlagOut
  */
 export type FlagOut = {
@@ -2091,6 +2139,37 @@ export type TradeSuggestOut = {
 };
 
 /**
+ * TrendingRow
+ */
+export type TrendingRow = {
+    player: PlayerRef;
+    /**
+     * Adds
+     *
+     * Sleeper users who added him in the last 24 hours
+     */
+    adds: number;
+    /**
+     * Owner
+     *
+     * Team name, 'Your team', 'Free agent', or None
+     */
+    owner?: string | null;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Ppg
+     */
+    ppg?: number | null;
+    /**
+     * Signal
+     */
+    signal?: 'buy' | 'hold' | 'sell';
+};
+
+/**
  * UnmatchedPlayerOut
  */
 export type UnmatchedPlayerOut = {
@@ -2138,6 +2217,118 @@ export type ValidationError = {
     ctx?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * WaiverRow
+ */
+export type WaiverRow = {
+    /**
+     * Rank
+     */
+    rank: number;
+    player: PlayerRef;
+    /**
+     * Ppg
+     */
+    ppg: number;
+    /**
+     * Ros Points
+     *
+     * His schedule-adjusted projected points, rest of season
+     */
+    ros_points: number;
+    /**
+     * Gain
+     *
+     * Net rest-of-season starting-lineup points from adding him (after the drop)
+     */
+    gain: number;
+    /**
+     * Gain Per Week
+     */
+    gain_per_week: number;
+    /**
+     * Who you'd release (None: open roster spot)
+     */
+    drop?: PlayerRef | null;
+    /**
+     * Drop Ppg
+     */
+    drop_ppg?: number | null;
+    /**
+     * Fixes Weeks
+     *
+     * Weeks you can't fill a slot today that he fills
+     */
+    fixes_weeks: Array<number>;
+    /**
+     * Need
+     *
+     * Fills a short week or a position you're weak at
+     */
+    need: boolean;
+    /**
+     * Injury Status
+     */
+    injury_status?: string | null;
+    /**
+     * Bye Week
+     */
+    bye_week?: number | null;
+    /**
+     * Signal
+     */
+    signal?: 'buy' | 'hold' | 'sell';
+    /**
+     * Suggested bid range (FAAB leagues only)
+     */
+    faab?: FaabBid | null;
+};
+
+/**
+ * WaiversOut
+ */
+export type WaiversOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Last Week
+     */
+    last_week: number;
+    /**
+     * Rows
+     */
+    rows: Array<WaiverRow>;
+    /**
+     * Needs
+     */
+    needs: Array<string>;
+    faab: FaabInfo;
+    /**
+     * Trending
+     */
+    trending: Array<TrendingRow>;
+    /**
+     * Trending Fetched At
+     */
+    trending_fetched_at?: string | null;
+    /**
+     * As Of
+     *
+     * When rosters were last synced
+     */
+    as_of?: string | null;
+    /**
+     * Message
+     */
+    message?: string | null;
 };
 
 /**
@@ -2579,6 +2770,36 @@ export type GetRankingsResponses = {
 };
 
 export type GetRankingsResponse = GetRankingsResponses[keyof GetRankingsResponses];
+
+export type GetWaiversData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/waivers';
+};
+
+export type GetWaiversErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetWaiversError = GetWaiversErrors[keyof GetWaiversErrors];
+
+export type GetWaiversResponses = {
+    /**
+     * Successful Response
+     */
+    200: WaiversOut;
+};
+
+export type GetWaiversResponse = GetWaiversResponses[keyof GetWaiversResponses];
 
 export type GetAdviceData = {
     body?: never;
