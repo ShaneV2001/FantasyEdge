@@ -712,7 +712,7 @@
           "trade"
         ],
         "summary": "Suggest Trades",
-        "description": "1-for-1 and 2-for-1 ideas where both lineups gain (hidden after the trade deadline).",
+        "description": "1-for-1 and 2-for-1 ideas where both lineups gain after any forced drops, and neither team\nis left short in a week it can fill today (hidden after the trade deadline).",
         "operationId": "suggest_trades",
         "parameters": [
           {
@@ -723,6 +723,20 @@
               "type": "string",
               "title": "Team Id"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 0,
+              "description": "0 = best ideas; each page shows new deals",
+              "default": 0,
+              "title": "Page"
+            },
+            "description": "0 = best ideas; each page shows new deals"
           }
         ],
         "responses": {
@@ -732,6 +746,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TradeSuggestOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trade/find": {
+      "post": {
+        "tags": [
+          "trade"
+        ],
+        "summary": "Find Trades",
+        "description": "\"Trade these players for a RB\": deals across the league that improve your lineup, the ones\nthe other team should like first.",
+        "operationId": "find_trades",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeFindRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeFindOut"
                 }
               }
             }
@@ -4104,6 +4160,79 @@
         ],
         "title": "TradeEvaluateRequest"
       },
+      "TradeFindOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "deadline_passed": {
+            "type": "boolean",
+            "title": "Deadline Passed"
+          },
+          "searched_teams": {
+            "type": "integer",
+            "title": "Searched Teams"
+          },
+          "ideas": {
+            "items": {
+              "$ref": "#/components/schemas/TradeOut"
+            },
+            "type": "array",
+            "title": "Ideas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "deadline_passed",
+          "searched_teams",
+          "ideas"
+        ],
+        "title": "TradeFindOut"
+      },
+      "TradeFindRequest": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "give": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Give"
+          },
+          "want_position": {
+            "type": "string",
+            "enum": [
+              "QB",
+              "RB",
+              "WR",
+              "TE",
+              "ANY"
+            ],
+            "title": "Want Position",
+            "default": "RB"
+          },
+          "receive_count": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Receive Count",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "give"
+        ],
+        "title": "TradeFindRequest"
+      },
       "TradeOut": {
         "properties": {
           "verdict": {
@@ -4170,6 +4299,18 @@
             "type": "array",
             "title": "Tags",
             "default": []
+          },
+          "partner_accepts": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partner Accepts",
+            "description": "Whether the other lineup gains too (null for a hypothetical trade)"
           }
         },
         "type": "object",
@@ -4246,6 +4387,36 @@
               }
             ],
             "title": "Market Value In"
+          },
+          "drops": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Drops",
+            "description": "Players this team must release to stay at its roster limit"
+          },
+          "new_short_weeks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "New Short Weeks",
+            "description": "Weeks it could fill its lineup before the trade but can't after (byes/injuries)"
+          },
+          "fixed_short_weeks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Fixed Short Weeks"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/WeekPointsOut"
+            },
+            "type": "array",
+            "title": "Weekly"
           }
         },
         "type": "object",
@@ -4295,6 +4466,17 @@
             },
             "type": "array",
             "title": "Ideas"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page",
+            "default": 0
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "description": "Another page has ideas this one didn't show",
+            "default": false
           }
         },
         "type": "object",
@@ -4388,6 +4570,30 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WeekPointsOut": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "before": {
+            "type": "number",
+            "title": "Before",
+            "description": "Projected starting-lineup points that week before the trade"
+          },
+          "after": {
+            "type": "number",
+            "title": "After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "before",
+          "after"
+        ],
+        "title": "WeekPointsOut"
       }
     }
   }

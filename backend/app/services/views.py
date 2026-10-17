@@ -389,6 +389,15 @@ def regression_view(ctx: LeagueContext, team_id: str, league_limit: int = 40) ->
 # ───────── trades ─────────
 
 
+def roster_rules(ctx: LeagueContext) -> tr.RosterRules:
+    """The league's roster limit, and who sits on IR / taxi (they don't use an active spot)."""
+    return tr.RosterRules(
+        active_limit=tr.active_limit(ctx.league.roster_positions),
+        reserved=frozenset(p for t in ctx.teams for p, s in t.slots.items() if s in ("ir", "taxi")),
+        reserve_slots=tr.reserve_slots(ctx.league.roster_positions),
+    )
+
+
 def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
     def side(s: tr.TradeSide) -> m.TradeSideOut:
         return m.TradeSideOut(
@@ -399,10 +408,15 @@ def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
             lineup_before=round(s.lineup_before, 1),
             lineup_after=round(s.lineup_after, 1),
             lineup_delta=s.lineup_delta,
-            model_value_out=round(s.model_value_out, 1),
-            model_value_in=round(s.model_value_in, 1),
+            # whole points, rounded the same way as the reasons text so the two always agree
+            model_value_out=float(round(s.model_value_out)),
+            model_value_in=float(round(s.model_value_in)),
             market_value_out=s.market_value_out,
             market_value_in=s.market_value_in,
+            drops=[player_ref(ctx, p) for p in s.drops],
+            new_short_weeks=s.new_short_weeks,
+            fixed_short_weeks=s.fixed_short_weeks,
+            weekly=[m.WeekPointsOut(week=w.week, before=w.before, after=w.after) for w in s.weekly],
         )
 
     return m.TradeOut(
@@ -414,6 +428,7 @@ def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
         danger_weeks_before=ev.danger_weeks_before,
         danger_weeks_after=ev.danger_weeks_after,
         tags=ev.tags,
+        partner_accepts=ev.partner_accepts,
     )
 
 
@@ -451,13 +466,15 @@ def evaluate_trade(
             market_label=market_label(ctx),
             accept_gain=ctx.tuning.trade_accept_gain,
             lean_gain=ctx.tuning.trade_lean_gain,
+            rules=roster_rules(ctx),
         )
     except ValueError as exc:  # signals/ stays app-agnostic and raises plain ValueError
         raise InvalidInput(str(exc)) from exc
     return trade_out(ctx, ev)
 
 
-def trade_ideas(ctx: LeagueContext, team_id: str) -> list[tr.TradeEvaluation]:
+def trade_candidates(ctx: LeagueContext, team_id: str) -> list[tr.TradeEvaluation]:
+    """Every mutually beneficial idea, best first (computed once per context, then paged)."""
     key = ("trades", team_id)
     if key not in ctx.memo:
         if ctx.deadline_passed:
@@ -465,7 +482,7 @@ def trade_ideas(ctx: LeagueContext, team_id: str) -> list[tr.TradeEvaluation]:
         else:
             team = ctx.team(team_id)
             others = {t.team_id: t.player_ids for t in ctx.teams if t.team_id != team_id}
-            ctx.memo[key] = tr.suggest(
+            ctx.memo[key] = tr.candidate_trades(
                 ros_math(ctx),
                 ctx.players,
                 (team.team_id, team.player_ids),
@@ -474,17 +491,57 @@ def trade_ideas(ctx: LeagueContext, team_id: str) -> list[tr.TradeEvaluation]:
                 market_label=market_label(ctx),
                 accept_gain=ctx.tuning.trade_accept_gain,
                 lean_gain=ctx.tuning.trade_lean_gain,
+                viable_ppg=ctx.replacement_ppg,
+                rules=roster_rules(ctx),
             )
     return ctx.memo[key]
 
 
-def suggest_view(ctx: LeagueContext, team_id: str) -> m.TradeSuggestOut:
-    ideas = trade_ideas(ctx, team_id)
+def trade_ideas(ctx: LeagueContext, team_id: str, page: int = 0) -> list[tr.TradeEvaluation]:
+    return tr.paginate(trade_candidates(ctx, team_id), page)[0]
+
+
+def suggest_view(ctx: LeagueContext, team_id: str, page: int = 0) -> m.TradeSuggestOut:
+    ideas, has_more = tr.paginate(trade_candidates(ctx, team_id), page)
     return m.TradeSuggestOut(
         team_id=team_id,
         week=ctx.week,
         deadline_passed=ctx.deadline_passed,
         trade_deadline_week=ctx.league.trade_deadline_week,
+        ideas=[trade_out(ctx, ev) for ev in ideas],
+        page=page,
+        has_more=has_more,
+    )
+
+
+def find_view(
+    ctx: LeagueContext, team_id: str, give: list[str], want_position: str, receive_count: int
+) -> m.TradeFindOut:
+    team = ctx.team(team_id)
+    if ctx.league.platform == "manual" or len(ctx.teams) < 2:
+        raise InvalidInput("Finding trade partners needs a synced Sleeper or ESPN league.")
+    others = {t.team_id: t.player_ids for t in ctx.teams if t.team_id != team_id}
+    try:
+        ideas = tr.find_for(
+            ros_math(ctx),
+            ctx.players,
+            (team.team_id, team.player_ids),
+            others,
+            give,
+            want_position,
+            receive_count,
+            viable_ppg=ctx.replacement_ppg,
+            rules=roster_rules(ctx),
+            market_label=market_label(ctx),
+            accept_gain=ctx.tuning.trade_accept_gain,
+            lean_gain=ctx.tuning.trade_lean_gain,
+        )
+    except ValueError as exc:
+        raise InvalidInput(str(exc)) from exc
+    return m.TradeFindOut(
+        team_id=team_id,
+        deadline_passed=ctx.deadline_passed,
+        searched_teams=len(others),
         ideas=[trade_out(ctx, ev) for ev in ideas],
     )
 

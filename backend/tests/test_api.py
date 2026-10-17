@@ -603,3 +603,36 @@ def test_best_lineup_leaves_out_players_on_bye(client):
     row = next(p for p in after.roster if p.player_id == star["player_id"])
     assert row.on_bye and not row.optimal_starter
     assert all(not (p.on_bye and p.optimal_starter) for p in after.roster)
+
+
+def test_trade_idea_pages_and_finder(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    first = tc.get("/trade/suggest", params={"team_id": team_id}).json()
+    assert first["page"] == 0
+    for idea in first["ideas"]:
+        for side in (idea["me"], idea["partner"]):
+            assert side["new_short_weeks"] == []  # never leaves either team short
+            assert len(side["weekly"]) > 0
+        assert idea["partner_accepts"] is True
+    if first["has_more"]:
+        second = tc.get("/trade/suggest", params={"team_id": team_id, "page": 1}).json()
+        shown = {(i["headline"], i["partner"]["team_id"]) for i in first["ideas"]}
+        assert not shown & {(i["headline"], i["partner"]["team_id"]) for i in second["ideas"]}
+
+    team = tc.get(f"/team/{team_id}").json()
+    give = [p["player_id"] for p in team["roster"] if p["position"] == "WR"][:2]
+    r = tc.post(
+        "/trade/find",
+        json={"team_id": team_id, "give": give, "want_position": "RB", "receive_count": 1},
+    )
+    assert r.status_code == 200, r.text
+    found = r.json()
+    assert found["searched_teams"] == 3
+    for idea in found["ideas"]:
+        assert [p["player_id"] for p in idea["me"]["gives"]] == give
+        assert all(p["position"] == "RB" for p in idea["me"]["receives"])
+        assert idea["me"]["lineup_delta"] > 0
+        assert idea["partner_accepts"] in (True, False)
+    bad = tc.post("/trade/find", json={"team_id": team_id, "give": [], "want_position": "RB"})
+    assert bad.status_code == 422

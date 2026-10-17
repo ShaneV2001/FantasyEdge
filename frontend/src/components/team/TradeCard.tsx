@@ -1,8 +1,10 @@
-import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Scale, UserMinus } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 import type { TradeOut, TradeSideOut } from '@/api'
 import { PlayerChip } from '@/components/player/badges'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { fmtInt, fmtNum, fmtSigned } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -55,7 +57,23 @@ function Side({ side, title }: { side: TradeSideOut; title: string }) {
             <PlayerChip key={p.player_id} player={p} />
           ))}
         </div>
+        {(side.drops ?? []).length > 0 && (
+          <>
+            <span
+              className="mt-1 flex items-center gap-1 text-[11px] uppercase tracking-wide text-warn"
+              title="Over the roster limit after the trade: this player's points are already taken out of the lineup change"
+            >
+              <UserMinus className="size-3" /> Must drop
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {side.drops!.map((p) => (
+                <PlayerChip key={p.player_id} player={p} className="opacity-80" />
+              ))}
+            </div>
+          </>
+        )}
       </div>
+      <WeekStrip side={side} />
       <dl className="mt-1 grid grid-cols-2 gap-x-3 text-xs">
         <dt className="text-muted-foreground">Lineup ROS</dt>
         <dd className="text-right font-mono">
@@ -74,6 +92,41 @@ function Side({ side, title }: { side: TradeSideOut; title: string }) {
           </>
         )}
       </dl>
+    </div>
+  )
+}
+
+/** Weeks this trade changes the projected lineup by at least half a point, plus weeks it leaves short. */
+function WeekStrip({ side }: { side: TradeSideOut }) {
+  const short = new Set(side.new_short_weeks ?? [])
+  const fixed = new Set(side.fixed_short_weeks ?? [])
+  const weeks = (side.weekly ?? []).filter((w) => Math.abs(w.after - w.before) >= 0.5 || short.has(w.week) || fixed.has(w.week))
+  if (weeks.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Week by week</span>
+      <div className="flex flex-wrap gap-1" aria-label="Lineup change by week">
+        {weeks.map((w) => {
+          const d = w.after - w.before
+          return (
+            <span
+              key={w.week}
+              title={`Week ${w.week}: ${fmtNum(w.before)} → ${fmtNum(w.after)} projected${short.has(w.week) ? ' (a lineup slot goes unfilled)' : fixed.has(w.week) ? ' (fills a hole you had)' : ''}`}
+              className={cn(
+                'rounded px-1.5 py-0.5 font-mono text-[10px] tabular-nums ring-1 ring-inset',
+                short.has(w.week)
+                  ? 'bg-sell/15 text-sell ring-sell/40'
+                  : d > 0
+                    ? 'bg-buy/10 text-buy ring-buy/20'
+                    : 'bg-sell/10 text-sell ring-sell/20',
+              )}
+            >
+              W{w.week} {fmtSigned(d)}
+              {short.has(w.week) && ' short'}
+            </span>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -102,9 +155,18 @@ export function TradeDetail({ trade }: { trade: TradeOut }) {
   )
 }
 
-export function TradeCard({ trade }: { trade: TradeOut }) {
+export function TradeCard({
+  trade,
+  onOpenInAnalyzer,
+  actions,
+}: {
+  trade: TradeOut
+  /** Show an "Open in analyzer" button that hands this deal to the analyzer */
+  onOpenInAnalyzer?: (trade: TradeOut) => void
+  actions?: ReactNode
+}) {
   return (
-    <Card>
+    <Card className={cn(trade.partner_accepts === false && 'border-dashed')}>
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
           <VerdictBadge verdict={trade.verdict} />
@@ -114,13 +176,28 @@ export function TradeCard({ trade }: { trade: TradeOut }) {
               {t}
             </Badge>
           ))}
+          {trade.partner_accepts === false && (
+            <Badge variant="outline" className="border-warn/40 text-warn" title="Their projected lineup doesn't improve">
+              Unlikely to accept
+            </Badge>
+          )}
         </CardTitle>
         <CardDescription>
           {trade.partner ? `with ${trade.partner.team_name}` : 'Hypothetical trade — only your side is modelled'}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-3">
         <TradeDetail trade={trade} />
+        {(onOpenInAnalyzer || actions) && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {actions}
+            {onOpenInAnalyzer && (
+              <Button size="sm" variant="outline" onClick={() => onOpenInAnalyzer(trade)}>
+                <Scale /> Open in analyzer
+              </Button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

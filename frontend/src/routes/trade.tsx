@@ -1,14 +1,19 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { Check, Lightbulb, Loader2, Plus, Scale } from 'lucide-react'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, Lightbulb, Loader2, Plus, RefreshCw, Scale, Search, Shuffle } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
+import { toast } from 'sonner'
 
-import type { PlayerRef, RosterPlayer } from '@/api'
+import type { PlayerRef, RosterPlayer, TradeFindRequest, TradeOut } from '@/api'
 import {
   evaluateTradeMutation,
+  findTradesMutation,
   getTeamOptions,
+  refreshMutation,
   searchPlayersOptions,
   suggestTradesOptions,
 } from '@/api/@tanstack/react-query.gen'
+import { describeError } from '@/lib/errors'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { EmptyState, ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { PlayerChip, PositionBadge } from '@/components/player/badges'
 import { TradeCard } from '@/components/team/TradeCard'
@@ -22,10 +27,55 @@ import { fmtNum } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useTeamStore } from '@/stores/team'
 
+/** A deal handed to the analyzer from an idea or a finder result. */
+export interface AnalyzerPrefill {
+  key: string
+  partnerId: string
+  give: string[]
+  receive: string[]
+}
+
+function toPrefill(t: TradeOut): AnalyzerPrefill {
+  return {
+    key: `${t.partner?.team_id}:${t.headline}:${Date.now()}`,
+    partnerId: t.partner?.team_id ?? '',
+    give: t.me.gives.map((p) => p.player_id),
+    receive: t.me.receives.map((p) => p.player_id),
+  }
+}
+
 export function TradePage() {
   const team = useTeamStore((s) => s.team)!
-  const ideas = useQuery({ ...suggestTradesOptions({ query: { team_id: team.teamId } }), staleTime: 5 * 60_000 })
+  const qc = useQueryClient()
+  const [tab, setTab] = useState(team.platform === 'manual' ? 'analyzer' : 'ideas')
+  const [page, setPage] = useState(0)
+  const [prefill, setPrefill] = useState<AnalyzerPrefill | null>(null)
+  const ideas = useQuery({
+    ...suggestTradesOptions({ query: { team_id: team.teamId, page } }),
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+  })
+  const refresh = useMutation({
+    ...refreshMutation(),
+    onSuccess: () => {
+      setPage(0)
+      void qc.invalidateQueries()
+      toast.success('League re-synced: trade ideas recalculated')
+    },
+    onError: (e) => toast.error(describeError(e).message, { description: describeError(e).hint }),
+  })
   const deadlinePassed = ideas.data?.deadline_passed
+  const openInAnalyzer = (t: TradeOut) => {
+    setPrefill(toPrefill(t))
+    setTab('analyzer')
+  }
+  const nextPage = () => {
+    if (ideas.data?.has_more) setPage((p) => p + 1)
+    else {
+      setPage(0)
+      toast('Back to the best ideas', { description: "You've seen every deal that works for both teams right now." })
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,16 +92,42 @@ export function TradePage() {
           </AlertDescription>
         </Alert>
       )}
-      <Tabs defaultValue={team.platform === 'manual' ? 'analyzer' : 'ideas'}>
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="ideas">
             <Lightbulb /> Trade ideas
+          </TabsTrigger>
+          <TabsTrigger value="find">
+            <Search /> Find a trade
           </TabsTrigger>
           <TabsTrigger value="analyzer">
             <Scale /> Analyzer
           </TabsTrigger>
         </TabsList>
         <TabsContent value="ideas" className="mt-4 flex flex-col gap-4">
+          {team.platform !== 'manual' && !deadlinePassed && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                {page === 0 ? 'Best ideas first.' : `More ideas · set ${page + 1}.`} Only deals where both lineups gain after
+                any forced drops, and neither team is left short in a bye week.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={refresh.isPending}
+                  onClick={() => refresh.mutate({ body: { scope: 'league', league_id: team.leagueId } })}
+                  title="Re-sync rosters from your league, then recalculate"
+                >
+                  <RefreshCw className={refresh.isPending ? 'animate-spin' : ''} /> Refresh
+                </Button>
+                <Button size="sm" disabled={ideas.isFetching || !ideas.data?.ideas.length} onClick={nextPage}>
+                  {ideas.isFetching ? <Loader2 className="animate-spin" /> : <Shuffle />}
+                  Show different ideas
+                </Button>
+              </div>
+            </div>
+          )}
           {ideas.isPending && <ListSkeleton rows={3} height="h-48" />}
           {ideas.isError && <ErrorState error={ideas.error} onRetry={() => void ideas.refetch()} />}
           {ideas.data && ideas.data.ideas.length === 0 && (
@@ -62,11 +138,14 @@ export function TradePage() {
             </EmptyState>
           )}
           {ideas.data?.ideas.map((t) => (
-            <TradeCard key={t.headline + (t.partner?.team_id ?? '')} trade={t} />
+            <TradeCard key={t.headline + (t.partner?.team_id ?? '')} trade={t} onOpenInAnalyzer={openInAnalyzer} />
           ))}
         </TabsContent>
+        <TabsContent value="find" className="mt-4">
+          <FindTrade teamId={team.teamId} manual={team.platform === 'manual'} onOpenInAnalyzer={openInAnalyzer} />
+        </TabsContent>
         <TabsContent value="analyzer" className="mt-4">
-          <Analyzer teamId={team.teamId} />
+          <Analyzer key={prefill?.key ?? 'blank'} teamId={team.teamId} prefill={prefill} />
         </TabsContent>
       </Tabs>
     </div>
@@ -185,10 +264,134 @@ function AnyPlayerPicker({
   )
 }
 
-function Analyzer({ teamId }: { teamId: string }) {
+const WANT = ['RB', 'WR', 'TE', 'QB', 'ANY'] as const
+type Want = TradeFindRequest['want_position']
+
+export function FindTrade({
+  teamId,
+  manual,
+  onOpenInAnalyzer,
+}: {
+  teamId: string
+  manual: boolean
+  onOpenInAnalyzer: (t: TradeOut) => void
+}) {
+  const mine = useQuery(getTeamOptions({ path: { team_id: teamId } }))
+  const [give, setGive] = useState<Set<string>>(new Set())
+  const [want, setWant] = useState<Want>('RB')
+  const [count, setCount] = useState(1)
+  const find = useMutation(findTradesMutation())
+
+  if (manual) {
+    return (
+      <EmptyState title="Finding trade partners needs a league">
+        Manual teams have no league rosters to search. Connect a Sleeper or ESPN league, or use the Analyzer for a
+        hypothetical deal.
+      </EmptyState>
+    )
+  }
+  if (mine.isPending) return <ListSkeleton rows={2} height="h-40" />
+  if (mine.isError) return <ErrorState error={mine.error} onRetry={() => void mine.refetch()} />
+
+  const toggle = (id: string) => {
+    const next = new Set(give)
+    if (next.has(id)) next.delete(id)
+    else if (next.size < 3) next.add(id)
+    setGive(next)
+    find.reset()
+  }
+  const valid = give.size >= 1 && give.size <= 3
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Find a trade</CardTitle>
+          <CardDescription>
+            Pick up to 3 of your players and what you want back. We search every team for deals that improve your
+            lineup, the ones their lineup also likes first.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <PickList title={`You give (${give.size}/3)`} players={mine.data.roster} picked={give} onToggle={toggle} />
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">You want</span>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={want}
+                onValueChange={(v) => {
+                  if (v) setWant(v as Want)
+                  find.reset()
+                }}
+                aria-label="Position you want"
+              >
+                {WANT.map((w) => (
+                  <ToggleGroupItem key={w} value={w} className="px-3">
+                    {w === 'ANY' ? 'Any' : w}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">Players back</span>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={String(count)}
+                onValueChange={(v) => {
+                  if (v) setCount(Number(v))
+                  find.reset()
+                }}
+                aria-label="How many players back"
+              >
+                <ToggleGroupItem value="1" className="px-3">
+                  1
+                </ToggleGroupItem>
+                <ToggleGroupItem value="2" className="px-3">
+                  2
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+            <Button
+              className="self-start"
+              disabled={!valid || find.isPending}
+              onClick={() =>
+                find.mutate({ body: { team_id: teamId, give: [...give], want_position: want, receive_count: count } })
+              }
+            >
+              {find.isPending ? <Loader2 className="animate-spin" /> : <Search />}
+              Find trades
+            </Button>
+            {!valid && <p className="text-xs text-muted-foreground">Pick 1 to 3 players to give.</p>}
+          </div>
+        </CardContent>
+      </Card>
+      {find.isError && <ErrorState error={find.error} />}
+      {find.data && find.data.ideas.length === 0 && (
+        <EmptyState title="No deal improves your lineup">
+          Nobody in the league has a {want === 'ANY' ? 'player' : want} that makes your lineup better for those players.
+          Try giving different players or asking for a different position.
+        </EmptyState>
+      )}
+      {find.data && find.data.ideas.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Searched {find.data.searched_teams} teams. {find.data.ideas.filter((t) => t.partner_accepts).length} deal(s)
+          help both lineups; the rest only help yours and are marked "Unlikely to accept".
+        </p>
+      )}
+      {find.data?.ideas.map((t) => (
+        <TradeCard key={t.headline + (t.partner?.team_id ?? '')} trade={t} onOpenInAnalyzer={onOpenInAnalyzer} />
+      ))}
+    </div>
+  )
+}
+
+function Analyzer({ teamId, prefill }: { teamId: string; prefill?: AnalyzerPrefill | null }) {
   const mine = useQuery(getTeamOptions({ path: { team_id: teamId } }))
   const others = mine.data?.league_teams.filter((t) => !t.is_mine) ?? []
-  const [partnerChoice, setPartnerChoice] = useState<string>('')
+  const [partnerChoice, setPartnerChoice] = useState<string>(prefill?.partnerId ?? '')
   // Manual teams have no league partners, so they start in hypothetical mode.
   const partnerId = partnerChoice || (mine.data && others.length === 0 ? ANY : '')
   const hypothetical = partnerId === ANY
@@ -196,8 +399,8 @@ function Analyzer({ teamId }: { teamId: string }) {
     ...getTeamOptions({ path: { team_id: partnerId } }),
     enabled: !!partnerId && !hypothetical,
   })
-  const [give, setGive] = useState<Set<string>>(new Set())
-  const [receive, setReceive] = useState<Set<string>>(new Set())
+  const [give, setGive] = useState<Set<string>>(new Set(prefill?.give ?? []))
+  const [receive, setReceive] = useState<Set<string>>(new Set(prefill?.receive ?? []))
   const [anyReceive, setAnyReceive] = useState<PlayerRef[]>([])
   const evaluate = useMutation(evaluateTradeMutation())
 

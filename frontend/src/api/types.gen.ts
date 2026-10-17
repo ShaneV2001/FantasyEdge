@@ -1755,6 +1755,50 @@ export type TradeEvaluateRequest = {
 };
 
 /**
+ * TradeFindOut
+ */
+export type TradeFindOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Deadline Passed
+     */
+    deadline_passed: boolean;
+    /**
+     * Searched Teams
+     */
+    searched_teams: number;
+    /**
+     * Ideas
+     */
+    ideas: Array<TradeOut>;
+};
+
+/**
+ * TradeFindRequest
+ */
+export type TradeFindRequest = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Give
+     */
+    give: Array<string>;
+    /**
+     * Want Position
+     */
+    want_position?: 'QB' | 'RB' | 'WR' | 'TE' | 'ANY';
+    /**
+     * Receive Count
+     */
+    receive_count?: number;
+};
+
+/**
  * TradeOut
  */
 export type TradeOut = {
@@ -1787,6 +1831,12 @@ export type TradeOut = {
      * Tags
      */
     tags?: Array<string>;
+    /**
+     * Partner Accepts
+     *
+     * Whether the other lineup gains too (null for a hypothetical trade)
+     */
+    partner_accepts?: boolean | null;
 };
 
 /**
@@ -1837,6 +1887,26 @@ export type TradeSideOut = {
      * Market Value In
      */
     market_value_in: number | null;
+    /**
+     * Drops
+     *
+     * Players this team must release to stay at its roster limit
+     */
+    drops?: Array<PlayerRef>;
+    /**
+     * New Short Weeks
+     *
+     * Weeks it could fill its lineup before the trade but can't after (byes/injuries)
+     */
+    new_short_weeks?: Array<number>;
+    /**
+     * Fixed Short Weeks
+     */
+    fixed_short_weeks?: Array<number>;
+    /**
+     * Weekly
+     */
+    weekly?: Array<WeekPointsOut>;
 };
 
 /**
@@ -1863,6 +1933,16 @@ export type TradeSuggestOut = {
      * Ideas
      */
     ideas: Array<TradeOut>;
+    /**
+     * Page
+     */
+    page?: number;
+    /**
+     * Has More
+     *
+     * Another page has ideas this one didn't show
+     */
+    has_more?: boolean;
 };
 
 /**
@@ -1913,6 +1993,26 @@ export type ValidationError = {
     ctx?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * WeekPointsOut
+ */
+export type WeekPointsOut = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Before
+     *
+     * Projected starting-lineup points that week before the trade
+     */
+    before: number;
+    /**
+     * After
+     */
+    after: number;
 };
 
 export type ConnectLeagueData = {
@@ -2373,6 +2473,12 @@ export type SuggestTradesData = {
          * Team Id
          */
         team_id: string;
+        /**
+         * Page
+         *
+         * 0 = best ideas; each page shows new deals
+         */
+        page?: number;
     };
     url: '/trade/suggest';
 };
@@ -2394,6 +2500,31 @@ export type SuggestTradesResponses = {
 };
 
 export type SuggestTradesResponse = SuggestTradesResponses[keyof SuggestTradesResponses];
+
+export type FindTradesData = {
+    body: TradeFindRequest;
+    path?: never;
+    query?: never;
+    url: '/trade/find';
+};
+
+export type FindTradesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FindTradesError = FindTradesErrors[keyof FindTradesErrors];
+
+export type FindTradesResponses = {
+    /**
+     * Successful Response
+     */
+    200: TradeFindOut;
+};
+
+export type FindTradesResponse = FindTradesResponses[keyof FindTradesResponses];
 
 export type GetStatusData = {
     body?: never;

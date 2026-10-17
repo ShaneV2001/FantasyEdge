@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
+import type { ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -184,9 +184,25 @@ export const evaluateTrade = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Suggest Trades
  *
- * 1-for-1 and 2-for-1 ideas where both lineups gain (hidden after the trade deadline).
+ * 1-for-1 and 2-for-1 ideas where both lineups gain after any forced drops, and neither team
+ * is left short in a week it can fill today (hidden after the trade deadline).
  */
 export const suggestTrades = <ThrowOnError extends boolean = false>(options: Options<SuggestTradesData, ThrowOnError>): RequestResult<SuggestTradesResponses, SuggestTradesErrors, ThrowOnError> => (options.client ?? client).get<SuggestTradesResponses, SuggestTradesErrors, ThrowOnError>({ url: '/trade/suggest', ...options });
+
+/**
+ * Find Trades
+ *
+ * "Trade these players for a RB": deals across the league that improve your lineup, the ones
+ * the other team should like first.
+ */
+export const findTrades = <ThrowOnError extends boolean = false>(options: Options<FindTradesData, ThrowOnError>): RequestResult<FindTradesResponses, FindTradesErrors, ThrowOnError> => (options.client ?? client).post<FindTradesResponses, FindTradesErrors, ThrowOnError>({
+    url: '/trade/find',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Get Status

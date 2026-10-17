@@ -267,6 +267,12 @@ class TeamOut(BaseModel):
 # ───────── advice / regression / byes ─────────
 
 
+class WeekPointsOut(BaseModel):
+    week: int
+    before: float = Field(description="Projected starting-lineup points that week before the trade")
+    after: float
+
+
 class TradeSideOut(BaseModel):
     team_id: str
     team_name: str
@@ -279,6 +285,16 @@ class TradeSideOut(BaseModel):
     model_value_in: float
     market_value_out: float | None
     market_value_in: float | None
+    drops: list[PlayerRef] = Field(
+        default_factory=list,
+        description="Players this team must release to stay at its roster limit",
+    )
+    new_short_weeks: list[int] = Field(
+        default_factory=list,
+        description="Weeks it could fill its lineup before the trade but can't after (byes/injuries)",
+    )
+    fixed_short_weeks: list[int] = Field(default_factory=list)
+    weekly: list[WeekPointsOut] = Field(default_factory=list)
 
 
 class TradeOut(BaseModel):
@@ -292,6 +308,9 @@ class TradeOut(BaseModel):
     danger_weeks_before: int | None = None
     danger_weeks_after: int | None = None
     tags: list[str] = []
+    partner_accepts: bool | None = Field(
+        None, description="Whether the other lineup gains too (null for a hypothetical trade)"
+    )
 
 
 class ActionOut(BaseModel):
@@ -553,6 +572,22 @@ class TradeSuggestOut(BaseModel):
     week: int
     deadline_passed: bool
     trade_deadline_week: int | None
+    ideas: list[TradeOut]
+    page: int = 0
+    has_more: bool = Field(False, description="Another page has ideas this one didn't show")
+
+
+class TradeFindRequest(BaseModel):
+    team_id: str
+    give: list[str] = Field(min_length=1, max_length=3)
+    want_position: Literal["QB", "RB", "WR", "TE", "ANY"] = "RB"
+    receive_count: int = Field(1, ge=1, le=2)
+
+
+class TradeFindOut(BaseModel):
+    team_id: str
+    deadline_passed: bool
+    searched_teams: int
     ideas: list[TradeOut]
 
 
