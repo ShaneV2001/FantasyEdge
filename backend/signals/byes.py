@@ -28,6 +28,7 @@ class RosterEntry:
     ppg: float
     injury_status: str | None = None
     status: str | None = None
+    return_week: int | None = None  # first week back when known (projections.base.SEASON_OUT)
 
 
 @dataclass
@@ -102,7 +103,7 @@ def bye_grid(
         for e in roster_entries:
             if not schedule.has_game(e.nfl_team, w):
                 continue
-            a = availability(e.injury_status, e.status, w, start_week, inj)
+            a = availability(e.injury_status, e.status, w, start_week, inj, e.return_week)
             if a > 0:
                 avail.append(LineupPlayer(e.player_id, e.position, e.ppg * a))
         cells, pts = _cells(roster, avail, slots, viable_ppg)

@@ -71,7 +71,12 @@ function WaiverTable({ rows, faab }: { rows: WaiverRow[]; faab: boolean }) {
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
                     <PlayerLink playerId={r.player.player_id}>{r.player.name}</PlayerLink>
-                    <InjuryTag status={r.injury_status} />
+                    <InjuryTag status={r.injury_status} returnWeek={r.return_week} />
+                    {r.return_week != null && r.return_week < 99 && (
+                      <Badge variant="outline" className="border-warn/40 text-warn">
+                        Back wk {r.return_week}
+                      </Badge>
+                    )}
                     <SignalBadge signal={r.signal} />
                     {r.fixes_weeks.length > 0 && (
                       <Badge variant="outline" className="border-warn/40 text-warn">

@@ -74,7 +74,7 @@ function useColumns(marketLabel: string) {
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="flex flex-wrap items-center gap-x-2 font-medium">
                   <PlayerLink playerId={r.player_id}>{r.name}</PlayerLink>
-                  <InjuryTag status={r.injury_status} />
+                  <InjuryTag status={r.injury_status} returnWeek={r.return_week} />
                 </span>
                 <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                   {r.nfl_team ?? 'FA'}

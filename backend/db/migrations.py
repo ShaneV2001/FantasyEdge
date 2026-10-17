@@ -67,6 +67,17 @@ MIGRATIONS: list[tuple[int, str]] = [
         "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS final_week INTEGER;"
         "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS scoring_notes JSON;",
     ),
+    # v7: injury details from Sleeper (a torn ACL means the season is over, not "out 4 weeks"),
+    # and the user's own what-if per player ("out for the season" / "back in week N").
+    (
+        7,
+        "ALTER TABLE players ADD COLUMN IF NOT EXISTS injury_body_part VARCHAR;"
+        "ALTER TABLE players ADD COLUMN IF NOT EXISTS injury_notes VARCHAR;"
+        "ALTER TABLE players ADD COLUMN IF NOT EXISTS injury_start_date DATE;"
+        "CREATE TABLE IF NOT EXISTS player_availability ("
+        " player_id VARCHAR PRIMARY KEY, out_for_season BOOLEAN, return_week INTEGER,"
+        " updated_at TIMESTAMP);",
+    ),
 ]
 
 

@@ -60,7 +60,10 @@ def week_cells(
         if not schedule.plays(team, w):  # bye, or this week's game is already final
             cells.append(WeekCell(w, opp, None, 0.0, 0.0))
             continue
-        base = ppg * availability(player.get("injury_status"), player.get("status"), w, start, inj)
+        base = ppg * availability(
+            player.get("injury_status"), player.get("status"), w, start, inj,
+            player.get("return_week"),
+        )  # fmt: skip
         mult = matchup_multiplier(index, opp, pos, alpha)
         cells.append(
             WeekCell(w, opp, round(index.get((opp, pos), 1.0), 3), round(base * mult, 2),

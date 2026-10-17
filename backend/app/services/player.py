@@ -104,8 +104,13 @@ def _images(p: dict) -> tuple[str | None, str | None]:
 
 
 def player_detail(
-    ctx: LeagueContext, team_id: str, player_id: str, flags: list
+    ctx: LeagueContext,
+    team_id: str,
+    player_id: str,
+    flags: list,
+    override: tuple[bool | None, int | None] | None = None,
 ) -> m.PlayerDetailOut:
+    """`override`: the user's saved what-if (out_for_season, return_week), if any."""
     team = ctx.team(team_id)
     p = ctx.players.get(player_id)
     if p is None:
@@ -155,6 +160,11 @@ def player_detail(
         depth_chart_order=p.get("depth_chart_order"),
         injury_status=p.get("injury_status"),
         availability_note=p.get("availability_note"),
+        injury_detail=p.get("injury_detail"),
+        return_week=p.get("return_week"),
+        availability_source=p.get("availability_source"),
+        override_return_week=override[1] if override else None,
+        override_out_for_season=bool(override and override[0]),
         bye_week=p.get("bye_week"),
         owner=owner.team_name if owner else None,
         mine=player_id in team.player_ids,

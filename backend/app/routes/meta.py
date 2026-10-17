@@ -6,7 +6,7 @@ import duckdb
 from fastapi import APIRouter, Depends, Query
 
 from app.deps import get_clients, get_con, write_lock
-from app.errors import NotFound
+from app.errors import InvalidInput, NotFound
 from app.schemas import models as m
 from app.services import context, leagues
 from ingest import run as jobs
@@ -26,18 +26,66 @@ ATTRIBUTION = [
 ]
 
 
+def _current_week(con: duckdb.DuckDBPyConnection) -> tuple[int | None, int | None]:
+    season = con.execute("SELECT max(season) FROM nfl_games").fetchone()[0]
+    if season is None:
+        return None, None
+    from signals.schedule import build_schedule
+
+    games = con.execute("SELECT * FROM nfl_games WHERE season = ?", [season]).pl()
+    return season, context.current_week(build_schedule(games, season))
+
+
+@router.put(
+    "/players/{player_id}/availability", response_model=m.PlayerAvailabilityOut, tags=["players"]
+)
+def set_player_availability(
+    player_id: str,
+    body: m.PlayerAvailabilityIn,
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.PlayerAvailabilityOut:
+    """Your what-if for one player: out for the season, or back in a given week. It changes
+    FantasyEdge's projections only (every page, every league), never ESPN or Sleeper."""
+    if not con.execute("SELECT 1 FROM players WHERE player_id = ?", [player_id]).fetchone():
+        raise NotFound("player", f"Player not found: {player_id}")
+    if not body.out_for_season:
+        _, week = _current_week(con)
+        if body.return_week is None or (week is not None and body.return_week <= week):
+            raise InvalidInput(
+                f"Choose a return week after this week ({week})" if week else "Choose a return week"
+            )
+    with write_lock:
+        con.execute(
+            "INSERT OR REPLACE INTO player_availability VALUES (?, ?, ?, now())",
+            [player_id, body.out_for_season, None if body.out_for_season else body.return_week],
+        )
+    context.invalidate()
+    return m.PlayerAvailabilityOut(
+        player_id=player_id,
+        out_for_season=body.out_for_season,
+        return_week=None if body.out_for_season else body.return_week,
+    )
+
+
+@router.delete(
+    "/players/{player_id}/availability", response_model=m.PlayerAvailabilityOut, tags=["players"]
+)
+def clear_player_availability(
+    player_id: str, con: duckdb.DuckDBPyConnection = Depends(get_con)
+) -> m.PlayerAvailabilityOut:
+    """Drop your what-if: back to the injury report."""
+    with write_lock:
+        con.execute("DELETE FROM player_availability WHERE player_id = ?", [player_id])
+    context.invalidate()
+    return m.PlayerAvailabilityOut(player_id=player_id, out_for_season=False, return_week=None)
+
+
 @router.get("/meta/status", response_model=m.StatusOut)
 def get_status(con: duckdb.DuckDBPyConnection = Depends(get_con)) -> m.StatusOut:
     rows = con.execute(
         "SELECT source, last_synced_at, status, detail FROM sync_log ORDER BY source"
     ).fetchall()
-    season = con.execute("SELECT max(season) FROM nfl_games").fetchone()[0]
-    week = None
-    if season is not None:
-        games = con.execute("SELECT * FROM nfl_games WHERE season = ?", [season]).pl()
-        from signals.schedule import build_schedule
-
-        week = context.current_week(build_schedule(games, season))
+    season, week = _current_week(con)
     return m.StatusOut(
         season=season,
         week=week,

@@ -18,6 +18,8 @@ export function matchupTone(index: number | null | undefined): 'easy' | 'hard' |
 /** 'Questionable this week (85%…)' → 'Questionable'; 'On IR: assumed out…' → 'IR'. */
 export function injuryStatus(note: string | null | undefined): string | null {
   if (!note) return null
+  if (note.startsWith('Out for the season')) return 'SEASON'
+  if (note.startsWith('Out until week')) return 'Out'
   const m = /^On ([^:]+):/.exec(note) ?? /^(\w+) this week/.exec(note)
   return m ? m[1] : null
 }

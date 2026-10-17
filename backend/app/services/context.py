@@ -18,7 +18,13 @@ from app.errors import NotFound, NotReady
 from app.user_settings import UserSettings
 from db.conn import query_df
 from ingest.market_values import MarketFormat, market_format_for
-from projections.base import LeagueShape, ProjectionInputs, run
+from projections.base import (
+    LeagueShape,
+    ProjectionInputs,
+    injury_detail,
+    resolve_return_week,
+    run,
+)
 from projections.baseline import BaselineEngine
 from projections.norms import norms_window, position_rates
 from scoring.rules import describe, normalize, score
@@ -270,6 +276,35 @@ def _market(
     return df.unique("player_id"), source, fmt_used, stale
 
 
+def with_availability(
+    con: duckdb.DuckDBPyConnection, players: pl.DataFrame, week: int
+) -> pl.DataFrame:
+    """Add `return_week` (first week back, `SEASON_OUT` = not this season), `availability_source`
+    ("override" | "rule" | None) and `injury_detail` to the players frame: the user's what-ifs
+    first, then season-ending injuries in Sleeper's report (see `resolve_return_week`)."""
+    over = dict(
+        (pid, (season, wk))
+        for pid, season, wk in con.execute(
+            "SELECT player_id, out_for_season, return_week FROM player_availability"
+        ).fetchall()
+    )
+    cols = ("player_id", "injury_status", "status", "injury_body_part", "injury_notes")
+    present = [c for c in cols if c in players.columns]
+    ret, src, detail = [], [], []
+    for r in players.select(present).iter_rows(named=True):
+        season, wk = over.get(r["player_id"], (None, None))
+        body, notes = r.get("injury_body_part"), r.get("injury_notes")
+        w, why = resolve_return_week(r["injury_status"], r["status"], body, notes, week, season, wk)
+        ret.append(w)
+        src.append(why)
+        detail.append(injury_detail(body, notes))
+    return players.with_columns(
+        pl.Series("return_week", ret, dtype=pl.Int64),
+        pl.Series("availability_source", src, dtype=pl.Utf8),
+        pl.Series("injury_detail", detail, dtype=pl.Utf8),
+    )
+
+
 UNPROJECTED_NOTE = "No projection: not in the local player database (run `tasks.py data`)."
 
 
@@ -370,7 +405,7 @@ def build_context(
     schedule = build_schedule(games, league.season)
     week = current_week(schedule)
 
-    players = query_df(con, "SELECT * FROM players")
+    players = with_availability(con, query_df(con, "SELECT * FROM players"), week)
     stats = query_df(
         con,
         """SELECT s.*, p.position FROM player_week_stats s JOIN players p USING (player_id)
@@ -484,7 +519,8 @@ def _version(con: duckdb.DuckDBPyConnection, league_id: str) -> tuple:
         "SELECT count(*), max(synced_at) FROM roster_spots r JOIN teams t USING (team_id) WHERE t.league_id = ?",
         [league_id],
     ).fetchone()
-    return (lsync[0] if lsync else None, dsync[0] if dsync else None, roster_n)
+    overrides = con.execute("SELECT count(*), max(updated_at) FROM player_availability").fetchone()
+    return (lsync[0] if lsync else None, dsync[0] if dsync else None, roster_n, overrides)
 
 
 def get_context(

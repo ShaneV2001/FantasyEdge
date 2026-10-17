@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRegression, getStartsit, getStatus, getTeam, getUserSettings, getWaivers, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
-import type { ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStartsitData, GetStartsitError, GetStartsitResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, GetWaiversData, GetWaiversError, GetWaiversResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
+import { clearPlayerAvailability, connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRegression, getStartsit, getStatus, getTeam, getUserSettings, getWaivers, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, setPlayerAvailability, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
+import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityError, ClearPlayerAvailabilityResponse, ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStartsitData, GetStartsitError, GetStartsitResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, GetWaiversData, GetWaiversError, GetWaiversResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SetPlayerAvailabilityData, SetPlayerAvailabilityError, SetPlayerAvailabilityResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -566,6 +566,45 @@ export const findTradesMutation = (options?: Partial<Options<FindTradesData>>): 
     const mutationOptions: UseMutationOptions<FindTradesResponse, FindTradesError, Options<FindTradesData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await findTrades({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Clear Player Availability
+ *
+ * Drop your what-if: back to the injury report.
+ */
+export const clearPlayerAvailabilityMutation = (options?: Partial<Options<ClearPlayerAvailabilityData>>): UseMutationOptions<ClearPlayerAvailabilityResponse, ClearPlayerAvailabilityError, Options<ClearPlayerAvailabilityData>> => {
+    const mutationOptions: UseMutationOptions<ClearPlayerAvailabilityResponse, ClearPlayerAvailabilityError, Options<ClearPlayerAvailabilityData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await clearPlayerAvailability({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Set Player Availability
+ *
+ * Your what-if for one player: out for the season, or back in a given week. It changes
+ * FantasyEdge's projections only (every page, every league), never ESPN or Sleeper.
+ */
+export const setPlayerAvailabilityMutation = (options?: Partial<Options<SetPlayerAvailabilityData>>): UseMutationOptions<SetPlayerAvailabilityResponse, SetPlayerAvailabilityError, Options<SetPlayerAvailabilityData>> => {
+    const mutationOptions: UseMutationOptions<SetPlayerAvailabilityResponse, SetPlayerAvailabilityError, Options<SetPlayerAvailabilityData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setPlayerAvailability({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

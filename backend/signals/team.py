@@ -64,6 +64,7 @@ class RosMath:
                     self.start,
                     self.end,
                     self.inj,
+                    p.get("return_week"),
                 )
         return self._weekly[pid]
 

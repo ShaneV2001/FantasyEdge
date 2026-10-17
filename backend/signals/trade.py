@@ -131,7 +131,8 @@ def trade_value(players: Mapping[str, Mapping], pid: str, use_market: bool) -> f
 def _entries(pids: Iterable[str], players: Mapping[str, Mapping]) -> list[RosterEntry]:
     return [
         RosterEntry(p, players[p].get("name", p), players[p]["position"], players[p].get("nfl_team"),
-                    players[p].get("ppg") or 0.0, players[p].get("injury_status"), players[p].get("status"))
+                    players[p].get("ppg") or 0.0, players[p].get("injury_status"), players[p].get("status"),
+                    players[p].get("return_week"))
         for p in pids
         if p in players
     ]  # fmt: skip

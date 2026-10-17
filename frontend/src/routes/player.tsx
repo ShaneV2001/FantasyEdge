@@ -8,6 +8,7 @@ import type { PlayerDetailOut } from '@/api'
 import { getPlayerOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton } from '@/components/common/states'
 import { Analytics } from '@/components/player/analytics'
+import { AvailabilityControl } from '@/components/player/AvailabilityControl'
 import { InjuryTag, PositionBadge, SignalBadge } from '@/components/player/badges'
 import { Matchups, injuryStatus } from '@/components/player/matchups'
 import { PlayerTrades } from '@/components/player/PlayerTrades'
@@ -134,7 +135,7 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-export function PlayerView({ d, trades }: { d: PlayerDetailOut; trades?: ReactNode }) {
+export function PlayerView({ d, trades, availability }: { d: PlayerDetailOut; trades?: ReactNode; availability?: ReactNode }) {
   const played = d.weeks.filter((w) => w.played)
   return (
     <div className="flex flex-col gap-6">
@@ -145,7 +146,7 @@ export function PlayerView({ d, trades }: { d: PlayerDetailOut; trades?: ReactNo
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">{d.name}</h1>
               <PositionBadge position={d.position} />
-              <InjuryTag status={injuryStatus(d.availability_note)} />
+              <InjuryTag status={injuryStatus(d.availability_note)} returnWeek={d.return_week} />
               <SignalBadge signal={d.signal} reasons={d.signal_reasons} showHold />
             </div>
             <p className="text-sm text-muted-foreground">
@@ -166,6 +167,7 @@ export function PlayerView({ d, trades }: { d: PlayerDetailOut; trades?: ReactNo
                 value={<span className={cn((d.value_gap ?? 0) > 0 ? 'text-buy' : (d.value_gap ?? 0) < 0 ? 'text-sell' : '')}>{fmtSigned(d.value_gap, 0)}</span>}
               />
             </div>
+            {availability}
             {d.signal_reasons.length > 0 && (
               <ul className="list-disc pl-4 text-sm text-muted-foreground">
                 {d.signal_reasons.map((r) => (
@@ -287,6 +289,7 @@ export function PlayerPage() {
       {q.data && (
         <PlayerView
           d={q.data}
+          availability={<AvailabilityControl key={`${q.data.player_id}-avail`} d={q.data} />}
           trades={<PlayerTrades key={q.data.player_id} d={q.data} teamId={team.teamId} manual={team.platform === 'manual'} />}
         />
       )}

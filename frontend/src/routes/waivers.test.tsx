@@ -70,6 +70,12 @@ describe('WaiversPage', () => {
     expect(screen.getByRole('link', { name: 'Sleeper API' })).toBeInTheDocument()
   })
 
+  it('a player coming back later is tagged with his return week', async () => {
+    serve({ ...DATA, rows: [row(1, 'Stash Back', { injury_status: 'IR', return_week: 13 })] })
+    renderPage(<WaiversPage />)
+    expect(await screen.findByText('Back wk 13')).toBeInTheDocument()
+  })
+
   it('filters by position', async () => {
     serve(DATA)
     renderPage(<WaiversPage />)

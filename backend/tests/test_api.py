@@ -922,3 +922,90 @@ def test_startsit_locks_players_whose_game_is_final(client):
     assert plan["optimal"][i] == starter  # already played: he keeps his slot
     team = tc.get(f"/team/{team_id}").json()
     assert next(p for p in team["roster"] if p["player_id"] == starter)["optimal_starter"]
+
+
+def _free_agent_rb(tc, team_id):
+    """Release the other team's best RB so he's on waivers; returns his id."""
+    team = tc.get(f"/team/{team_id}").json()
+    other = next(t for t in team["league_teams"] if not t["is_mine"])
+    rb = max(
+        (p for p in tc.get(f"/team/{other['team_id']}").json()["roster"] if p["position"] == "RB"),
+        key=lambda p: p["ppg"],
+    )["player_id"]
+    deps._con.execute(
+        "DELETE FROM roster_spots WHERE team_id = ? AND player_id = ?", [other["team_id"], rb]
+    )
+    context.invalidate()
+    return rb
+
+
+def test_a_torn_acl_ends_the_season_everywhere(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    rb = _free_agent_rb(tc, team_id)
+    assert rb in {
+        r["player"]["player_id"] for r in tc.get(f"/team/{team_id}/waivers").json()["rows"]
+    }
+
+    deps._con.execute(
+        """UPDATE players SET injury_status = 'IR', injury_body_part = 'Knee - ACL',
+           injury_notes = 'Surgery' WHERE player_id = ?""",
+        [rb],
+    )
+    context.invalidate()
+    detail = tc.get(f"/team/{team_id}/players/{rb}").json()
+    assert detail["return_week"] == 99 and detail["availability_source"] == "rule"
+    assert detail["availability_note"] == "Out for the season (Knee - ACL, surgery)"
+    assert detail["injury_detail"] == "Knee - ACL, surgery"
+    assert detail["model_ros_points"] in (None, 0)
+    rows = tc.get(f"/team/{team_id}/waivers").json()["rows"]
+    assert rb not in {r["player"]["player_id"] for r in rows}
+    table = tc.get(f"/team/{team_id}/players", params={"q": detail["name"]}).json()["rows"]
+    assert table[0]["return_week"] == 99 and table[0]["ros_points"] == 0
+
+
+def test_your_availability_what_if_round_trip(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    rb = _free_agent_rb(tc, team_id)
+    week = tc.get(f"/team/{team_id}").json()["league"]["week"]
+    before = next(
+        r
+        for r in tc.get(f"/team/{team_id}/waivers").json()["rows"]
+        if r["player"]["player_id"] == rb
+    )
+
+    later = week + 4
+    r = tc.put(f"/players/{rb}/availability", json={"return_week": later})
+    assert r.status_code == 200 and r.json() == {
+        "player_id": rb,
+        "out_for_season": False,
+        "return_week": later,
+    }
+    row = next(
+        r
+        for r in tc.get(f"/team/{team_id}/waivers").json()["rows"]
+        if r["player"]["player_id"] == rb
+    )
+    assert row["return_week"] == later and row["gain"] < before["gain"]
+    detail = tc.get(f"/team/{team_id}/players/{rb}").json()
+    assert detail["availability_source"] == "override" and detail["override_return_week"] == later
+    assert detail["availability_note"] == f"Out until week {later} (your what-if)"
+
+    assert tc.put(f"/players/{rb}/availability", json={"out_for_season": True}).status_code == 200
+    rows = tc.get(f"/team/{team_id}/waivers").json()["rows"]
+    assert rb not in {r["player"]["player_id"] for r in rows}
+    assert tc.get(f"/team/{team_id}/players/{rb}").json()["override_out_for_season"]
+
+    assert tc.delete(f"/players/{rb}/availability").status_code == 200
+    again = next(
+        r
+        for r in tc.get(f"/team/{team_id}/waivers").json()["rows"]
+        if r["player"]["player_id"] == rb
+    )
+    assert again["gain"] == before["gain"] and again["return_week"] is None
+
+    assert tc.put(f"/players/{rb}/availability", json={"return_week": week}).status_code == 422
+    assert tc.put(f"/players/{rb}/availability", json={}).status_code == 422
+    assert tc.put(f"/players/{rb}/availability", json={"return_week": 30}).status_code == 422
+    assert tc.put("/players/nobody/availability", json={"out_for_season": True}).status_code == 404

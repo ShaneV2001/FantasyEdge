@@ -52,11 +52,18 @@ def get_players_table(
 
 @router.get("/{team_id}/players/{player_id}", response_model=m.PlayerDetailOut)
 def get_player(
-    team_id: str, player_id: str, ctx: LeagueContext = Depends(team_ctx)
+    team_id: str,
+    player_id: str,
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
 ) -> m.PlayerDetailOut:
     """Bio, verdict, weekly statlines and projected-vs-actual points for one player."""
     flags = [views.flag_out(f) for f in ctx.regression.for_player(player_id)]
-    return player.player_detail(ctx, team_id, player_id, flags)
+    override = con.execute(
+        "SELECT out_for_season, return_week FROM player_availability WHERE player_id = ?",
+        [player_id],
+    ).fetchone()
+    return player.player_detail(ctx, team_id, player_id, flags, override)
 
 
 @router.get("/{team_id}/players/{player_id}/trades", response_model=m.PlayerTradesOut)

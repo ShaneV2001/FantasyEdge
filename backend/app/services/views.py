@@ -128,6 +128,7 @@ def player_value(ctx: LeagueContext, pid: str) -> dict:
         bye_week=p.get("bye_week"),
         injury_status=p.get("injury_status"),
         availability_note=p.get("availability_note"),
+        return_week=p.get("return_week"),
         market_value=p.get("market_value"),
         market_rank=p.get("market_rank_cov"),
         model_rank=p.get("model_pos_rank"),
@@ -300,6 +301,7 @@ def _byes_rows(ctx: LeagueContext, team_id: str):
                 p.get("ppg") or 0.0,
                 p.get("injury_status"),
                 p.get("status"),
+                p.get("return_week"),
             )
             for pid in team.player_ids
             if (p := ctx.players.get(pid))
@@ -942,6 +944,8 @@ def players_table(
                 value_gap=_r(p.get("value_gap"), 1),
                 injury_status=p.get("injury_status"),
                 bye_week=p.get("bye_week"),
+                return_week=p.get("return_week"),
+                availability_note=p.get("availability_note"),
             )
         )
     return m.PlayersTableOut(
@@ -981,6 +985,7 @@ def startsit_view(ctx: LeagueContext, team_id: str, week: int | None = None) -> 
                 matchup_index=cell.index if cell else None,
                 on_bye=bool(code) and not ctx.schedule.has_game(code, week),
                 injury_status=p.get("injury_status"),
+                return_week=p.get("return_week"),
                 locked=pid in plan.locked,
                 reserved=pid in reserved,
             )
@@ -1059,6 +1064,7 @@ def waivers_view(
                 need=w.need,
                 injury_status=p.get("injury_status"),
                 bye_week=p.get("bye_week"),
+                return_week=p.get("return_week"),
                 signal=p.get("signal") or "hold",
                 faab=m.FaabBid(low=bid[0], bid=bid[1], high=bid[2]) if bid else None,
             )

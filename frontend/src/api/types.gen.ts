@@ -814,6 +814,40 @@ export type PlayerAnalyticsOut = {
 };
 
 /**
+ * PlayerAvailabilityIn
+ */
+export type PlayerAvailabilityIn = {
+    /**
+     * Out For Season
+     */
+    out_for_season?: boolean;
+    /**
+     * Return Week
+     *
+     * First week he plays again
+     */
+    return_week?: number | null;
+};
+
+/**
+ * PlayerAvailabilityOut
+ */
+export type PlayerAvailabilityOut = {
+    /**
+     * Player Id
+     */
+    player_id: string;
+    /**
+     * Out For Season
+     */
+    out_for_season: boolean;
+    /**
+     * Return Week
+     */
+    return_week: number | null;
+};
+
+/**
  * PlayerByeOut
  */
 export type PlayerByeOut = {
@@ -880,6 +914,34 @@ export type PlayerDetailOut = {
      * Availability Note
      */
     availability_note: string | null;
+    /**
+     * Injury Detail
+     *
+     * Injury report detail, e.g. 'Knee - ACL, surgery'
+     */
+    injury_detail?: string | null;
+    /**
+     * Return Week
+     *
+     * First week he can play when known (99 = out for the season)
+     */
+    return_week?: number | null;
+    /**
+     * Availability Source
+     *
+     * rule: season-ending injury in the report; override: your what-if
+     */
+    availability_source?: 'rule' | 'override' | null;
+    /**
+     * Override Return Week
+     *
+     * Your saved what-if return week
+     */
+    override_return_week?: number | null;
+    /**
+     * Override Out For Season
+     */
+    override_out_for_season?: boolean;
     /**
      * Bye Week
      */
@@ -1109,6 +1171,16 @@ export type PlayerTableRow = {
      * Bye Week
      */
     bye_week?: number | null;
+    /**
+     * Return Week
+     *
+     * First week he can play when known (99 = out for the season)
+     */
+    return_week?: number | null;
+    /**
+     * Availability Note
+     */
+    availability_note?: string | null;
 };
 
 /**
@@ -1561,6 +1633,12 @@ export type RosterPlayer = {
      */
     availability_note?: string | null;
     /**
+     * Return Week
+     *
+     * First week he can play when known (99 = out for the season)
+     */
+    return_week?: number | null;
+    /**
      * Market Value
      */
     market_value?: number | null;
@@ -1858,6 +1936,12 @@ export type StartSitPlayer = {
      * Injury Status
      */
     injury_status?: string | null;
+    /**
+     * Return Week
+     *
+     * First week he can play when known (99 = out for the season)
+     */
+    return_week?: number | null;
     /**
      * Locked
      *
@@ -2401,6 +2485,12 @@ export type WaiverRow = {
      * Bye Week
      */
     bye_week?: number | null;
+    /**
+     * Return Week
+     *
+     * First week he can play when known (99 = out for the season)
+     */
+    return_week?: number | null;
     /**
      * Signal
      */
@@ -3168,6 +3258,66 @@ export type FindTradesResponses = {
 };
 
 export type FindTradesResponse = FindTradesResponses[keyof FindTradesResponses];
+
+export type ClearPlayerAvailabilityData = {
+    body?: never;
+    path: {
+        /**
+         * Player Id
+         */
+        player_id: string;
+    };
+    query?: never;
+    url: '/players/{player_id}/availability';
+};
+
+export type ClearPlayerAvailabilityErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearPlayerAvailabilityError = ClearPlayerAvailabilityErrors[keyof ClearPlayerAvailabilityErrors];
+
+export type ClearPlayerAvailabilityResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlayerAvailabilityOut;
+};
+
+export type ClearPlayerAvailabilityResponse = ClearPlayerAvailabilityResponses[keyof ClearPlayerAvailabilityResponses];
+
+export type SetPlayerAvailabilityData = {
+    body: PlayerAvailabilityIn;
+    path: {
+        /**
+         * Player Id
+         */
+        player_id: string;
+    };
+    query?: never;
+    url: '/players/{player_id}/availability';
+};
+
+export type SetPlayerAvailabilityErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetPlayerAvailabilityError = SetPlayerAvailabilityErrors[keyof SetPlayerAvailabilityErrors];
+
+export type SetPlayerAvailabilityResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlayerAvailabilityOut;
+};
+
+export type SetPlayerAvailabilityResponse = SetPlayerAvailabilityResponses[keyof SetPlayerAvailabilityResponses];
 
 export type GetStatusData = {
     body?: never;

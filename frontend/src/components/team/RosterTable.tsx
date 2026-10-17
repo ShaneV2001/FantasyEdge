@@ -123,7 +123,7 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
                     {p.name}
                   </PlayerLink>
                   <Trend p={p} />
-                  <InjuryTag status={p.injury_status} />
+                  <InjuryTag status={p.injury_status} returnWeek={p.return_week} />
                   {p.on_bye && (
                     <span
                       className="rounded bg-sell/15 px-1 font-mono text-[10px] font-semibold text-sell"

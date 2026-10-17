@@ -189,6 +189,9 @@ def parse_players(raw: dict[str, dict]) -> pl.DataFrame:
                 "years_exp": p.get("years_exp"),
                 "status": p.get("status"),
                 "injury_status": p.get("injury_status"),
+                "injury_body_part": p.get("injury_body_part") or None,
+                "injury_notes": p.get("injury_notes") or None,
+                "injury_start_date": p.get("injury_start_date") or None,
                 "depth_chart_order": p.get("depth_chart_order"),
             }
         )
@@ -206,6 +209,9 @@ def parse_players(raw: dict[str, dict]) -> pl.DataFrame:
             "years_exp": pl.Int64,
             "status": pl.Utf8,
             "injury_status": pl.Utf8,
+            "injury_body_part": pl.Utf8,
+            "injury_notes": pl.Utf8,
+            "injury_start_date": pl.Utf8,
             "depth_chart_order": pl.Int64,
         },
     )

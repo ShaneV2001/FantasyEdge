@@ -72,6 +72,9 @@ def players_sync(con: duckdb.DuckDBPyConnection, c: Clients, force: bool = False
         "status",
         pl.col("depth_chart_order").cast(pl.Int32),
         "injury_status",
+        "injury_body_part",
+        "injury_notes",
+        pl.col("injury_start_date").str.to_date(strict=False),
         pl.lit(_now()).alias("updated_at"),
     )
     with transaction(con):  # full replace: all-or-nothing so a failed insert keeps the old table

@@ -1166,6 +1166,102 @@
         }
       }
     },
+    "/players/{player_id}/availability": {
+      "put": {
+        "tags": [
+          "meta",
+          "players"
+        ],
+        "summary": "Set Player Availability",
+        "description": "Your what-if for one player: out for the season, or back in a given week. It changes\nFantasyEdge's projections only (every page, every league), never ESPN or Sleeper.",
+        "operationId": "set_player_availability",
+        "parameters": [
+          {
+            "name": "player_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Player Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerAvailabilityIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerAvailabilityOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "meta",
+          "players"
+        ],
+        "summary": "Clear Player Availability",
+        "description": "Drop your what-if: back to the injury report.",
+        "operationId": "clear_player_availability",
+        "parameters": [
+          {
+            "name": "player_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Player Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerAvailabilityOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/meta/status": {
       "get": {
         "tags": [
@@ -2797,6 +2893,61 @@
         ],
         "title": "PlayerAnalyticsOut"
       },
+      "PlayerAvailabilityIn": {
+        "properties": {
+          "out_for_season": {
+            "type": "boolean",
+            "title": "Out For Season",
+            "default": false
+          },
+          "return_week": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 18.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Week",
+            "description": "First week he plays again"
+          }
+        },
+        "type": "object",
+        "title": "PlayerAvailabilityIn"
+      },
+      "PlayerAvailabilityOut": {
+        "properties": {
+          "player_id": {
+            "type": "string",
+            "title": "Player Id"
+          },
+          "out_for_season": {
+            "type": "boolean",
+            "title": "Out For Season"
+          },
+          "return_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Week"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_id",
+          "out_for_season",
+          "return_week"
+        ],
+        "title": "PlayerAvailabilityOut"
+      },
       "PlayerByeOut": {
         "properties": {
           "player": {
@@ -2939,6 +3090,63 @@
               }
             ],
             "title": "Availability Note"
+          },
+          "injury_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Injury Detail",
+            "description": "Injury report detail, e.g. 'Knee - ACL, surgery'"
+          },
+          "return_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Week",
+            "description": "First week he can play when known (99 = out for the season)"
+          },
+          "availability_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "rule",
+                  "override"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Source",
+            "description": "rule: season-ending injury in the report; override: your what-if"
+          },
+          "override_return_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Return Week",
+            "description": "Your saved what-if return week"
+          },
+          "override_out_for_season": {
+            "type": "boolean",
+            "title": "Override Out For Season",
+            "default": false
           },
           "bye_week": {
             "anyOf": [
@@ -3423,6 +3631,29 @@
               }
             ],
             "title": "Bye Week"
+          },
+          "return_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Week",
+            "description": "First week he can play when known (99 = out for the season)"
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
           }
         },
         "type": "object",
@@ -4183,6 +4414,18 @@
             ],
             "title": "Availability Note"
           },
+          "return_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Week",
+            "description": "First week he can play when known (99 = out for the season)"
+          },
           "market_value": {
             "anyOf": [
               {
@@ -4693,6 +4936,18 @@
               }
             ],
             "title": "Injury Status"
+          },
+          "return_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Week",
+            "description": "First week he can play when known (99 = out for the season)"
           },
           "locked": {
             "type": "boolean",
@@ -5581,6 +5836,18 @@
               }
             ],
             "title": "Bye Week"
+          },
+          "return_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Week",
+            "description": "First week he can play when known (99 = out for the season)"
           },
           "signal": {
             "type": "string",

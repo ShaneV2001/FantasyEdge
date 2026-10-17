@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayersTableData, GetPlayersTableErrors, GetPlayersTableResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStartsitData, GetStartsitErrors, GetStartsitResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, GetWaiversData, GetWaiversErrors, GetWaiversResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
+import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityErrors, ClearPlayerAvailabilityResponses, ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayersTableData, GetPlayersTableErrors, GetPlayersTableResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStartsitData, GetStartsitErrors, GetStartsitResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, GetWaiversData, GetWaiversErrors, GetWaiversResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SetPlayerAvailabilityData, SetPlayerAvailabilityErrors, SetPlayerAvailabilityResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -231,6 +231,28 @@ export const suggestTrades = <ThrowOnError extends boolean = false>(options: Opt
  */
 export const findTrades = <ThrowOnError extends boolean = false>(options: Options<FindTradesData, ThrowOnError>): RequestResult<FindTradesResponses, FindTradesErrors, ThrowOnError> => (options.client ?? client).post<FindTradesResponses, FindTradesErrors, ThrowOnError>({
     url: '/trade/find',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Clear Player Availability
+ *
+ * Drop your what-if: back to the injury report.
+ */
+export const clearPlayerAvailability = <ThrowOnError extends boolean = false>(options: Options<ClearPlayerAvailabilityData, ThrowOnError>): RequestResult<ClearPlayerAvailabilityResponses, ClearPlayerAvailabilityErrors, ThrowOnError> => (options.client ?? client).delete<ClearPlayerAvailabilityResponses, ClearPlayerAvailabilityErrors, ThrowOnError>({ url: '/players/{player_id}/availability', ...options });
+
+/**
+ * Set Player Availability
+ *
+ * Your what-if for one player: out for the season, or back in a given week. It changes
+ * FantasyEdge's projections only (every page, every league), never ESPN or Sleeper.
+ */
+export const setPlayerAvailability = <ThrowOnError extends boolean = false>(options: Options<SetPlayerAvailabilityData, ThrowOnError>): RequestResult<SetPlayerAvailabilityResponses, SetPlayerAvailabilityErrors, ThrowOnError> => (options.client ?? client).put<SetPlayerAvailabilityResponses, SetPlayerAvailabilityErrors, ThrowOnError>({
+    url: '/players/{player_id}/availability',
     ...options,
     headers: {
         'Content-Type': 'application/json',

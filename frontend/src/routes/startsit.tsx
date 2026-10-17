@@ -67,7 +67,7 @@ function PlayerCard({
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex items-center gap-1.5 truncate font-medium">
           <span className="truncate">{p.player.name}</span>
-          <InjuryTag status={p.injury_status} />
+          <InjuryTag status={p.injury_status} returnWeek={p.return_week} />
           {p.locked && <Lock className="size-3 shrink-0 text-muted-foreground" aria-hidden />}
         </span>
         <span className="truncate text-xs text-muted-foreground">

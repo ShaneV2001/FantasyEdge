@@ -44,6 +44,9 @@ class PlayerValue(PlayerRef):
     bye_week: int | None = None
     injury_status: str | None = None
     availability_note: str | None = None
+    return_week: int | None = Field(
+        None, description="First week he can play when known (99 = out for the season)"
+    )
     market_value: float | None = None
     market_rank: int | None = Field(None, description="Market rank within position")
     model_rank: int | None = Field(None, description="Model ROS-value rank within position")
@@ -537,6 +540,17 @@ class PlayerDetailOut(BaseModel):
     depth_chart_order: int | None
     injury_status: str | None
     availability_note: str | None
+    injury_detail: str | None = Field(
+        None, description="Injury report detail, e.g. 'Knee - ACL, surgery'"
+    )
+    return_week: int | None = Field(
+        None, description="First week he can play when known (99 = out for the season)"
+    )
+    availability_source: Literal["rule", "override"] | None = Field(
+        None, description="rule: season-ending injury in the report; override: your what-if"
+    )
+    override_return_week: int | None = Field(None, description="Your saved what-if return week")
+    override_out_for_season: bool = False
     bye_week: int | None
     owner: str | None = Field(None, description="Fantasy team that rosters him (None = nobody)")
     mine: bool
@@ -606,6 +620,20 @@ class TradeFindOut(BaseModel):
     ideas: list[TradeOut]
 
 
+# ───────── availability what-if ─────────
+
+
+class PlayerAvailabilityIn(BaseModel):
+    out_for_season: bool = False
+    return_week: int | None = Field(None, ge=1, le=18, description="First week he plays again")
+
+
+class PlayerAvailabilityOut(BaseModel):
+    player_id: str
+    out_for_season: bool
+    return_week: int | None
+
+
 # ───────── players table ─────────
 
 PlayerSort = Literal["ppg", "ros", "value", "market", "verdict", "name"]
@@ -623,6 +651,10 @@ class PlayerTableRow(PlayerRef):
     value_gap: float | None = None
     injury_status: str | None = None
     bye_week: int | None = None
+    return_week: int | None = Field(
+        None, description="First week he can play when known (99 = out for the season)"
+    )
+    availability_note: str | None = None
 
 
 class FaabBid(BaseModel):
@@ -646,6 +678,9 @@ class WaiverRow(BaseModel):
     need: bool = Field(description="Fills a short week or a position you're weak at")
     injury_status: str | None = None
     bye_week: int | None = None
+    return_week: int | None = Field(
+        None, description="First week he can play when known (99 = out for the season)"
+    )
     signal: Literal["buy", "hold", "sell"] = "hold"
     faab: FaabBid | None = Field(None, description="Suggested bid range (FAAB leagues only)")
 
@@ -694,6 +729,9 @@ class StartSitPlayer(BaseModel):
     matchup_index: float | None = Field(None, description=">1 = easier than average")
     on_bye: bool
     injury_status: str | None = None
+    return_week: int | None = Field(
+        None, description="First week he can play when known (99 = out for the season)"
+    )
     locked: bool = Field(description="His game this week is already final: he can't be moved")
     reserved: bool = Field(description="On IR or taxi: can't be started")
 

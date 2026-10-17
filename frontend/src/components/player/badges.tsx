@@ -79,7 +79,16 @@ export function PlayerChip({ player, className, link = true }: { player: PlayerR
   )
 }
 
-export function InjuryTag({ status }: { status?: string | null }) {
+/** Injury designation tag. A known return week wins: 99+ (or status 'SEASON') = out for the
+ * season. */
+export function InjuryTag({ status, returnWeek }: { status?: string | null; returnWeek?: number | null }) {
+  if ((returnWeek != null && returnWeek >= 99) || status === 'SEASON') {
+    return (
+      <span className="rounded bg-sell/15 px-1 font-mono text-[10px] font-semibold whitespace-nowrap text-sell uppercase" title="Out for the season">
+        Out · season
+      </span>
+    )
+  }
   if (!status) return null
   const severe = ['Out', 'IR', 'PUP', 'Sus', 'NFI', 'Doubtful'].includes(status)
   return (

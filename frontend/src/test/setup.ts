@@ -27,3 +27,8 @@ window.matchMedia ??= ((q: string) => ({
 
 // the router restores scroll on navigation; jsdom has no scrolling
 window.scrollTo = (() => {}) as typeof window.scrollTo
+
+// Radix Select uses pointer capture and scrollIntoView, which jsdom lacks
+Element.prototype.hasPointerCapture ??= () => false
+Element.prototype.releasePointerCapture ??= () => {}
+Element.prototype.scrollIntoView ??= () => {}
