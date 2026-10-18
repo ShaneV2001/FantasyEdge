@@ -183,16 +183,14 @@ def choose_drops(
 ) -> list[Drop]:
     """The `n` players a manager would cut, one at a time (counts are redone after each):
 
-    Bench depth (cutting him costs the lineup < `DROP_LINEUP_COST` ROS points) goes first, and
-    among that, players who cost nothing at all (< 1 point) before ones that cost a little. Within
-    each group the order is:
-    1. an extra kicker or defense (more than the lineup can start): the one with the fewest points;
-    2. surplus depth at an over-stocked position (`position_capacity`, e.g. a 4th QB in a 1-QB
-       league): the one with the lowest market value;
-    3. any other bench player: the lowest market value, so a valuable young bench player outlasts
-       waiver fodder.
-    Only then: an extra K/DEF that still covers a bye week, and last, whoever costs the lineup the
-    least. Players in `keep` (just acquired) are never cut.
+    1. dead weight: an extra kicker or defense (more than the lineup can start, whatever he
+       costs: nobody carries two kickers), or surplus depth at an over-stocked position
+       (`position_capacity`, e.g. a 4th QB in a 1-QB league) that the lineup barely needs. A cut
+       that costs nothing (< 1 point) goes before one that costs a little;
+    2. otherwise the bench player (cutting him costs the lineup < `DROP_LINEUP_COST` ROS points)
+       with the lowest market value, so a valuable young bench player outlasts waiver fodder;
+    3. if everyone starts, whoever costs the lineup the least.
+    Players in `keep` (just acquired) are never cut.
     """
     capacity = position_capacity(math.slots)
     current = list(roster)
@@ -222,22 +220,21 @@ def choose_drops(
             p for p in free
             if pos(p) in ("QB", "RB", "WR", "TE") and count[pos(p)] > capacity.get(pos(p), 0)
         ]  # fmt: skip
-        if free:
-            # nothing-to-lose cuts (< 1 point) before ones that cost a little; within each, an
-            # extra K/DEF, then surplus depth, then the rest of the bench by market value
-            tiers = {q: 0 if q in streamed else 1 if q in surplus else 2 for q in free}
+        # dead weight first: an extra K/DEF (whatever it costs: nobody carries two kickers) or
+        # surplus depth; a cut that costs nothing (< 1 point) before one that costs a little
+        dead = {q: 0 for q in streamed} | {q: 1 for q in surplus}
+        if dead:
             p = min(
-                (cost[q] >= 1.0, t, market(q) if t else 0.0, points(q), q) for q, t in tiers.items()
+                (cost[q] >= 1.0, t, round(cost[q], 1) if t == 0 else market(q), points(q), q)
+                for q, t in dead.items()
             )[-1]
-            if p in streamed:
+            if dead[p] == 0:
                 drop = Drop(p, f"extra {STREAMED[pos(p)]}")
-            elif p in surplus:
-                drop = Drop(p, f"{_ordinal(count[pos(p)])} {pos(p)}, more than your lineup can use")
             else:
-                drop = Drop(p, "lowest market value on your bench")
-        elif streamed:  # an extra K/DEF that still covers a bye: cheapest of those
-            p = min(streamed, key=lambda q: (round(cost[q], 2), points(q), q))
-            drop = Drop(p, f"extra {STREAMED[pos(p)]}")
+                drop = Drop(p, f"{_ordinal(count[pos(p)])} {pos(p)}, more than your lineup can use")
+        elif free:
+            p = min(free, key=lambda q: (market(q), points(q), q))
+            drop = Drop(p, "lowest market value on your bench")
         else:
             p = min(cands, key=lambda q: (round(cost[q], 2), market(q), q))
             drop = Drop(p, "costs your lineup the least")

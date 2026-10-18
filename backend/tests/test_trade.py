@@ -369,3 +369,14 @@ def test_trade_card_says_who_is_dropped_and_why():
     )  # fmt: skip
     assert ev.me.drops == ["scrub"] and ev.me.drop_reasons == ["lowest market value on your bench"]
     assert any("drop Scrub (lowest market value on your bench)" in r for r in ev.reasons)
+
+
+def test_picking_up_a_kicker_drops_the_old_kicker_not_a_bench_player():
+    # the new kicker covers the old one's bye; the old one still costs a few points, but he's the
+    # dead weight now, not the bench receiver
+    players, _ = _drop_league(
+        **{"k": P("K1", "K", 8, team="BYE", market=None)}, k_new=P("K2", "K", 7.8, market=None)
+    )
+    math = RosMath(players, schedule(["AAA", "BYE"], weeks=17, byes={"BYE": 9}), 7, 17, DROP_SLOTS)
+    (drop,) = tr.choose_drops(math, players, list(players), {"k_new"}, 1)
+    assert (drop.player_id, drop.reason) == ("k", "extra kicker")
