@@ -67,7 +67,8 @@ flowchart LR
 | `market_sync` | Daily | FantasyCalc values (fallback DynastyProcess) |
 | `score` | After stats_sync | Rebuild features → score → signals |
 | `train` | Weekly (Tue) | Retrain + write `model_runs` report |
-| `league_sync` | On connect / "Update" button / every 30 min while app open | Rosters, transactions, matchups, trending |
+| `league_sync` | On connect, the **Update** button, and whenever a team is loaded or switched to and its saved copy is over 10 minutes old (`routes/team.py::refresh_if_stale`; falls back to the cached rosters if the platform is unreachable) | Rosters, transactions, records, FAAB |
+| `trending_sync` | Every **Update** (and `scope: all`) | Sleeper's most-added / dropped players (24 h), shown on Waivers |
 
 ---
 
@@ -205,7 +206,7 @@ CREATE TABLE signals (
 -- ───────── Leagues / "Add your team" ─────────
 CREATE TABLE leagues (
   league_id VARCHAR PRIMARY KEY,               -- internal
-  platform VARCHAR,                            -- 'sleeper' | 'espn' | 'yahoo' | 'manual'
+  platform VARCHAR,                            -- 'sleeper' | 'espn' | 'manual' | 'demo'
   external_id VARCHAR, season INTEGER, name VARCHAR,
   num_teams INTEGER,
   roster_positions JSON,                       -- ["QB","RB","RB","WR","WR","TE","FLEX","BN",...]
@@ -274,6 +275,15 @@ existing `ff.duckdb` picks up new columns when it is opened.
   ESPN league ids are `es-<leagueId>-<season>`, teams `es-<leagueId>-<season>-<teamId>`; ESPN
   players map to internal ids via Sleeper's `espn_id`, then the DynastyProcess crosswalk, then name +
   team + position (D/ST → `sl:<TEAM>`), and unmatched players get a name-only `espn:<id>` row.
+- v7 injuries and what-ifs: `players.injury_body_part`, `injury_notes`, `injury_start_date` (from
+  Sleeper) and `player_availability (player_id PK, out_for_season, return_week, updated_at)`, the
+  user's own "out for the season" / "back in week N" per player. `projections.base.resolve_return_week`
+  turns these into one `return_week` per player (99 = season over): the user's what-if first, then a
+  torn ACL / Achilles (or notes saying "season") on a current IR/PUP/NFI/Out designation. Every
+  availability calculation (projections, matchup cells, byes, `RosMath`) reads it.
+- The `demo` platform is a fictional league built by `scripts/demo_league.py` in a separate store
+  (`data/demo/`), for screenshots and trying the app. It behaves like a synced league but never
+  calls out.
 - `model_runs` now holds walk-forward backtest results: one row per engine, with metrics by position for all players and the fantasy-relevant subset. The `projections` table is not written yet (Phase 2).
 
 **Key decisions**
@@ -285,29 +295,40 @@ existing `ff.duckdb` picks up new columns when it is opened.
 
 ## 4. API contract (FastAPI)
 
+Live, interactive docs at `http://localhost:8000/docs`.
+
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/players?pos=&q=&sort=&profile=` | Paged player list with projection, value, market, signal |
-| GET | `/players/{id}?profile=` | Player detail: weekly history, usage trends, projection band, reasons |
-| POST | `/league/connect` `{platform, username}` | User's leagues for selection |
+| POST | `/league/connect` `{platform, username}` | A Sleeper user's leagues and teams |
 | POST | `/league/espn/connect` `{league_id, season?, espn_s2?, swid?}` | ESPN league + its teams; cookies saved locally, returned masked |
 | GET / PUT | `/league/{id}/credentials` | Masked ESPN cookies / replace them (validated against ESPN first). 401 `kind=espn_auth` when they expire |
+| GET | `/league/espn/defaults` | League ID and whether cookies are set in `.env` (never the cookies) |
 | POST | `/league/{id}/select-team` `{external_roster_id}` | Marks `is_mine`, syncs |
-| POST | `/league/manual` `{name, num_teams, roster_positions, scoring, player_ids, starters?, ir?}` | Creates manual league/team. `roster_positions` carries any bench (`BN`) / `IR` depth; `starters`/`ir` assign roles (validated against the slots) |
-| PUT | `/team/{id}/roster` (same body as `/league/manual`) | Edit a manual team: settings, players and starter/bench/IR roles. Sleeper teams sync from Sleeper instead |
-| GET | `/team/{id}` | Roster with values, grades by position + overall vs league (manual teams: vs a simulated league of the same size/lineup) |
-| GET | `/team/{id}/advice` | **Phase 1.** Ranked advisor feed: type, headline, reasons, urgency, confidence + team grade by position |
-| GET | `/team/{id}/regression` | **Phase 1.** Regression flags (TD over expected, efficiency z-scores, usage/production mismatch) for roster + league |
-| GET | `/team/{id}/byes` | **Phase 1.** Week-by-week bye grid, unfillable slots, danger weeks |
-| GET | `/team/{id}/startsit?week=` | Optimal lineup + alternatives |
-| GET | `/team/{id}/waivers` | Ranked adds, suggested drops, FAAB range |
-| POST | `/trade/evaluate` `{team_id, give[], receive[]}` | Value both sides, lineup delta ROS, verdict. If `receive` players aren't on a league roster (manual teams, free agents, other leagues) it's a *hypothetical* trade and `partner` is null |
-| GET | `/trade/suggest?team_id=&page=` | Mutually beneficial trade ideas after forced drops, never leaving either team short in a bye week; each page is new deals (`has_more`) |
-| POST | `/trade/find` `{team_id, give[1-3], want_position, receive_count}` | Deals across the league for the players you name; `partner_accepts` marks whether their lineup gains too |
-| GET | `/signals?profile=&pos=&dir=buy\|sell` | Buy-low / sell-high board |
-| POST | `/refresh` `{scope: league\|market\|all}` | Triggers sync jobs |
-| GET | `/model/report` | Active run metrics vs baselines, feature importance |
+| POST | `/league/manual` | Creates a manual league/team (lineup, bench/IR depth, scoring, starters/IR roles) |
+| GET | `/teams/saved` | Every team you've picked (Sleeper, ESPN, manual, demo), for the team switcher |
+| GET | `/team/{id}` | Roster with values, this week's best lineup, grades by position vs the league |
+| PATCH / DELETE | `/team/{id}` | Rename a manual team / delete a manual team or forget a Sleeper/ESPN league (rosters, transactions, saved trades and ESPN login, in one transaction) |
+| PUT | `/team/{id}/roster` | Edit a manual team |
+| GET | `/team/{id}/advice` | Ranked advisor feed + team grade |
+| GET | `/team/{id}/startsit?week=` | Real vs best lineup for a week (matchup-adjusted; finished games locked), slot eligibility |
+| GET | `/team/{id}/waivers` | Free agents by net ROS lineup gain after the best drop, FAAB range, Sleeper trending adds |
+| GET | `/team/{id}/players?q=&pos=&team=&avail=&sort=&dir=&page=&size=` | Players table, filtered, sorted and paged on the server |
+| GET | `/team/{id}/players/{pid}` | Player page: bio, verdict, availability (injury detail, return week, your what-if), game log, projected vs actual, analytics |
+| GET | `/team/{id}/players/{pid}/trades?want=` | Trades built around one player |
+| GET | `/team/{id}/rankings?top=` | Top N per position by schedule-adjusted points, each week and ROS |
+| GET | `/team/{id}/buy-targets` | Undervalued players to buy, your overvalued ones |
+| GET | `/team/{id}/regression` | Regression flags with `size` (vs threshold) and per-player `strength`, strongest first |
+| GET | `/team/{id}/byes` | Week-by-week bye grid, unfillable slots, danger weeks |
+| PUT / DELETE | `/players/{pid}/availability` `{out_for_season?, return_week?}` | Your availability what-if for a player / back to the injury report |
+| GET | `/players?q=&pos=&limit=` | Player search (pickers) |
+| POST | `/trade/evaluate` `{team_id, give[], receive[]}` | Both sides' lineup change ROS, verdict (hypothetical when `receive` isn't on a league roster) |
+| GET | `/trade/suggest?team_id=&page=` | Mutually beneficial ideas after forced drops; each page is new deals |
+| POST | `/trade/find` `{team_id, give[1-3], want_position, receive_count}` | Deals across the league for the players you name |
+| GET / PUT / DELETE | `/settings` | Tunable weights and thresholds (only changed values are stored) |
+| POST | `/refresh` `{scope: league\|market\|all}` | Sync jobs |
 | GET | `/meta/status` | Last-sync times per source, NFL week |
+
+Planned, not built: a `/model/report` transparency page and a standalone buy/sell board.
 
 All responses are Pydantic models → OpenAPI → generated TS client.
 
@@ -317,27 +338,25 @@ All responses are Pydantic models → OpenAPI → generated TS client.
 
 ```
 frontend/src/
-├── api/                 # generated client + query hooks (do not edit)
+├── api/                    # generated client + query hooks (do not edit; python tasks.py gen-api)
 ├── components/
-│   ├── ui/              # shadcn components
-│   ├── player/          # PlayerAvatar, PositionBadge, SignalBadge, ValueSparkline
-│   ├── team/            # RosterTable, PositionStrengthChart, LineupGrid
-│   └── layout/          # AppSidebar, TopBar, CommandSearch
-├── routes/
-│   ├── connect.tsx      # Sleeper username / manual entry
-│   ├── advisor.tsx      # Phase 1 home: action feed + team grade
-│   ├── byes.tsx         # Phase 1: bye-week grid
-│   ├── team.tsx         # My Team dashboard + regression flags
-│   ├── players.tsx      # Data table
-│   ├── players.$id.tsx  # Player page
-│   ├── waivers.tsx
-│   ├── trade.tsx        # Analyzer + finder
-│   ├── startsit.tsx
-│   ├── signals.tsx      # Buy/sell board
-│   └── model.tsx        # Transparency
-├── stores/team.ts       # Zustand (persisted): connected league/team, profile
-└── lib/                 # formatters, position colors
+│   ├── ui/                 # shadcn components (+ data-table.tsx on TanStack Table v9)
+│   ├── common/             # states (error/empty/skeleton), BackToTop
+│   ├── layout/             # AppLayout, AppSidebar, TeamSwitcher
+│   ├── connect/            # ESPN connect form, league/team picker
+│   ├── player/             # badges, matchups, analytics, PlayerTrades, AvailabilityControl
+│   └── team/               # RosterTable, grades, RegressionList, ManualRosterBuilder
+├── routes/                 # advisor, team, team-edit, startsit, byes, players, player, rankings,
+│                           # buy-targets, trade, waivers, connect, settings
+├── hooks/useHistory.ts     # in-memory undo/redo (Start/Sit planner)
+├── lib/                    # lineup + startsit rules, regression filters, faab, formatters
+└── stores/team.ts          # Zustand (persisted): the active team (saved teams come from the API)
+frontend/e2e/               # Playwright specs, API mocked from e2e/fixtures (CI: Chromium)
+frontend/screenshots/       # README screenshots from the demo league (python tasks.py screenshots)
 ```
+
+**Tests:** vitest + Testing Library for components and pure logic; Playwright (`python tasks.py e2e`,
+Chromium + Firefox locally, Chromium in CI) for drag-and-drop and the phone sidebar.
 
 **shadcn components to install:** sidebar, card, table (data-table), tabs, badge, button, input, select, command, dialog, sheet, tooltip, chart, skeleton, sonner, form, avatar, separator, progress, toggle-group.
 
