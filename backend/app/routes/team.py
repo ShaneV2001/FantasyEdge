@@ -1,25 +1,45 @@
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
 import duckdb
 from fastapi import APIRouter, Depends, Query
 
-from app.deps import get_con, get_tuning, write_lock
+from app.deps import get_clients, get_con, get_tuning, write_lock
+from app.errors import AuthRequired
 from app.schemas import models as m
 from app.services import context, leagues, player, views
 from app.services.context import LeagueContext, get_context
 from app.user_settings import UserSettings
+from ingest.http import AuthRejected, SourceUnavailable
+from ingest.run import Clients
 
 router = APIRouter(prefix="/team", tags=["team"])
+log = logging.getLogger("fantasyedge.api")
+
+
+def refresh_if_stale(con: duckdb.DuckDBPyConnection, c: Clients, league_id: str) -> None:
+    """Rosters are a cache of Sleeper/ESPN: loading (or switching to) a team re-pulls its league
+    when the copy is older than `leagues.SYNC_MAX_AGE`. If the platform can't be reached, the
+    cached rosters are used and the page says when they were last updated."""
+    try:
+        with write_lock:
+            if leagues.ensure_synced(con, c, league_id):
+                context.invalidate(league_id)
+    except (SourceUnavailable, AuthRejected, AuthRequired) as exc:
+        log.warning("roster refresh for %s failed, using the cached rosters: %s", league_id, exc)
 
 
 def team_ctx(
     team_id: str,
     con: duckdb.DuckDBPyConnection = Depends(get_con),
     tuning: UserSettings = Depends(get_tuning),
+    c: Clients = Depends(get_clients),
 ) -> LeagueContext:
-    ctx = get_context(con, leagues.league_id_for_team(con, team_id), tuning)
+    league_id = leagues.league_id_for_team(con, team_id)
+    refresh_if_stale(con, c, league_id)
+    ctx = get_context(con, league_id, tuning)
     ctx.team(team_id)  # 404 if the team vanished from the league
     return ctx
 
@@ -141,6 +161,28 @@ def get_regression(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.Re
 def get_byes(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.ByesOut:
     """Week × lineup-slot grid of remaining byes with danger weeks."""
     return views.byes_view(ctx, team_id)
+
+
+@router.delete("/{team_id}", response_model=m.ForgetOut)
+def forget_team(team_id: str, con: duckdb.DuckDBPyConnection = Depends(get_con)) -> m.ForgetOut:
+    """Delete a manual team, or forget a Sleeper/ESPN league (with its saved ESPN login) from
+    FantasyEdge. Nothing changes on Sleeper or ESPN; connect again any time."""
+    league_id = leagues.league_id_for_team(con, team_id)
+    with write_lock:
+        platform, n = leagues.forget_league(con, league_id)
+    context.invalidate(league_id)
+    return m.ForgetOut(league_id=league_id, platform=platform, teams_removed=n)
+
+
+@router.patch("/{team_id}", response_model=m.TeamRef)
+def rename_team(
+    team_id: str, body: m.RenameTeamRequest, con: duckdb.DuckDBPyConnection = Depends(get_con)
+) -> m.TeamRef:
+    """Rename a manual team."""
+    with write_lock:
+        league_id = leagues.rename_team(con, team_id, body.name)
+    context.invalidate(league_id)
+    return m.TeamRef(team_id=team_id, league_id=league_id)
 
 
 @router.put("/{team_id}/roster", response_model=m.TeamRef)

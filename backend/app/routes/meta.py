@@ -80,6 +80,12 @@ def clear_player_availability(
     return m.PlayerAvailabilityOut(player_id=player_id, out_for_season=False, return_week=None)
 
 
+@router.get("/teams/saved", response_model=list[m.SavedTeamOut], tags=["team"])
+def get_saved_teams(con: duckdb.DuckDBPyConnection = Depends(get_con)) -> list[m.SavedTeamOut]:
+    """Every team you've connected or entered, for the team switcher."""
+    return [m.SavedTeamOut(**t) for t in leagues.saved_teams(con)]
+
+
 @router.get("/meta/status", response_model=m.StatusOut)
 def get_status(con: duckdb.DuckDBPyConnection = Depends(get_con)) -> m.StatusOut:
     rows = con.execute(

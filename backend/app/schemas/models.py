@@ -191,6 +191,27 @@ class TeamRef(BaseModel):
     league_id: str
 
 
+class SavedTeamOut(BaseModel):
+    team_id: str
+    team_name: str
+    league_id: str
+    league_name: str
+    platform: str = Field(description="sleeper | espn | manual | demo")
+    season: int
+    last_synced_at: datetime | None = None
+    has_login: bool = Field(description="ESPN login cookies saved for this league")
+
+
+class RenameTeamRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class ForgetOut(BaseModel):
+    league_id: str
+    platform: str
+    teams_removed: int
+
+
 class ManualLeagueRequest(BaseModel):
     name: str = Field(default="My team", max_length=80)
     num_teams: int = Field(default=12, ge=2, le=32)

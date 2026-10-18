@@ -870,6 +870,63 @@ def create_manual(
     return league_id, team_id
 
 
+def saved_teams(con: duckdb.DuckDBPyConnection) -> list[dict]:
+    """Every team you've picked, across Sleeper, ESPN, manual and demo leagues (newest first)."""
+    rows = con.execute(
+        """SELECT t.team_id, t.team_name, l.league_id, l.name, l.platform, l.season,
+                  l.last_synced_at, c.league_id IS NOT NULL
+           FROM teams t JOIN leagues l USING (league_id)
+           LEFT JOIN league_credentials c USING (league_id)
+           WHERE t.is_mine
+           ORDER BY l.last_synced_at DESC NULLS LAST, t.team_name"""
+    ).fetchall()
+    keys = ("team_id", "team_name", "league_id", "league_name", "platform", "season",
+            "last_synced_at", "has_login")  # fmt: skip
+    return [dict(zip(keys, r, strict=True)) for r in rows]
+
+
+def forget_league(con: duckdb.DuckDBPyConnection, league_id: str) -> tuple[str, int]:
+    """Delete a league and everything stored for it (teams, rosters, transactions, saved
+    trades, ESPN login, sync log) in one transaction. Nothing changes on Sleeper or ESPN.
+    Returns (platform, teams removed)."""
+    row = con.execute("SELECT platform FROM leagues WHERE league_id = ?", [league_id]).fetchone()
+    if row is None:
+        raise NotFound("league", f"League not found: {league_id}")
+    n = con.execute("SELECT count(*) FROM teams WHERE league_id = ?", [league_id]).fetchone()[0]
+    with transaction(con):
+        con.execute(
+            "DELETE FROM roster_spots WHERE team_id IN (SELECT team_id FROM teams WHERE league_id = ?)",
+            [league_id],
+        )
+        for table in ("teams", "transactions", "saved_trades", "league_credentials", "leagues"):
+            con.execute(f"DELETE FROM {table} WHERE league_id = ?", [league_id])
+        con.execute("DELETE FROM sync_log WHERE source = ?", [f"league:{league_id}"])
+    return row[0], n
+
+
+def rename_team(con: duckdb.DuckDBPyConnection, team_id: str, name: str) -> str:
+    """Rename a manual team (its league carries the same name). Platform teams take their name
+    from Sleeper/ESPN, so they're renamed there."""
+    row = con.execute(
+        "SELECT l.league_id, l.platform FROM teams t JOIN leagues l USING (league_id) WHERE t.team_id = ?",
+        [team_id],
+    ).fetchone()
+    if row is None:
+        raise NotFound("team", f"Team not found: {team_id}")
+    league_id, platform = row
+    if platform != "manual":
+        raise InvalidInput(
+            f"This team's name comes from {platform.capitalize()}: rename it there, then Update."
+        )
+    name = name.strip()
+    if not name:
+        raise InvalidInput("Give the team a name.")
+    with transaction(con):
+        con.execute("UPDATE teams SET team_name = ? WHERE team_id = ?", [name, team_id])
+        con.execute("UPDATE leagues SET name = ? WHERE league_id = ?", [name, league_id])
+    return league_id
+
+
 def league_id_for_team(con: duckdb.DuckDBPyConnection, team_id: str) -> str:
     row = con.execute("SELECT league_id FROM teams WHERE team_id = ?", [team_id]).fetchone()
     if not row:

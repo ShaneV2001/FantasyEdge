@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
 import { describeError } from '@/lib/errors'
 import { fmtRelative } from '@/lib/format'
 import { useTeamStore } from '@/stores/team'
@@ -69,6 +70,7 @@ export function AppSidebar() {
             FantasyEdge
           </span>
         </Link>
+        <TeamSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -89,7 +91,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={pathname.startsWith('/connect')} tooltip="Connect">
                   <Link to="/connect">
                     <Plug />
-                    <span>{team ? 'Switch team' : 'Connect'}</span>
+                    <span>{team ? 'Add a team' : 'Connect'}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityErrors, ClearPlayerAvailabilityResponses, ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayersTableData, GetPlayersTableErrors, GetPlayersTableResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetStartsitData, GetStartsitErrors, GetStartsitResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, GetWaiversData, GetWaiversErrors, GetWaiversResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SetPlayerAvailabilityData, SetPlayerAvailabilityErrors, SetPlayerAvailabilityResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
+import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityErrors, ClearPlayerAvailabilityResponses, ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, ForgetTeamData, ForgetTeamErrors, ForgetTeamResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayersTableData, GetPlayersTableErrors, GetPlayersTableResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetSavedTeamsData, GetSavedTeamsResponses, GetStartsitData, GetStartsitErrors, GetStartsitResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, GetWaiversData, GetWaiversErrors, GetWaiversResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, RenameTeamData, RenameTeamErrors, RenameTeamResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SetPlayerAvailabilityData, SetPlayerAvailabilityErrors, SetPlayerAvailabilityResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -104,11 +104,33 @@ export const manualLeague = <ThrowOnError extends boolean = false>(options: Opti
 });
 
 /**
+ * Forget Team
+ *
+ * Delete a manual team, or forget a Sleeper/ESPN league (with its saved ESPN login) from
+ * FantasyEdge. Nothing changes on Sleeper or ESPN; connect again any time.
+ */
+export const forgetTeam = <ThrowOnError extends boolean = false>(options: Options<ForgetTeamData, ThrowOnError>): RequestResult<ForgetTeamResponses, ForgetTeamErrors, ThrowOnError> => (options.client ?? client).delete<ForgetTeamResponses, ForgetTeamErrors, ThrowOnError>({ url: '/team/{team_id}', ...options });
+
+/**
  * Get Team
  *
  * Roster with projections, ROS value, market value, flags and grades vs the league.
  */
 export const getTeam = <ThrowOnError extends boolean = false>(options: Options<GetTeamData, ThrowOnError>): RequestResult<GetTeamResponses, GetTeamErrors, ThrowOnError> => (options.client ?? client).get<GetTeamResponses, GetTeamErrors, ThrowOnError>({ url: '/team/{team_id}', ...options });
+
+/**
+ * Rename Team
+ *
+ * Rename a manual team.
+ */
+export const renameTeam = <ThrowOnError extends boolean = false>(options: Options<RenameTeamData, ThrowOnError>): RequestResult<RenameTeamResponses, RenameTeamErrors, ThrowOnError> => (options.client ?? client).patch<RenameTeamResponses, RenameTeamErrors, ThrowOnError>({
+    url: '/team/{team_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Get Players Table
@@ -259,6 +281,13 @@ export const setPlayerAvailability = <ThrowOnError extends boolean = false>(opti
         ...options.headers
     }
 });
+
+/**
+ * Get Saved Teams
+ *
+ * Every team you've connected or entered, for the team switcher.
+ */
+export const getSavedTeams = <ThrowOnError extends boolean = false>(options?: Options<GetSavedTeamsData, ThrowOnError>): RequestResult<GetSavedTeamsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetSavedTeamsResponses, unknown, ThrowOnError>({ url: '/teams/saved', ...options });
 
 /**
  * Get Status

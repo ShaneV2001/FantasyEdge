@@ -572,6 +572,24 @@ export type FlagOut = {
 };
 
 /**
+ * ForgetOut
+ */
+export type ForgetOut = {
+    /**
+     * League Id
+     */
+    league_id: string;
+    /**
+     * Platform
+     */
+    platform: string;
+    /**
+     * Teams Removed
+     */
+    teams_removed: number;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -1549,6 +1567,16 @@ export type RegressionOut = {
 };
 
 /**
+ * RenameTeamRequest
+ */
+export type RenameTeamRequest = {
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
  * RosterPlayer
  */
 export type RosterPlayer = {
@@ -1720,6 +1748,48 @@ export type RosterPlayer = {
      * Flags
      */
     flags?: Array<FlagOut>;
+};
+
+/**
+ * SavedTeamOut
+ */
+export type SavedTeamOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Team Name
+     */
+    team_name: string;
+    /**
+     * League Id
+     */
+    league_id: string;
+    /**
+     * League Name
+     */
+    league_name: string;
+    /**
+     * Platform
+     *
+     * sleeper | espn | manual | demo
+     */
+    platform: string;
+    /**
+     * Season
+     */
+    season: number;
+    /**
+     * Last Synced At
+     */
+    last_synced_at?: string | null;
+    /**
+     * Has Login
+     *
+     * ESPN login cookies saved for this league
+     */
+    has_login: boolean;
 };
 
 /**
@@ -2747,6 +2817,36 @@ export type ManualLeagueResponses = {
 
 export type ManualLeagueResponse = ManualLeagueResponses[keyof ManualLeagueResponses];
 
+export type ForgetTeamData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}';
+};
+
+export type ForgetTeamErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ForgetTeamError = ForgetTeamErrors[keyof ForgetTeamErrors];
+
+export type ForgetTeamResponses = {
+    /**
+     * Successful Response
+     */
+    200: ForgetOut;
+};
+
+export type ForgetTeamResponse = ForgetTeamResponses[keyof ForgetTeamResponses];
+
 export type GetTeamData = {
     body?: never;
     path: {
@@ -2776,6 +2876,36 @@ export type GetTeamResponses = {
 };
 
 export type GetTeamResponse = GetTeamResponses[keyof GetTeamResponses];
+
+export type RenameTeamData = {
+    body: RenameTeamRequest;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}';
+};
+
+export type RenameTeamErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenameTeamError = RenameTeamErrors[keyof RenameTeamErrors];
+
+export type RenameTeamResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamRef;
+};
+
+export type RenameTeamResponse = RenameTeamResponses[keyof RenameTeamResponses];
 
 export type GetPlayersTableData = {
     body?: never;
@@ -3318,6 +3448,24 @@ export type SetPlayerAvailabilityResponses = {
 };
 
 export type SetPlayerAvailabilityResponse = SetPlayerAvailabilityResponses[keyof SetPlayerAvailabilityResponses];
+
+export type GetSavedTeamsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/teams/saved';
+};
+
+export type GetSavedTeamsResponses = {
+    /**
+     * Response Get Saved Teams
+     *
+     * Successful Response
+     */
+    200: Array<SavedTeamOut>;
+};
+
+export type GetSavedTeamsResponse = GetSavedTeamsResponses[keyof GetSavedTeamsResponses];
 
 export type GetStatusData = {
     body?: never;

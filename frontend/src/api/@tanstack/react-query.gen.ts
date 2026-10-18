@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { clearPlayerAvailability, connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRegression, getStartsit, getStatus, getTeam, getUserSettings, getWaivers, health, manualLeague, type Options, putCredentials, refresh, resetUserSettings, searchPlayers, selectTeam, setPlayerAvailability, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
-import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityError, ClearPlayerAvailabilityResponse, ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetStartsitData, GetStartsitError, GetStartsitResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, GetWaiversData, GetWaiversError, GetWaiversResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SetPlayerAvailabilityData, SetPlayerAvailabilityError, SetPlayerAvailabilityResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
+import { clearPlayerAvailability, connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, forgetTeam, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRegression, getSavedTeams, getStartsit, getStatus, getTeam, getUserSettings, getWaivers, health, manualLeague, type Options, putCredentials, refresh, renameTeam, resetUserSettings, searchPlayers, selectTeam, setPlayerAvailability, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
+import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityError, ClearPlayerAvailabilityResponse, ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, ForgetTeamData, ForgetTeamError, ForgetTeamResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetSavedTeamsData, GetSavedTeamsResponse, GetStartsitData, GetStartsitError, GetStartsitResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, GetWaiversData, GetWaiversError, GetWaiversResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, RenameTeamData, RenameTeamError, RenameTeamResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SetPlayerAvailabilityData, SetPlayerAvailabilityError, SetPlayerAvailabilityResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -175,6 +175,26 @@ export const manualLeagueMutation = (options?: Partial<Options<ManualLeagueData>
     return mutationOptions;
 };
 
+/**
+ * Forget Team
+ *
+ * Delete a manual team, or forget a Sleeper/ESPN league (with its saved ESPN login) from
+ * FantasyEdge. Nothing changes on Sleeper or ESPN; connect again any time.
+ */
+export const forgetTeamMutation = (options?: Partial<Options<ForgetTeamData>>): UseMutationOptions<ForgetTeamResponse, ForgetTeamError, Options<ForgetTeamData>> => {
+    const mutationOptions: UseMutationOptions<ForgetTeamResponse, ForgetTeamError, Options<ForgetTeamData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await forgetTeam({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const getTeamQueryKey = (options: Options<GetTeamData>) => createQueryKey('getTeam', options);
 
 /**
@@ -194,6 +214,25 @@ export const getTeamOptions = (options: Options<GetTeamData>) => queryOptions<Ge
     },
     queryKey: getTeamQueryKey(options)
 });
+
+/**
+ * Rename Team
+ *
+ * Rename a manual team.
+ */
+export const renameTeamMutation = (options?: Partial<Options<RenameTeamData>>): UseMutationOptions<RenameTeamResponse, RenameTeamError, Options<RenameTeamData>> => {
+    const mutationOptions: UseMutationOptions<RenameTeamResponse, RenameTeamError, Options<RenameTeamData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await renameTeam({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const getPlayersTableQueryKey = (options: Options<GetPlayersTableData>) => createQueryKey('getPlayersTable', options);
 
@@ -614,6 +653,26 @@ export const setPlayerAvailabilityMutation = (options?: Partial<Options<SetPlaye
     };
     return mutationOptions;
 };
+
+export const getSavedTeamsQueryKey = (options?: Options<GetSavedTeamsData>) => createQueryKey('getSavedTeams', options);
+
+/**
+ * Get Saved Teams
+ *
+ * Every team you've connected or entered, for the team switcher.
+ */
+export const getSavedTeamsOptions = (options?: Options<GetSavedTeamsData>) => queryOptions<GetSavedTeamsResponse, DefaultError, GetSavedTeamsResponse, ReturnType<typeof getSavedTeamsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getSavedTeams({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getSavedTeamsQueryKey(options)
+});
 
 export const getStatusQueryKey = (options?: Options<GetStatusData>) => createQueryKey('getStatus', options);
 

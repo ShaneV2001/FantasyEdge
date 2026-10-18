@@ -342,6 +342,98 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Forget Team",
+        "description": "Delete a manual team, or forget a Sleeper/ESPN league (with its saved ESPN login) from\nFantasyEdge. Nothing changes on Sleeper or ESPN; connect again any time.",
+        "operationId": "forget_team",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForgetOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Rename Team",
+        "description": "Rename a manual team.",
+        "operationId": "rename_team",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameTeamRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamRef"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/team/{team_id}/players": {
@@ -1255,6 +1347,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/saved": {
+      "get": {
+        "tags": [
+          "meta",
+          "team"
+        ],
+        "summary": "Get Saved Teams",
+        "description": "Every team you've connected or entered, for the team switcher.",
+        "operationId": "get_saved_teams",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SavedTeamOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Saved Teams"
                 }
               }
             }
@@ -2481,6 +2600,29 @@
           "message"
         ],
         "title": "FlagOut"
+      },
+      "ForgetOut": {
+        "properties": {
+          "league_id": {
+            "type": "string",
+            "title": "League Id"
+          },
+          "platform": {
+            "type": "string",
+            "title": "Platform"
+          },
+          "teams_removed": {
+            "type": "integer",
+            "title": "Teams Removed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "league_id",
+          "platform",
+          "teams_removed"
+        ],
+        "title": "ForgetOut"
       },
       "HTTPValidationError": {
         "properties": {
@@ -4257,6 +4399,21 @@
         ],
         "title": "RegressionOut"
       },
+      "RenameTeamRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RenameTeamRequest"
+      },
       "RosterPlayer": {
         "properties": {
           "player_id": {
@@ -4593,6 +4750,63 @@
           "optimal_starter"
         ],
         "title": "RosterPlayer"
+      },
+      "SavedTeamOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "league_id": {
+            "type": "string",
+            "title": "League Id"
+          },
+          "league_name": {
+            "type": "string",
+            "title": "League Name"
+          },
+          "platform": {
+            "type": "string",
+            "title": "Platform",
+            "description": "sleeper | espn | manual | demo"
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "has_login": {
+            "type": "boolean",
+            "title": "Has Login",
+            "description": "ESPN login cookies saved for this league"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "team_name",
+          "league_id",
+          "league_name",
+          "platform",
+          "season",
+          "has_login"
+        ],
+        "title": "SavedTeamOut"
       },
       "SelectTeamRequest": {
         "properties": {

@@ -17,7 +17,7 @@ from app.main import app
 from app.services import context, leagues, views
 from db.conn import connect, upsert
 from ingest import run as run_jobs
-from ingest.http import CachedHttp
+from ingest.http import CachedHttp, SourceUnavailable
 from ingest.idmap import DP_IDS_URL, attach_internal_ids, parse_id_map
 from ingest.market_values import DP_VALUES_URL
 from ingest.run import Clients, players_sync
@@ -1009,3 +1009,76 @@ def test_your_availability_what_if_round_trip(client):
     assert tc.put(f"/players/{rb}/availability", json={}).status_code == 422
     assert tc.put(f"/players/{rb}/availability", json={"return_week": 30}).status_code == 422
     assert tc.put("/players/nobody/availability", json={"out_for_season": True}).status_code == 404
+
+
+def test_saved_teams_rename_and_forget(client):
+    tc, _ = client
+    sleeper_team = connect_and_pick(tc)
+    manual_team, _, _ = _manual_team(tc, name="Bench Mob")
+    saved = {t["team_id"]: t for t in tc.get("/teams/saved").json()}
+    assert set(saved) == {sleeper_team, manual_team}  # only the teams you picked, not rivals
+    assert saved[sleeper_team]["platform"] == "sleeper" and not saved[sleeper_team]["has_login"]
+    assert saved[manual_team]["team_name"] == "Bench Mob"
+
+    # rename: manual teams only (platform names come from Sleeper/ESPN)
+    r = tc.patch(f"/team/{manual_team}", json={"name": "  Waiver Wire Kings "})
+    assert r.status_code == 200
+    assert tc.get(f"/team/{manual_team}").json()["team_name"] == "Waiver Wire Kings"
+    r = tc.patch(f"/team/{sleeper_team}", json={"name": "Nope"})
+    assert r.status_code == 422 and "Sleeper" in r.json()["detail"]
+    assert tc.patch(f"/team/{manual_team}", json={"name": ""}).status_code == 422
+
+    # forget the Sleeper league: every team, roster and saved login goes, nothing else
+    league_id = f"sl-{LEAGUE}"
+    deps._con.execute(
+        "INSERT INTO league_credentials VALUES (?, 's2', '{SWID}', now())", [league_id]
+    )
+    assert {t["team_id"]: t for t in tc.get("/teams/saved").json()}[sleeper_team]["has_login"]
+    r = tc.delete(f"/team/{sleeper_team}")
+    assert r.status_code == 200
+    assert r.json() == {"league_id": league_id, "platform": "sleeper", "teams_removed": 4}
+    con = deps._con
+    for table in ("leagues", "teams", "transactions", "league_credentials"):
+        n = con.execute(f"SELECT count(*) FROM {table} WHERE league_id = ?", [league_id]).fetchone()
+        assert n[0] == 0, table
+    assert _counts(con, league_id) == (0, 0)
+    assert [t["team_id"] for t in tc.get("/teams/saved").json()] == [manual_team]
+    assert tc.get(f"/team/{sleeper_team}").status_code == 404
+    assert con.execute("SELECT count(*) FROM players").fetchone()[0] > 0  # shared data stays
+
+    # delete the manual team
+    assert tc.delete(f"/team/{manual_team}").json()["platform"] == "manual"
+    assert tc.get("/teams/saved").json() == []
+    assert tc.delete(f"/team/{manual_team}").status_code == 404
+
+
+def test_loading_a_team_refreshes_a_stale_roster(client, monkeypatch):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    league_id = f"sl-{LEAGUE}"
+    con = deps._con
+    con.execute(
+        "UPDATE leagues SET last_synced_at = now() - INTERVAL 2 HOUR WHERE league_id = ?",
+        [league_id],
+    )
+    old = con.execute(
+        "SELECT last_synced_at FROM leagues WHERE league_id = ?", [league_id]
+    ).fetchone()
+    assert tc.get(f"/team/{team_id}").status_code == 200
+    new = con.execute(
+        "SELECT last_synced_at FROM leagues WHERE league_id = ?", [league_id]
+    ).fetchone()
+    assert new[0] > old[0]  # re-pulled from Sleeper on load
+
+    # Sleeper down: the page still loads from the cached rosters
+    con.execute(
+        "UPDATE leagues SET last_synced_at = now() - INTERVAL 2 HOUR WHERE league_id = ?",
+        [league_id],
+    )
+
+    def down(*a, **k):
+        raise SourceUnavailable("sleeper", "503 from upstream", 503)
+
+    monkeypatch.setattr(leagues, "sync_sleeper_league", down)
+    r = tc.get(f"/team/{team_id}")
+    assert r.status_code == 200 and len(r.json()["roster"]) >= 14
