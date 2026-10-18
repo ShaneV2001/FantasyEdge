@@ -1100,9 +1100,8 @@ def test_regression_report_strongest_flags_first(client):
     assert strengths == sorted(strengths, reverse=True)
 
 
-def test_drops_come_with_reasons(client):
-    tc, _ = client
-    team_id = connect_and_pick(tc)
+def _one_for_two(tc, team_id):
+    """Give one of our RB/WRs for two of another team's."""
     team = tc.get(f"/team/{team_id}").json()
     mine = [p["player_id"] for p in team["roster"] if p["position"] in ("RB", "WR")]
     other = next(t for t in team["league_teams"] if not t["is_mine"])
@@ -1111,8 +1110,37 @@ def test_drops_come_with_reasons(client):
         for p in tc.get(f"/team/{other['team_id']}").json()["roster"]
         if p["position"] in ("RB", "WR")
     ][:2]
-    # 1-for-2 fills our roster (15 of 16 spots): one of ours has to go, with a reason
     r = tc.post("/trade/evaluate", json={"team_id": team_id, "give": mine[:1], "receive": theirs})
-    side = r.json()["me"]
-    assert len(side["drops"]) == len(side["drop_reasons"])
-    assert all(isinstance(x, str) and x for x in side["drop_reasons"])
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_drops_come_with_reasons(client):
+    tc, router = client
+    # our roster is full (16 of 16 active spots): move one of u3's bench receivers to us
+    rosters = load_json("sleeper_rosters.json")
+    mine = next(r for r in rosters if r["owner_id"] == "u0")
+    donor = next(r for r in rosters if r["owner_id"] == "u3")
+    donor["players"].remove("7525")
+    mine["players"].append("7525")
+    router.get(f"{SL}/league/{LEAGUE}/rosters").mock(return_value=httpx.Response(200, json=rosters))
+    team_id = connect_and_pick(tc)
+    assert len(tc.get(f"/team/{team_id}").json()["roster"]) == 16
+    # a 1-for-2 puts us one over the limit: exactly one of ours has to go, with a reason
+    trade = _one_for_two(tc, team_id)
+    side = trade["me"]
+    assert "drops" in side
+    assert len(side["drops"]) == 1 and len(side["drop_reasons"]) == 1
+    (dropped,), (why,) = side["drops"], side["drop_reasons"]
+    assert isinstance(why, str) and why
+    assert any(f"drop {dropped['name']} ({why})" in r for r in trade["reasons"])
+
+
+def test_a_roster_with_room_drops_nobody(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    # 15 of 16 spots: a 1-for-2 fills the last one, so nobody has to go
+    assert len(tc.get(f"/team/{team_id}").json()["roster"]) == 15
+    trade = _one_for_two(tc, team_id)
+    assert trade["me"]["drops"] == [] and trade["me"]["drop_reasons"] == []
+    assert not any("to make room" in r for r in trade["reasons"])
