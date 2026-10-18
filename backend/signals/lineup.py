@@ -25,19 +25,9 @@ SLOT_ELIGIBILITY: dict[str, frozenset[str]] = {
 }
 NON_STARTING = {"BN", "IR", "TAXI"}
 SKILL_POSITIONS = ("QB", "RB", "WR", "TE")
-# Bench depth worth keeping per position beyond the slots it can fill (byes, injuries). Kickers and
-# defenses are streamed, so a second one is dead weight.
-POSITION_BACKUPS = {"QB": 1, "RB": 2, "WR": 2, "TE": 1, "K": 0, "DEF": 0}
-
-
-def position_capacity(slots: Iterable[str]) -> dict[str, int]:
-    """How many players at each position a roster can usefully hold: the starting slots that can
-    use him (dedicated and flex) plus `POSITION_BACKUPS`. A 1-QB league holds 2 QBs; Superflex 3."""
-    slots = list(slots)
-    return {
-        pos: sum(1 for s in slots if pos in SLOT_ELIGIBILITY.get(s, ())) + extra
-        for pos, extra in POSITION_BACKUPS.items()
-    }
+# Bench depth worth keeping at each skill position beyond the slots it fills (byes, injuries); a
+# user setting. Kickers and defenses are streamed, so a second one is dead weight.
+BENCH_BACKUPS = 1
 
 
 def starting_slots(roster_positions: Iterable[str]) -> list[str]:
@@ -66,6 +56,22 @@ class Lineup:
     @property
     def starters(self) -> set[str]:
         return {p.player_id for _, p in self.slots if p is not None}
+
+
+def position_capacity(lineup: Lineup, backups: int = BENCH_BACKUPS) -> dict[str, int]:
+    """How many players at each position a roster can usefully hold, given its best lineup: the
+    position's dedicated slots, plus each flex slot once, for the position of the player the lineup
+    puts there (an empty flex counts for nobody), plus `backups` at QB/RB/WR/TE (none for K/DEF).
+    So in a Superflex league whose 2nd QB takes SUPER_FLEX, TEs don't also get credit for it."""
+    cap = dict.fromkeys((*SKILL_POSITIONS, "K", "DEF"), 0)
+    for slot, player in lineup.slots:
+        if slot in cap:  # dedicated slot: counts even when nobody can fill it this week
+            cap[slot] += 1
+        elif player is not None:
+            cap[player.position] += 1
+    for pos in SKILL_POSITIONS:
+        cap[pos] += backups
+    return cap
 
 
 def _slot_order(slots: Sequence[str]) -> list[int]:

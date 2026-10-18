@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from itertools import combinations
 
 from signals.byes import RosterEntry, bye_grid
-from signals.lineup import NON_STARTING, position_capacity
+from signals.lineup import BENCH_BACKUPS, NON_STARTING, position_capacity
 from signals.team import RosMath
 
 ACCEPT_GAIN = 8.0
@@ -38,11 +38,13 @@ class RosterRules:
     """Roster-size limits. `active_limit` = starting + bench spots (None: no limit modelled);
     `reserved` = players on IR / taxi anywhere in the league, who can sit in one of a team's
     `reserve_slots` instead of an active spot (an injured player traded to you goes on your IR if
-    you have room there; otherwise he takes an active spot)."""
+    you have room there; otherwise he takes an active spot). `bench_backups` = bench depth worth
+    keeping per skill position when choosing forced drops (`position_capacity`)."""
 
     active_limit: int | None = None
     reserved: frozenset[str] = frozenset()
     reserve_slots: int = 0
+    bench_backups: int = BENCH_BACKUPS
 
 
 def active_limit(roster_positions: Sequence[str]) -> int | None:
@@ -179,20 +181,25 @@ def _ordinal(n: int) -> str:
 
 
 def choose_drops(
-    math: RosMath, players: Mapping[str, Mapping], roster: Sequence[str], keep: set[str], n: int
+    math: RosMath,
+    players: Mapping[str, Mapping],
+    roster: Sequence[str],
+    keep: set[str],
+    n: int,
+    backups: int = BENCH_BACKUPS,
 ) -> list[Drop]:
     """The `n` players a manager would cut, one at a time (counts are redone after each):
 
     1. dead weight: an extra kicker or defense (more than the lineup can start, whatever he
        costs: nobody carries two kickers), or surplus depth at an over-stocked position
-       (`position_capacity`, e.g. a 4th QB in a 1-QB league) that the lineup barely needs. A cut
+       (`position_capacity` of this week's lineup with `backups` bench players per skill
+       position, e.g. a 3rd QB in a 1-QB league) that the lineup barely needs. A cut
        that costs nothing (< 1 point) goes before one that costs a little;
     2. otherwise the bench player (cutting him costs the lineup < `DROP_LINEUP_COST` ROS points)
        with the lowest market value, so a valuable young bench player outlasts waiver fodder;
     3. if everyone starts, whoever costs the lineup the least.
     Players in `keep` (just acquired) are never cut.
     """
-    capacity = position_capacity(math.slots)
     current = list(roster)
     out: list[Drop] = []
 
@@ -210,6 +217,7 @@ def choose_drops(
         if not cands:
             break
         count = Counter(pos(p) for p in current)
+        capacity = position_capacity(math.lineup_for_week(current, math.start), backups)
         base = math.ros_lineup_points(current)
         cost = {p: base - math.ros_lineup_points([q for q in current if q != p]) for p in cands}
         free = [p for p in cands if cost[p] < DROP_LINEUP_COST]  # bench depth: costs ~nothing
@@ -261,7 +269,7 @@ def roster_after(
     if excess <= 0:
         return after, []
     droppable = [p for p in after if p not in rules.reserved]
-    drops = choose_drops(math, players, droppable, set(incoming), excess)
+    drops = choose_drops(math, players, droppable, set(incoming), excess, rules.bench_backups)
     gone = {d.player_id for d in drops}
     return [p for p in after if p not in gone], drops
 

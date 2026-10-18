@@ -296,8 +296,9 @@ def _drop_league(**extra):
         "wr2": P("WR2", "WR", 13, market=6000), "te": P("TE1", "TE", 10, market=3000),
         "flex": P("RB3", "RB", 12, market=5000), "k": P("K1", "K", 8, market=None),
         "def": P("DEF1", "DEF", 7, market=None),
-        # bench: a young receiver the market loves vs a waiver-level one, both barely play
-        "ladd": P("Ladd", "WR", 6, market=5500), "scrub": P("Scrub", "WR", 6.5, market=300),
+        # bench: a young receiver the market loves vs a waiver-level back, both barely play. One
+        # backup each at RB and WR (the flex goes to RB3), so neither is surplus depth
+        "ladd": P("Ladd", "WR", 6, market=5500), "scrub": P("Scrub", "RB", 6.5, market=300),
         **extra,
     }  # fmt: skip
     math = RosMath(players, schedule(["AAA"], weeks=17), 7, 17, DROP_SLOTS)
@@ -358,17 +359,23 @@ def test_starters_and_new_arrivals_are_never_cut_while_bench_exists():
     assert drop.reason == "costs your lineup the least"
 
 
-def test_trade_card_says_who_is_dropped_and_why():
+@pytest.mark.parametrize(
+    "backups, why",
+    [(1, "5th RB, more than your lineup can use"), (2, "lowest market value on your bench")],
+)
+def test_trade_card_says_who_is_dropped_and_why(backups, why):
+    # receiving B2 makes 5 RBs: one more than 2 RB slots + the flex + 1 backup (the default
+    # setting), but fine for a manager who keeps 2 backups
     players, math = _drop_league(
         b1=P("B1", "WR", 16, market=9000), b2=P("B2", "RB", 15, market=9000)
     )
     mine = [p for p in players if p not in ("b1", "b2")]
     ev = tr.evaluate(
         math, players, ("A", mine), ("B", ["b1", "b2"]), ["wr2"], ["b1", "b2"],
-        rules=tr.RosterRules(active_limit=len(mine)),
+        rules=tr.RosterRules(active_limit=len(mine), bench_backups=backups),
     )  # fmt: skip
-    assert ev.me.drops == ["scrub"] and ev.me.drop_reasons == ["lowest market value on your bench"]
-    assert any("drop Scrub (lowest market value on your bench)" in r for r in ev.reasons)
+    assert ev.me.drops == ["scrub"] and ev.me.drop_reasons == [why]
+    assert any(f"drop Scrub ({why})" in r for r in ev.reasons)
 
 
 def test_picking_up_a_kicker_drops_the_old_kicker_not_a_bench_player():
@@ -380,3 +387,31 @@ def test_picking_up_a_kicker_drops_the_old_kicker_not_a_bench_player():
     math = RosMath(players, schedule(["AAA", "BYE"], weeks=17, byes={"BYE": 9}), 7, 17, DROP_SLOTS)
     (drop,) = tr.choose_drops(math, players, list(players), {"k_new"}, 1)
     assert (drop.player_id, drop.reason) == ("k", "extra kicker")
+
+
+SF_DROP_SLOTS = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"]
+
+
+@pytest.mark.parametrize(
+    "extra, cut",
+    [
+        (dict(te2=P("TE2", "TE", 8, market=3000), te3=P("TE3", "TE", 6, market=2000),
+              te4=P("TE4", "TE", 5, market=900)), ("te4", "4th TE")),
+        (dict(rb4=P("RB4", "RB", 11, market=3000), rb5=P("RB5", "RB", 10, market=2000),
+              rb6=P("RB6", "RB", 9, market=900)), ("rb6", "6th RB")),
+    ],
+)  # fmt: skip
+def test_superflex_surplus_counts_each_flex_once(extra, cut):
+    # the flex goes to RB3 and SUPER_FLEX to the 2nd QB, so TEs can use 1 slot and RBs 3 (+1
+    # backup each): a 4th TE or a 6th RB is surplus, and goes before the cheap bench receiver
+    players = {
+        "qb": P("QB1", "QB", 20, market=4000), "qb2": P("QB2", "QB", 16, market=3000),
+        "rb1": P("RB1", "RB", 16, market=8000), "rb2": P("RB2", "RB", 14, market=7000),
+        "rb3": P("RB3", "RB", 12, market=5000), "wr1": P("WR1", "WR", 15, market=8000),
+        "wr2": P("WR2", "WR", 13, market=6000), "scrub": P("Scrub", "WR", 6, market=400),
+        "te": P("TE1", "TE", 10, market=3000), "k": P("K1", "K", 8, market=None),
+        "def": P("DEF1", "DEF", 7, market=None), **extra,
+    }  # fmt: skip
+    math = RosMath(players, schedule(["AAA"], weeks=17), 7, 17, SF_DROP_SLOTS)
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert (drop.player_id, drop.reason) == (cut[0], f"{cut[1]}, more than your lineup can use")

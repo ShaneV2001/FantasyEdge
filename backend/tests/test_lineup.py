@@ -96,10 +96,64 @@ def test_matches_brute_force(seed):
     assert optimal_lineup(players, slots).points == pytest.approx(_brute_force(players, slots))
 
 
-def test_position_capacity():
+# ───────── how many players a position can usefully hold ─────────
+
+ONE_FLEX = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "K", "DEF"]
+SUPERFLEX = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "SUPER_FLEX", "K", "DEF"]
+BASE = [
+    P("q1", "QB", 22), P("q2", "QB", 18), P("r1", "RB", 16), P("r2", "RB", 14),
+    P("r3", "RB", 12), P("w1", "WR", 15), P("w2", "WR", 13), P("w3", "WR", 9),
+    P("t1", "TE", 10), P("k", "K", 8), P("d", "DEF", 7),
+]  # fmt: skip
+
+
+def _capacity(players, slots, **kw):
     from signals.lineup import position_capacity
 
-    std = position_capacity(["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "K", "DEF"])
-    assert std == {"QB": 2, "RB": 5, "WR": 5, "TE": 3, "K": 1, "DEF": 1}
-    sf = position_capacity(["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "SUPER_FLEX"])
-    assert sf["QB"] == 3 and sf["K"] == 0 and sf["DEF"] == 0
+    return position_capacity(optimal_lineup(players, slots), **kw)
+
+
+def _count(players, pos):
+    return sum(p.position == pos for p in players)
+
+
+def test_position_capacity():
+    # 1-QB, 1-flex: the flex goes to RB3 (12 > WR3's 9), so it counts for RBs only; one backup
+    # per skill position, none for K / DEF
+    std = _capacity(BASE, ONE_FLEX)
+    assert std == {"QB": 2, "RB": 4, "WR": 3, "TE": 2, "K": 1, "DEF": 1}
+    # Superflex: the second QB takes SUPER_FLEX, so QBs get it and nobody else does
+    sf = _capacity(BASE, SUPERFLEX)
+    assert sf == {"QB": 3, "RB": 4, "WR": 3, "TE": 2, "K": 1, "DEF": 1}
+    # the backup count is a setting; streamed positions never get one
+    deep = _capacity(BASE, ONE_FLEX, backups=2)
+    assert deep == {"QB": 3, "RB": 5, "WR": 4, "TE": 3, "K": 1, "DEF": 1}
+
+
+def test_one_flex_counts_for_one_position_only():
+    for players, flex_pos in [(BASE, "RB"), ([*BASE, P("w0", "WR", 30)], "WR")]:
+        cap = _capacity(players, ONE_FLEX)
+        dedicated = {"QB": 1, "RB": 2, "WR": 2, "TE": 1}
+        extra = {pos: cap[pos] - dedicated[pos] - 1 for pos in dedicated}
+        assert extra == {pos: int(pos == flex_pos) for pos in dedicated}
+
+
+def test_an_empty_flex_counts_for_nobody():
+    thin = [P("q1", "QB", 20), P("r1", "RB", 15), P("r2", "RB", 14), P("w1", "WR", 13),
+            P("w2", "WR", 12), P("t1", "TE", 9)]  # fmt: skip
+    cap = _capacity(thin, ONE_FLEX)
+    assert (cap["RB"], cap["WR"], cap["TE"]) == (3, 3, 2)
+
+
+def test_superflex_four_tes_are_a_surplus():
+    # the old count gave TEs the TE slot, FLEX and SUPER_FLEX at once (+1 backup = 4)
+    players = [*BASE, P("t2", "TE", 8), P("t3", "TE", 6), P("t4", "TE", 5)]
+    cap = _capacity(players, SUPERFLEX)
+    assert _count(players, "TE") == 4 and cap["TE"] == 2
+
+
+def test_superflex_six_rbs_are_a_surplus():
+    # the old count gave RBs both RB slots, FLEX and SUPER_FLEX (+2 backups = 6)
+    players = [*BASE, P("r4", "RB", 11), P("r5", "RB", 10), P("r6", "RB", 9)]
+    cap = _capacity(players, SUPERFLEX)
+    assert _count(players, "RB") == 6 and cap["RB"] == 4
