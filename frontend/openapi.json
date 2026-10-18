@@ -5754,6 +5754,14 @@
             "title": "Drops",
             "description": "Players this team must release to stay at its roster limit"
           },
+          "drop_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Drop Reasons",
+            "description": "Why each drop was chosen (aligned with drops)"
+          },
           "new_short_weeks": {
             "items": {
               "type": "integer"
@@ -6033,6 +6041,18 @@
               }
             ],
             "title": "Drop Ppg"
+          },
+          "drop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drop Reason",
+            "description": "Why that player is the one to cut"
           },
           "fixes_weeks": {
             "items": {

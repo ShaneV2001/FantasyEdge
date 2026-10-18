@@ -282,3 +282,90 @@ def test_shortlists_keep_deals_both_teams_like(league):
     assert tight and tight[0].partner_accepts
     assert tr._shortlist_key(10, 2) < tr._shortlist_key(30, -5)  # mutual beats one-sided
     assert tr._shortlist_key(10, 8) < tr._shortlist_key(9, 8)  # then the better deal
+
+
+# ───────── who gets cut when a roster overflows ─────────
+
+DROP_SLOTS = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "K", "DEF"]
+
+
+def _drop_league(**extra):
+    players = {
+        "qb": P("QB1", "QB", 20, market=4000), "rb1": P("RB1", "RB", 16, market=8000),
+        "rb2": P("RB2", "RB", 14, market=7000), "wr1": P("WR1", "WR", 15, market=8000),
+        "wr2": P("WR2", "WR", 13, market=6000), "te": P("TE1", "TE", 10, market=3000),
+        "flex": P("RB3", "RB", 12, market=5000), "k": P("K1", "K", 8, market=None),
+        "def": P("DEF1", "DEF", 7, market=None),
+        # bench: a young receiver the market loves vs a waiver-level one, both barely play
+        "ladd": P("Ladd", "WR", 6, market=5500), "scrub": P("Scrub", "WR", 6.5, market=300),
+        **extra,
+    }  # fmt: skip
+    math = RosMath(players, schedule(["AAA"], weeks=17), 7, 17, DROP_SLOTS)
+    return players, math
+
+
+def test_valuable_bench_player_outlasts_waiver_fodder():
+    players, math = _drop_league()
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert drop.player_id == "scrub"  # the old rule cut by lineup points and model value
+    assert drop.reason == "lowest market value on your bench"
+
+
+def test_an_extra_kicker_or_defense_goes_first():
+    players, math = _drop_league(
+        k2=P("K2", "K", 7.5, market=None), def2=P("DEF2", "DEF", 6, market=None)
+    )
+    drops = tr.choose_drops(math, players, list(players), set(), 2)
+    assert {(d.player_id, d.reason) for d in drops} == {
+        ("k2", "extra kicker"),
+        ("def2", "extra defense"),
+    }  # both extras go before the valuable bench receiver
+
+
+@pytest.mark.parametrize("def2_ppg", [5.0, 3.0])  # covers a bye for real points, or a few
+def test_a_backup_defense_covering_a_bye_outlasts_a_free_4th_qb(def2_ppg):
+    # the starting D/ST is on bye this week, so the second one plays now; the 4th QB never will
+    players, _ = _drop_league(
+        **{"def": P("DEF1", "DEF", 7, team="BYE", market=None)},
+        def2=P("DEF2", "DEF", def2_ppg, market=None),
+        qb2=P("QB2", "QB", 15, market=2000),
+        qb3=P("QB3", "QB", 14, market=1500),
+        qb4=P("QB4", "QB", 13, market=700),
+    )
+    sched = schedule(["AAA", "BYE"], weeks=17, byes={"BYE": 7})
+    math = RosMath(players, sched, 7, 17, DROP_SLOTS)
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert (drop.player_id, drop.reason) == ("qb4", "4th QB, more than your lineup can use")
+
+
+def test_surplus_depth_goes_before_other_bench_players():
+    # a 1-QB league can use 2 QBs: the 4th goes before any bench receiver
+    players, math = _drop_league(
+        qb2=P("QB2", "QB", 15, market=2000), qb3=P("QB3", "QB", 14, market=1500),
+        qb4=P("QB4", "QB", 13, market=1200),
+    )  # fmt: skip
+    first, second = tr.choose_drops(math, players, list(players), set(), 2)
+    assert (first.player_id, first.reason) == ("qb4", "4th QB, more than your lineup can use")
+    assert (second.player_id, second.reason) == ("qb3", "3rd QB, more than your lineup can use")
+
+
+def test_starters_and_new_arrivals_are_never_cut_while_bench_exists():
+    players, math = _drop_league()
+    drops = tr.choose_drops(math, players, list(players), {"scrub"}, 1)
+    assert [d.player_id for d in drops] == ["ladd"]  # just-acquired scrub stays; starters stay
+    starters_only = [p for p in players if p not in ("ladd", "scrub")]
+    (drop,) = tr.choose_drops(math, players, starters_only, set(), 1)
+    assert drop.reason == "costs your lineup the least"
+
+
+def test_trade_card_says_who_is_dropped_and_why():
+    players, math = _drop_league(
+        b1=P("B1", "WR", 16, market=9000), b2=P("B2", "RB", 15, market=9000)
+    )
+    mine = [p for p in players if p not in ("b1", "b2")]
+    ev = tr.evaluate(
+        math, players, ("A", mine), ("B", ["b1", "b2"]), ["wr2"], ["b1", "b2"],
+        rules=tr.RosterRules(active_limit=len(mine)),
+    )  # fmt: skip
+    assert ev.me.drops == ["scrub"] and ev.me.drop_reasons == ["lowest market value on your bench"]
+    assert any("drop Scrub (lowest market value on your bench)" in r for r in ev.reasons)

@@ -94,3 +94,12 @@ def test_matches_brute_force(seed):
         for i in range(rng.randint(1, 7))
     ]
     assert optimal_lineup(players, slots).points == pytest.approx(_brute_force(players, slots))
+
+
+def test_position_capacity():
+    from signals.lineup import position_capacity
+
+    std = position_capacity(["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "K", "DEF"])
+    assert std == {"QB": 2, "RB": 5, "WR": 5, "TE": 3, "K": 1, "DEF": 1}
+    sf = position_capacity(["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "SUPER_FLEX"])
+    assert sf["QB"] == 3 and sf["K"] == 0 and sf["DEF"] == 0

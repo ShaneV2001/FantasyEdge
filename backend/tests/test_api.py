@@ -1098,3 +1098,21 @@ def test_regression_report_strongest_flags_first(client):
         assert r["direction"] == top["direction"] in (1, -1)
     strengths = [r["strength"] for r in reg["league"]]
     assert strengths == sorted(strengths, reverse=True)
+
+
+def test_drops_come_with_reasons(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    team = tc.get(f"/team/{team_id}").json()
+    mine = [p["player_id"] for p in team["roster"] if p["position"] in ("RB", "WR")]
+    other = next(t for t in team["league_teams"] if not t["is_mine"])
+    theirs = [
+        p["player_id"]
+        for p in tc.get(f"/team/{other['team_id']}").json()["roster"]
+        if p["position"] in ("RB", "WR")
+    ][:2]
+    # 1-for-2 fills our roster (15 of 16 spots): one of ours has to go, with a reason
+    r = tc.post("/trade/evaluate", json={"team_id": team_id, "give": mine[:1], "receive": theirs})
+    side = r.json()["me"]
+    assert len(side["drops"]) == len(side["drop_reasons"])
+    assert all(isinstance(x, str) and x for x in side["drop_reasons"])

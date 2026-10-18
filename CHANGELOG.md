@@ -31,6 +31,10 @@ All notable changes to FantasyEdge. Dates are when the work was pushed.
 ### Changed
 - This week's lineup advice (My Team, Advisor, Start/Sit) uses matchup-adjusted projections, so all
   three agree. Starters whose game is already final stay locked in their slot.
+- Forced drops (trades and Waivers) now cut who a manager would: an extra K or D/ST first, then
+  surplus depth at an over-stocked position (e.g. a 4th QB), then the bench player with the
+  lowest market value. Each drop says why, so a valuable bench player is no longer cut ahead of
+  waiver fodder.
 - Rosters refresh themselves when a team is loaded and its saved copy is over 10 minutes old.
 - **Regression report:** the 20 strongest flags first, then "Show more". It adds position,
   direction and team filters, a filter bar that stays visible while you scroll, and a back-to-top

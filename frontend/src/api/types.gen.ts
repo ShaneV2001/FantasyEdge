@@ -2384,6 +2384,12 @@ export type TradeSideOut = {
      */
     drops?: Array<PlayerRef>;
     /**
+     * Drop Reasons
+     *
+     * Why each drop was chosen (aligned with drops)
+     */
+    drop_reasons?: Array<string>;
+    /**
      * New Short Weeks
      *
      * Weeks it could fill its lineup before the trade but can't after (byes/injuries)
@@ -2553,6 +2559,12 @@ export type WaiverRow = {
      * Drop Ppg
      */
     drop_ppg?: number | null;
+    /**
+     * Drop Reason
+     *
+     * Why that player is the one to cut
+     */
+    drop_reason?: string | null;
     /**
      * Fixes Weeks
      *

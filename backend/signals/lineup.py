@@ -25,6 +25,19 @@ SLOT_ELIGIBILITY: dict[str, frozenset[str]] = {
 }
 NON_STARTING = {"BN", "IR", "TAXI"}
 SKILL_POSITIONS = ("QB", "RB", "WR", "TE")
+# Bench depth worth keeping per position beyond the slots it can fill (byes, injuries). Kickers and
+# defenses are streamed, so a second one is dead weight.
+POSITION_BACKUPS = {"QB": 1, "RB": 2, "WR": 2, "TE": 1, "K": 0, "DEF": 0}
+
+
+def position_capacity(slots: Iterable[str]) -> dict[str, int]:
+    """How many players at each position a roster can usefully hold: the starting slots that can
+    use him (dedicated and flex) plus `POSITION_BACKUPS`. A 1-QB league holds 2 QBs; Superflex 3."""
+    slots = list(slots)
+    return {
+        pos: sum(1 for s in slots if pos in SLOT_ELIGIBILITY.get(s, ())) + extra
+        for pos, extra in POSITION_BACKUPS.items()
+    }
 
 
 def starting_slots(roster_positions: Iterable[str]) -> list[str]:

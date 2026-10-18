@@ -20,7 +20,7 @@ Data only flows **in**. FantasyEdge never changes anything on Sleeper or ESPN.
 | **Start/Sit** | This week's best lineup vs the one you've set, plus a drag-and-drop board to try your own, with undo, reset and copy. Only valid moves are allowed. |
 | **Waivers** | Free agents ranked by how much they'd add to *your* lineup for the rest of the season, who you'd drop, a FAAB bid range, and Sleeper's trending adds. |
 | **Players** | Every player: search, filter by position, team or who owns him, and sort by projection, rest-of-season points, value or verdict. |
-| **Trade** | Ideas where *both* lineups improve, "find me a running back for these two players", and an analyzer for any deal. Roster spots and bye weeks are counted for both teams. |
+| **Trade** | Ideas where *both* lineups improve, "find me a running back for these two players", and an analyzer for any deal. Bye weeks are counted for both teams, and when a team has to make room it cuts who a manager would: an extra K or D/ST, surplus depth, or its lowest-value bench player. |
 | **Rankings / Buy targets** | Schedule-adjusted top 10–30 at every position, and players the market undervalues. |
 | **Player pages** | Projected vs actual points every week, usage and efficiency, trades built around him, and an injury what-if ("out for the season", "back in week 12"). |
 | **Byes** | A week-by-week grid of the lineup slots you can't fill, flagged before those weeks arrive. |

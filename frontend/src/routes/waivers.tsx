@@ -93,7 +93,7 @@ function WaiverTable({ rows, faab }: { rows: WaiverRow[]; faab: boolean }) {
                     {r.player.nfl_team} · {fmtNum(r.ppg)} ppg{r.bye_week != null && ` · bye ${r.bye_week}`}
                   </span>
                   <span className="text-xs text-muted-foreground md:hidden">
-                    {r.drop ? `Drop ${r.drop.name}` : 'Open roster spot: no drop'}
+                    {r.drop ? `Drop ${r.drop.name}${r.drop_reason ? ` (${r.drop_reason})` : ''}` : 'Open roster spot: no drop'}
                   </span>
                 </div>
               </div>
@@ -106,7 +106,9 @@ function WaiverTable({ rows, faab }: { rows: WaiverRow[]; faab: boolean }) {
               {r.drop ? (
                 <div className="flex flex-col gap-0.5">
                   <PlayerChip player={r.drop} />
-                  {r.drop_ppg != null && <span className="pl-1 text-xs text-muted-foreground">{fmtNum(r.drop_ppg)} ppg</span>}
+                  <span className="pl-1 text-xs text-muted-foreground">
+                    {[r.drop_ppg != null && `${fmtNum(r.drop_ppg)} ppg`, r.drop_reason].filter(Boolean).join(' · ')}
+                  </span>
                 </div>
               ) : (
                 <span className="text-xs text-muted-foreground">Open roster spot</span>
@@ -196,7 +198,7 @@ function Waivers({ data }: { data: WaiversOut }) {
             </div>
             <CardDescription>
               Gain is what each free agent adds to your starting lineup over weeks {data.week}–{data.last_week} ({weeks}{' '}
-              weeks), after dropping the player your lineup misses least. Bye weeks and injuries are counted.
+              weeks), after the drop a manager would make: an extra K or D/ST, surplus depth, or your lowest-value bench player. Bye weeks and injuries are counted.
               {faab
                 ? data.faab.remaining != null && ` You have $${data.faab.remaining} of $${data.faab.budget} FAAB left.`
                 : ' Your league uses waiver priority, not FAAB.'}

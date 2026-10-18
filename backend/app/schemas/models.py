@@ -316,6 +316,9 @@ class TradeSideOut(BaseModel):
         default_factory=list,
         description="Players this team must release to stay at its roster limit",
     )
+    drop_reasons: list[str] = Field(
+        default_factory=list, description="Why each drop was chosen (aligned with drops)"
+    )
     new_short_weeks: list[int] = Field(
         default_factory=list,
         description="Weeks it could fill its lineup before the trade but can't after (byes/injuries)",
@@ -702,6 +705,7 @@ class WaiverRow(BaseModel):
     gain_per_week: float
     drop: PlayerRef | None = Field(None, description="Who you'd release (None: open roster spot)")
     drop_ppg: float | None = None
+    drop_reason: str | None = Field(None, description="Why that player is the one to cut")
     fixes_weeks: list[int] = Field(description="Weeks you can't fill a slot today that he fills")
     need: bool = Field(description="Fills a short week or a position you're weak at")
     injury_status: str | None = None

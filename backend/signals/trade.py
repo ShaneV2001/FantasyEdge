@@ -6,19 +6,21 @@ so a trade is judged by what it does to each lineup, not by summing player value
 
 Two things make a deal real rather than theoretical:
 - **Roster spots.** A 2-for-1 leaves the receiving team a player over its limit, so it must drop
-  someone; we drop whoever costs that lineup the fewest points and count the loss against the deal.
+  someone. We cut who a manager would: an extra K/DEF, then surplus depth at an over-stocked
+  position, then the bench player with the lowest market value; the loss counts against the deal.
 - **Bye weeks.** Every remaining week is checked for both teams; a suggestion that leaves either
   team unable to fill a lineup slot in a week it can fill today is not offered.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from itertools import combinations
 
 from signals.byes import RosterEntry, bye_grid
-from signals.lineup import NON_STARTING
+from signals.lineup import NON_STARTING, position_capacity
 from signals.team import RosMath
 
 ACCEPT_GAIN = 8.0
@@ -79,6 +81,7 @@ class TradeSide:
     market_value_out: float | None
     market_value_in: float | None
     drops: list[str] = field(default_factory=list)  # forced by the roster limit
+    drop_reasons: list[str] = field(default_factory=list)  # why each one, aligned with `drops`
     new_short_weeks: list[int] = field(
         default_factory=list
     )  # can't fill a slot after, could before
@@ -161,28 +164,86 @@ def danger_weeks(
     return len(short_weeks(pids, players, math, viable_ppg))
 
 
-def best_drops(
+DROP_LINEUP_COST = 5.0  # ROS lineup points: losing less than this means he's bench depth
+STREAMED = {"K": "kicker", "DEF": "defense"}
+
+
+@dataclass(frozen=True)
+class Drop:
+    player_id: str
+    reason: str
+
+
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def choose_drops(
     math: RosMath, players: Mapping[str, Mapping], roster: Sequence[str], keep: set[str], n: int
-) -> list[str]:
-    """The `n` players whose release costs this lineup the fewest rest-of-season points (lowest
-    model value breaks ties). Players in `keep` (just acquired) are never dropped."""
+) -> list[Drop]:
+    """The `n` players a manager would cut, one at a time (counts are redone after each):
+
+    Bench depth (cutting him costs the lineup < `DROP_LINEUP_COST` ROS points) goes first, and
+    among that, players who cost nothing at all (< 1 point) before ones that cost a little. Within
+    each group the order is:
+    1. an extra kicker or defense (more than the lineup can start): the one with the fewest points;
+    2. surplus depth at an over-stocked position (`position_capacity`, e.g. a 4th QB in a 1-QB
+       league): the one with the lowest market value;
+    3. any other bench player: the lowest market value, so a valuable young bench player outlasts
+       waiver fodder.
+    Only then: an extra K/DEF that still covers a bye week, and last, whoever costs the lineup the
+    least. Players in `keep` (just acquired) are never cut.
+    """
+    capacity = position_capacity(math.slots)
     current = list(roster)
-    drops: list[str] = []
+    out: list[Drop] = []
+
+    def pos(p: str) -> str:
+        return players.get(p, {}).get("position", "?")
+
+    def market(p: str) -> float:
+        return players.get(p, {}).get("market_value") or 0.0
+
+    def points(p: str) -> float:
+        return sum(math.week_points(p).values())
+
     for _ in range(n):
         cands = [p for p in current if p not in keep]
         if not cands:
             break
+        count = Counter(pos(p) for p in current)
         base = math.ros_lineup_points(current)
-        pick = min(
-            cands,
-            key=lambda p: (
-                round(base - math.ros_lineup_points([q for q in current if q != p]), 2),
-                players.get(p, {}).get("ros_value_par") or 0.0,
-            ),
-        )
-        drops.append(pick)
-        current.remove(pick)
-    return drops
+        cost = {p: base - math.ros_lineup_points([q for q in current if q != p]) for p in cands}
+        free = [p for p in cands if cost[p] < DROP_LINEUP_COST]  # bench depth: costs ~nothing
+        streamed = [
+            p for p in cands if pos(p) in STREAMED and count[pos(p)] > capacity.get(pos(p), 0)
+        ]
+        surplus = [
+            p for p in free
+            if pos(p) in ("QB", "RB", "WR", "TE") and count[pos(p)] > capacity.get(pos(p), 0)
+        ]  # fmt: skip
+        if free:
+            # nothing-to-lose cuts (< 1 point) before ones that cost a little; within each, an
+            # extra K/DEF, then surplus depth, then the rest of the bench by market value
+            tiers = {q: 0 if q in streamed else 1 if q in surplus else 2 for q in free}
+            p = min(
+                (cost[q] >= 1.0, t, market(q) if t else 0.0, points(q), q) for q, t in tiers.items()
+            )[-1]
+            if p in streamed:
+                drop = Drop(p, f"extra {STREAMED[pos(p)]}")
+            elif p in surplus:
+                drop = Drop(p, f"{_ordinal(count[pos(p)])} {pos(p)}, more than your lineup can use")
+            else:
+                drop = Drop(p, "lowest market value on your bench")
+        elif streamed:  # an extra K/DEF that still covers a bye: cheapest of those
+            p = min(streamed, key=lambda q: (round(cost[q], 2), points(q), q))
+            drop = Drop(p, f"extra {STREAMED[pos(p)]}")
+        else:
+            p = min(cands, key=lambda q: (round(cost[q], 2), market(q), q))
+            drop = Drop(p, "costs your lineup the least")
+        out.append(drop)
+        current.remove(drop.player_id)
+    return out
 
 
 def roster_after(
@@ -193,8 +254,8 @@ def roster_after(
     out: Sequence[str],
     incoming: Sequence[str],
     rules: RosterRules,
-) -> tuple[list[str], list[str]]:
-    """(roster after the trade and any forced drops, the drops)."""
+) -> tuple[list[str], list[Drop]]:
+    """(roster after the trade and any forced drops, the drops with why each was chosen)."""
     after = [p for p in roster if p not in out] + list(incoming)
     if rules.active_limit is None:
         return after, []
@@ -203,12 +264,20 @@ def roster_after(
     if excess <= 0:
         return after, []
     droppable = [p for p in after if p not in rules.reserved]
-    drops = best_drops(math, players, droppable, set(incoming), excess)
-    return [p for p in after if p not in drops], drops
+    drops = choose_drops(math, players, droppable, set(incoming), excess)
+    gone = {d.player_id for d in drops}
+    return [p for p in after if p not in gone], drops
 
 
 def _name(players: Mapping[str, Mapping], pids: Sequence[str]) -> str:
     return " + ".join(players.get(p, {}).get("name", p) for p in pids)
+
+
+def _drop_text(players: Mapping[str, Mapping], side: TradeSide) -> str:
+    return " and ".join(
+        f"{players.get(p, {}).get('name', p)} ({why})"
+        for p, why in zip(side.drops, side.drop_reasons, strict=False)
+    )
 
 
 def _weeks_text(weeks: Sequence[int]) -> str:
@@ -226,13 +295,15 @@ def _side(
     rules: RosterRules,
     viable_ppg: Mapping[str, float] | None,
 ) -> TradeSide:
-    after, drops = roster_after(math, players, team_id, roster, gives, receives, rules)
+    after, cut = roster_after(math, players, team_id, roster, gives, receives, rules)
+    drops = [d.player_id for d in cut]
     side = TradeSide(
         team_id, list(gives), list(receives),
         math.ros_lineup_points(roster), math.ros_lineup_points(after),
         (_sum(players, gives, "ros_value_par") or 0.0) , _sum(players, receives, "ros_value_par") or 0.0,
         _sum(players, gives, "market_value"), _sum(players, receives, "market_value"),
         drops=drops,
+        drop_reasons=[d.reason for d in cut],
         weekly=[
             WeekPoints(w, round(math.week_lineup_points(roster, w), 1),
                        round(math.week_lineup_points(after, w), 1))
@@ -298,10 +369,10 @@ def evaluate(
         reasons = [f"{mine_txt} (hypothetical trade: the other side isn't modelled)."]
     if me.drops:
         reasons.append(
-            f"You'd have to drop {_name(players, me.drops)} to make room (already counted above)."
+            f"You'd have to drop {_drop_text(players, me)} to make room (already counted above)."
         )
     if them is not None and them.drops:
-        reasons.append(f"They'd have to drop {_name(players, them.drops)} to make room.")
+        reasons.append(f"They'd have to drop {_drop_text(players, them)} to make room.")
     reasons.append(
         f"Model value (points above replacement): you give {me.model_value_out:.0f}, get {me.model_value_in:.0f}."
     )

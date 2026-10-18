@@ -20,6 +20,7 @@ const row = (rank: number, name: string, over: Partial<WaiverRow> = {}): WaiverR
   gain_per_week: 4.05,
   drop: ref('Bench Guy', 'TE'),
   drop_ppg: 3.1,
+  drop_reason: 'lowest market value on your bench',
   fixes_weeks: [],
   need: false,
   injury_status: null,
@@ -63,6 +64,7 @@ describe('WaiversPage', () => {
     expect(screen.getByText('$19–31')).toBeInTheDocument()
     expect(screen.getByText('Fills wk 9')).toBeInTheDocument()
     expect(screen.getAllByText('Bench Guy').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/lowest market value on your bench/).length).toBeGreaterThan(0)
     expect(screen.getByText(/\$80 of \$100 FAAB left/)).toBeInTheDocument()
     // trending, credited to Sleeper
     expect(screen.getByText('Hot Rookie')).toBeInTheDocument()

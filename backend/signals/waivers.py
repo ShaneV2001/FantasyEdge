@@ -2,7 +2,8 @@
 
 A pickup is judged like a one-sided trade: rest-of-season starting-lineup points (bye- and
 injury-aware, via `RosMath`) with the free agent added, minus today's. When the roster is full the
-cheapest player to release (`trade.best_drops`, never IR/taxi players) goes, and his loss counts
+player a manager would cut (`trade.choose_drops`: an extra K/DEF, surplus depth, or the
+lowest-value bench player; never IR/taxi players) goes, and his loss counts
 against the pickup, so the gain shown is the net gain.
 """
 
@@ -33,6 +34,7 @@ class WaiverPick:
     weeks: int  # remaining weeks the gain is spread over
     fixes_weeks: list[int] = field(default_factory=list)  # short weeks he fills
     need: bool = False  # fixes a short week, or plays a position you need
+    drop_reason: str | None = None  # why that player (see trade.choose_drops)
 
     @property
     def gain_per_week(self) -> float:
@@ -80,7 +82,7 @@ def rank_waivers(
     picks: list[WaiverPick] = []
     for pos, cands in screened.items():
         for _, pid in sorted(cands, key=lambda c: (-c[0], c[1]))[:SCORED_PER_POS]:
-            after, drops = tr.roster_after(math, players, team_id, roster, [], [pid], rules)
+            after, cut = tr.roster_after(math, players, team_id, roster, [], [pid], rules)
             gain = round(math.ros_lineup_points(after) - base, 1)
             if gain <= 0:
                 continue
@@ -89,8 +91,9 @@ def rank_waivers(
                 fixes = sorted(short_before - set(tr.short_weeks(after, players, math, viable_ppg)))
             picks.append(
                 WaiverPick(
-                    pid, pos, gain, drops[0] if drops else None, weeks, fixes,
+                    pid, pos, gain, cut[0].player_id if cut else None, weeks, fixes,
                     need=bool(fixes) or pos in needs,
+                    drop_reason=cut[0].reason if cut else None,
                 )
             )  # fmt: skip
     picks.sort(key=lambda w: (-w.gain, w.player_id))
