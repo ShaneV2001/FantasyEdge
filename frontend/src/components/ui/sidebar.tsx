@@ -514,7 +514,9 @@ function SidebarMenuButton({
     />
   )
 
-  if (!tooltip) {
+  // Tooltips only help the collapsed desktop sidebar. On phones a focused button's (invisible)
+  // tooltip would swallow the Escape that should close the sidebar sheet.
+  if (!tooltip || isMobile) {
     return button
   }
 

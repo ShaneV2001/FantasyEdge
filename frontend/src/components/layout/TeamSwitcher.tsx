@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
 import { describeError } from '@/lib/errors'
 import { platformName } from '@/lib/format'
 import { type ConnectedTeam, useTeamStore } from '@/stores/team'
@@ -48,6 +48,7 @@ export function TeamSwitcher() {
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const saved = useQuery(getSavedTeamsOptions())
+  const { setOpenMobile } = useSidebar()
   const [dialog, setDialog] = useState<'rename' | 'forget' | null>(null)
   const [name, setName] = useState('')
 
@@ -57,6 +58,7 @@ export function TeamSwitcher() {
   const onError = (err: unknown) => toast.error(describeError(err).message, { description: describeError(err).hint })
 
   const switchTo = (t: SavedTeamOut) => {
+    setOpenMobile(false) // on phones, get the slide-over sidebar out of the way
     if (t.team_id === team?.teamId) return
     setTeam(toConnected(t))
     // the edit page only exists for manual teams; everything else works for any team

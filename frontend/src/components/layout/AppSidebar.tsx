@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { ArrowLeftRight, CalendarRange, ClipboardPlus, Crosshair, LayoutList, ListOrdered, Plug, RefreshCw, Settings2, Sparkles, UserSearch, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -16,6 +17,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
 import { describeError } from '@/lib/errors'
@@ -37,6 +39,15 @@ const NAV = [
 export function AppSidebar() {
   const team = useTeamStore((s) => s.team)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  // On phones the sidebar is a slide-over sheet that locks the page while open: close it whenever
+  // you navigate (or tap the page you're already on), so the page underneath scrolls again.
+  const { isMobile, setOpenMobile } = useSidebar()
+  const closeOnPhone = () => {
+    if (isMobile) setOpenMobile(false)
+  }
+  useEffect(() => {
+    setOpenMobile(false)
+  }, [pathname, setOpenMobile])
   const qc = useQueryClient()
   const navigate = useNavigate()
   const teamQuery = useQuery({
@@ -80,7 +91,7 @@ export function AppSidebar() {
               {NAV.map((item) => (
                 <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton asChild isActive={pathname.startsWith(item.to)} tooltip={item.label} disabled={!team}>
-                    <Link to={item.to}>
+                    <Link to={item.to} onClick={closeOnPhone}>
                       <item.icon />
                       <span>{item.label}</span>
                     </Link>
@@ -89,7 +100,7 @@ export function AppSidebar() {
               ))}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname.startsWith('/connect')} tooltip="Connect">
-                  <Link to="/connect">
+                  <Link to="/connect" onClick={closeOnPhone}>
                     <Plug />
                     <span>{team ? 'Add a team' : 'Connect'}</span>
                   </Link>
@@ -97,7 +108,7 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname.startsWith('/settings')} tooltip="Settings">
-                  <Link to="/settings">
+                  <Link to="/settings" onClick={closeOnPhone}>
                     <Settings2 />
                     <span>Settings</span>
                   </Link>
