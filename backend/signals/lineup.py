@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
+SKILL_POSITIONS = ("QB", "RB", "WR", "TE")
 SLOT_ELIGIBILITY: dict[str, frozenset[str]] = {
     "QB": frozenset({"QB"}),
     "RB": frozenset({"RB"}),
@@ -21,10 +22,9 @@ SLOT_ELIGIBILITY: dict[str, frozenset[str]] = {
     "FLEX": frozenset({"RB", "WR", "TE"}),
     "WRRB_FLEX": frozenset({"RB", "WR"}),
     "REC_FLEX": frozenset({"WR", "TE"}),
-    "SUPER_FLEX": frozenset({"QB", "RB", "WR", "TE"}),
+    "SUPER_FLEX": frozenset(SKILL_POSITIONS),
 }
 NON_STARTING = {"BN", "IR", "TAXI"}
-SKILL_POSITIONS = ("QB", "RB", "WR", "TE")
 # Bench depth worth keeping at each skill position beyond the slots it fills (byes, injuries); a
 # user setting. Kickers and defenses are streamed, so a second one is dead weight.
 BENCH_BACKUPS = 1
