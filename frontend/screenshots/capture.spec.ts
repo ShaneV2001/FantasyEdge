@@ -109,3 +109,54 @@ test('player page trades', async ({ page, request }) => {
   const firstDeal = card.locator('[data-slot=card]').first()
   await clip(page, (await firstDeal.count()) ? firstDeal : card, `${OUT}/player-trades.png`, card)
 })
+
+/** Wait until the page's data has loaded (no skeletons left) and charts have drawn. */
+async function settled(page: Page, ready: Locator) {
+  await expect(ready).toBeVisible({ timeout: 120_000 })
+  await expect(page.locator('main [aria-busy=true]')).toHaveCount(0, { timeout: 120_000 })
+  await page.waitForTimeout(800)
+}
+
+test('my team', async ({ page }) => {
+  await page.goto('/team')
+  await settled(page, page.getByText(/Best lineup/).first())
+  await page.screenshot({ path: `${OUT}/team.png` })
+})
+
+test('regression report', async ({ page }) => {
+  await page.goto('/team')
+  await page.getByRole('tab', { name: 'Rest of league' }).click({ timeout: 120_000 })
+  await settled(page, page.getByText(/^\d+ of \d+$/))
+  const card = page.locator('[data-slot=card-title]', { hasText: 'Regression report' }).locator('xpath=ancestor::*[@data-slot="card"][1]')
+  await card.scrollIntoViewIfNeeded()
+  const rows = card.locator('ul > li')
+  await clip(page, rows.nth(Math.min(5, (await rows.count()) - 1)), `${OUT}/regression.png`, card)
+})
+
+test('player page', async ({ page, request }) => {
+  const team = await (await request.get(`${API}/team/${TEAM.teamId}`)).json()
+  const star = (team.roster as { player_id: string; position: string; ppg: number }[])
+    .filter((p) => ['RB', 'WR'].includes(p.position))
+    .sort((a, b) => b.ppg - a.ppg)[0]
+  await page.goto(`/players/${star.player_id}`)
+  await settled(page, page.getByText('We assume:'))
+  await page.screenshot({ path: `${OUT}/player.png` })
+})
+
+test('rankings', async ({ page }) => {
+  await page.goto('/rankings')
+  await settled(page, page.locator('tbody tr').nth(5))
+  await page.screenshot({ path: `${OUT}/rankings.png` })
+})
+
+test('byes', async ({ page }) => {
+  await page.goto('/byes')
+  await settled(page, page.getByRole('heading', { name: 'Byes' }).or(page.getByText(/Bye/).first()))
+  await page.screenshot({ path: `${OUT}/byes.png` })
+})
+
+test('buy targets', async ({ page }) => {
+  await page.goto('/buy-targets')
+  await settled(page, page.locator('tbody tr').first())
+  await page.screenshot({ path: `${OUT}/buy-targets.png` })
+})

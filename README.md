@@ -16,9 +16,9 @@ Data only flows **in**. FantasyEdge never changes anything on Sleeper or ESPN.
 | Page | What it does |
 |---|---|
 | **Advisor** | 5–10 concrete moves (lineup, waiver, trade, buy, sell, bye prep), ranked, each with the numbers behind it. |
-| **My Team** | Your roster with projections and a buy/hold/sell verdict per player, this week's best lineup, and grades for every position vs your league. |
+| **My Team** | Your roster with projections and a buy/hold/sell verdict per player, this week's best lineup, grades for every position vs your league, and a regression report: who is due to cool off or bounce back, strongest signals first. |
 | **Start/Sit** | This week's best lineup vs the one you've set, plus a drag-and-drop board to try your own, with undo, reset and copy. Only valid moves are allowed. |
-| **Waivers** | Free agents ranked by how much they'd add to *your* lineup for the rest of the season, who you'd drop, a FAAB bid range, and Sleeper's trending adds. |
+| **Waivers** | Free agents ranked by how much they'd add to *your* lineup for the rest of the season, who you'd drop and why, a FAAB bid range, and Sleeper's trending adds. |
 | **Players** | Every player: search, filter by position, team or who owns him, and sort by projection, rest-of-season points, value or verdict. |
 | **Trade** | Ideas where *both* lineups improve, "find me a running back for these two players", and an analyzer for any deal. Bye weeks are counted for both teams, and when a team has to make room it cuts who a manager would: an extra K or D/ST, surplus depth, or its lowest-value bench player. |
 | **Rankings / Buy targets** | Schedule-adjusted top 10–30 at every position, and players the market undervalues. |
@@ -35,6 +35,22 @@ Switch between saved teams from the sidebar. Every weight and threshold can be t
 | **Players**: every player, sortable and filterable | **Find a trade**: judged on both teams' lineups |
 
 <p align="center"><img src="docs/screenshots/player-trades.png" alt="Trades built around one player" width="70%"></p>
+
+<details>
+<summary><b>More screenshots</b>: My Team, regression report, player page, byes, rankings, buy targets, phone</summary>
+
+| | |
+|---|---|
+| ![My Team](docs/screenshots/team.png) | ![Regression report](docs/screenshots/regression.png) |
+| **My Team**: grades, this week's best lineup, roster values | **Regression report**: strongest signals first, with filters |
+| ![Player page](docs/screenshots/player.png) | ![Bye-week planner](docs/screenshots/byes.png) |
+| **Player page**: availability what-if, trades, projected vs actual | **Byes**: the lineup slots you can't fill, week by week |
+| ![Rankings](docs/screenshots/rankings.png) | ![Buy targets](docs/screenshots/buy-targets.png) |
+| **Rankings**: schedule-adjusted, by week or rest of season | **Buy targets**: what we project vs what the market charges |
+
+<p align="center"><img src="docs/screenshots/startsit-mobile.png" alt="Start/Sit on a phone" width="35%"></p>
+
+</details>
 
 *Screenshots use a fictional demo league (`python tasks.py demo`).*
 
@@ -54,6 +70,9 @@ Every number comes from a formula you can read and change; nothing is hidden ins
   (FantasyCalc) prices him, *sell* when that much less, otherwise *hold*.
 - **Everything is judged on your starting lineup.** Trades and pickups are scored by what they do
   to each team's rest-of-season starting lineup, week by week, after any player you'd have to drop.
+- **Who gets dropped.** When a trade or pickup overfills a roster, FantasyEdge cuts who a manager
+  would: an extra kicker or D/ST first, then surplus depth (a 4th QB), then the bench player with
+  the lowest market value, never a starter while bench depth remains. Each drop says why.
 
 **Measured, not guessed.** A walk-forward backtest replays 2023–2025, projecting each week from
 earlier games only. The weights were tuned on 2023–24 and checked on 2025.

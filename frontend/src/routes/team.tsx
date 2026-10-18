@@ -64,8 +64,9 @@ export function TeamPage() {
       {data && (
         <>
           <TeamGrades grades={data.grades} overall={data.overall_grade} basis={data.grade_basis} needs={data.needs} />
-          <div className="grid gap-6 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
+          {/* the roster needs the full width for its columns until the screen is very wide */}
+          <div className="grid gap-6 2xl:grid-cols-3">
+            <Card className="2xl:col-span-2">
               <CardHeader>
                 <CardTitle>Roster</CardTitle>
                 <CardDescription>
@@ -77,7 +78,7 @@ export function TeamPage() {
                 <RosterTable roster={data.roster} week={data.league.week} />
               </CardContent>
             </Card>
-            <div className="flex flex-col gap-6">
+            <div className="grid gap-6 md:grid-cols-2 2xl:flex 2xl:flex-col">
               <Card>
                 <CardHeader>
                   <CardTitle>Position strength</CardTitle>
