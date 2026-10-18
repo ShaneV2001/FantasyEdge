@@ -1082,3 +1082,19 @@ def test_loading_a_team_refreshes_a_stale_roster(client, monkeypatch):
     monkeypatch.setattr(leagues, "sync_sleeper_league", down)
     r = tc.get(f"/team/{team_id}")
     assert r.status_code == 200 and len(r.json()["roster"]) >= 14
+
+
+def test_regression_report_strongest_flags_first(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    reg = tc.get(f"/team/{team_id}/regression").json()
+    rows = [r for r in reg["roster"] + reg["league"] if r["flags"]]
+    assert rows, "the fixture season should flag someone"
+    for r in rows:
+        sizes = [f["size"] for f in r["flags"]]
+        assert all(s >= 0.99 for s in sizes)  # a flag only fires past its threshold
+        assert r["strength"] == max(sizes)
+        top = max(r["flags"], key=lambda f: f["size"])
+        assert r["direction"] == top["direction"] in (1, -1)
+    strengths = [r["strength"] for r in reg["league"]]
+    assert strengths == sorted(strengths, reverse=True)

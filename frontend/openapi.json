@@ -2589,6 +2589,12 @@
             "type": "object",
             "title": "Numbers",
             "default": {}
+          },
+          "size": {
+            "type": "number",
+            "title": "Size",
+            "description": "How far past its flag threshold the value is (1 = right at it)",
+            "default": 0.0
           }
         },
         "type": "object",
@@ -3618,6 +3624,18 @@
             },
             "type": "array",
             "title": "Flags"
+          },
+          "strength": {
+            "type": "number",
+            "title": "Strength",
+            "description": "His biggest flag's size",
+            "default": 0.0
+          },
+          "direction": {
+            "type": "integer",
+            "title": "Direction",
+            "description": "Direction of his biggest flag: +1 buy-low, -1 sell-high, 0 no flags",
+            "default": 0
           }
         },
         "type": "object",

@@ -569,6 +569,12 @@ export type FlagOut = {
     numbers?: {
         [key: string]: unknown;
     };
+    /**
+     * Size
+     *
+     * How far past its flag threshold the value is (1 = right at it)
+     */
+    size?: number;
 };
 
 /**
@@ -1097,6 +1103,18 @@ export type PlayerFlagsOut = {
      * Flags
      */
     flags: Array<FlagOut>;
+    /**
+     * Strength
+     *
+     * His biggest flag's size
+     */
+    strength?: number;
+    /**
+     * Direction
+     *
+     * Direction of his biggest flag: +1 buy-low, -1 sell-high, 0 no flags
+     */
+    direction?: number;
 };
 
 /**

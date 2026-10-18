@@ -17,7 +17,13 @@ from signals import trade as tr
 from signals import waivers as wv
 from signals.byes import RosterEntry, bye_grid
 from signals.lineup import SLOT_ELIGIBILITY, slot_label, starting_slots
-from signals.regression import TDOE_THRESHOLD, USAGE_SHIFT, Z_THRESHOLD, RegressionFlag
+from signals.regression import (
+    FLAG_SCALES,
+    TDOE_THRESHOLD,
+    USAGE_SHIFT,
+    Z_THRESHOLD,
+    RegressionFlag,
+)
 from signals.targets import POSITIONS as TARGET_POSITIONS
 from signals.targets import TargetRow, rank_targets, ros_points, ros_row
 from signals.team import RosMath, TeamProfile, simulate_league, team_profiles
@@ -156,6 +162,7 @@ def flag_out(f: RegressionFlag) -> m.FlagOut:
         value=f.value,
         message=f.message,
         numbers=f.numbers,
+        size=round(abs(f.value) / FLAG_SCALES[f.kind], 2),
     )  # type: ignore[arg-type]
 
 
@@ -373,13 +380,15 @@ def byes_view(ctx: LeagueContext, team_id: str) -> m.ByesOut:
 # ───────── /team/{id}/regression ─────────
 
 
-def regression_view(ctx: LeagueContext, team_id: str, league_limit: int = 40) -> m.RegressionOut:
+def regression_view(ctx: LeagueContext, team_id: str, league_limit: int = 200) -> m.RegressionOut:
     team = ctx.team(team_id)
     owner = {p: t for t in ctx.teams for p in t.player_ids}
 
     def row(pid: str) -> m.PlayerFlagsOut:
         p = ctx.players[pid]
         t = owner.get(pid)
+        flags = [flag_out(f) for f in ctx.regression.for_player(pid)]
+        top = max(flags, key=lambda f: f.size, default=None)
         return m.PlayerFlagsOut(
             player=player_ref(ctx, pid),
             team_id=t.team_id if t else None,
@@ -391,8 +400,10 @@ def regression_view(ctx: LeagueContext, team_id: str, league_limit: int = 40) ->
             tdoe=_r(p.get("tdoe"), 1),
             market_rank=p.get("market_rank_cov"),
             model_rank=p.get("model_pos_rank"),
-            flags=[flag_out(f) for f in ctx.regression.for_player(pid)],
+            flags=flags,
             signal=p.get("signal") or "hold",
+            strength=top.size if top else 0.0,
+            direction=top.direction if top else 0,
         )
 
     roster = [
@@ -407,7 +418,8 @@ def regression_view(ctx: LeagueContext, team_id: str, league_limit: int = 40) ->
         if pid in ctx.players and pid not in team.player_ids
         and (pid in owner or (ctx.players[pid].get("ros_value_par") or 0) > 0)
     ]  # fmt: skip
-    league = sorted((row(pid) for pid in relevant), key=lambda r: -abs(r.regression_score))[
+    # strongest flags first (the client shows the top 20, then more on request)
+    league = sorted((row(pid) for pid in relevant), key=lambda r: (-r.strength, r.player.name))[
         :league_limit
     ]
     return m.RegressionOut(

@@ -5,7 +5,8 @@ import { Pencil } from 'lucide-react'
 import { getRegressionOptions, getTeamOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { PositionStrengthChart } from '@/components/team/PositionStrengthChart'
-import { RegressionList } from '@/components/team/RegressionList'
+import { BackToTop } from '@/components/common/BackToTop'
+import { LeagueRegressionList, RegressionList } from '@/components/team/RegressionList'
 import { RosterTable } from '@/components/team/RosterTable'
 import { TeamGrades } from '@/components/team/TeamGrades'
 import { Badge } from '@/components/ui/badge'
@@ -105,7 +106,8 @@ export function TeamPage() {
           </div>
         </>
       )}
-      <Card>
+      {/* overflow-visible: the league tab's filter bar sticks below the page header while you scroll */}
+      <Card className="overflow-visible">
         <CardHeader>
           <CardTitle>Regression report</CardTitle>
           <CardDescription>
@@ -126,12 +128,13 @@ export function TeamPage() {
                 <RegressionList rows={reg.data.roster} />
               </TabsContent>
               <TabsContent value="league">
-                <RegressionList rows={reg.data.league} showOwner />
+                <LeagueRegressionList rows={reg.data.league} />
               </TabsContent>
             </Tabs>
           )}
         </CardContent>
       </Card>
+      <BackToTop />
     </div>
   )
 }

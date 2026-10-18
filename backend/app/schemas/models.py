@@ -72,6 +72,9 @@ class FlagOut(BaseModel):
     value: float
     message: str
     numbers: dict = {}
+    size: float = Field(
+        0.0, description="How far past its flag threshold the value is (1 = right at it)"
+    )
 
 
 class RosterPlayer(PlayerValue):
@@ -378,6 +381,10 @@ class PlayerFlagsOut(BaseModel):
     model_rank: int | None = None
     signal: Literal["buy", "hold", "sell"] = "hold"
     flags: list[FlagOut]
+    strength: float = Field(0.0, description="His biggest flag's size")
+    direction: int = Field(
+        0, description="Direction of his biggest flag: +1 buy-low, -1 sell-high, 0 no flags"
+    )
 
 
 class RegressionOut(BaseModel):
