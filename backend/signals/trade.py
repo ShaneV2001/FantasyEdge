@@ -30,6 +30,9 @@ MAX_PER_PARTNER = 2
 MAX_PER_GIVE = 2
 MAX_PER_RECEIVE = 1  # don't show the same target twice
 PAGE_SIZE = 8
+# Cutting a bench player who costs the lineup less than this many points per remaining week is
+# free (bench depth); a user setting. Per week, so the same player is judged alike in week 2 and 16.
+FREE_DROP_PPG = 0.5
 SKILL = ("QB", "RB", "WR", "TE")
 
 
@@ -39,12 +42,14 @@ class RosterRules:
     `reserved` = players on IR / taxi anywhere in the league, who can sit in one of a team's
     `reserve_slots` instead of an active spot (an injured player traded to you goes on your IR if
     you have room there; otherwise he takes an active spot). `bench_backups` = bench depth worth
-    keeping per skill position when choosing forced drops (`position_capacity`)."""
+    keeping per skill position when choosing forced drops (`position_capacity`); `free_drop_ppg` =
+    lineup points per remaining week under which cutting a bench player counts as free."""
 
     active_limit: int | None = None
     reserved: frozenset[str] = frozenset()
     reserve_slots: int = 0
     bench_backups: int = BENCH_BACKUPS
+    free_drop_ppg: float = FREE_DROP_PPG
 
 
 def active_limit(roster_positions: Sequence[str]) -> int | None:
@@ -166,7 +171,6 @@ def danger_weeks(
     return len(short_weeks(pids, players, math, viable_ppg))
 
 
-DROP_LINEUP_COST = 5.0  # ROS lineup points: losing less than this means he's bench depth
 STREAMED = {"K": "kicker", "DEF": "defense"}
 
 
@@ -187,6 +191,7 @@ def choose_drops(
     keep: set[str],
     n: int,
     backups: int = BENCH_BACKUPS,
+    free_ppg: float = FREE_DROP_PPG,
 ) -> list[Drop]:
     """The `n` players a manager would cut, one at a time (counts are redone after each):
 
@@ -195,13 +200,16 @@ def choose_drops(
        (`position_capacity` of this week's lineup with `backups` bench players per skill
        position, e.g. a 3rd QB in a 1-QB league) that the lineup barely needs. A cut
        that costs nothing (< 1 point) goes before one that costs a little;
-    2. otherwise the bench player (cutting him costs the lineup < `DROP_LINEUP_COST` ROS points)
-       with the lowest market value, so a valuable young bench player outlasts waiver fodder;
+    2. otherwise the bench player who is free to drop (not in this week's starting lineup, and
+       cutting him costs the lineup < `free_ppg` points per remaining week, byes he covers
+       included) with the lowest market value, so a valuable young bench player outlasts waiver
+       fodder;
     3. if everyone starts, whoever costs the lineup the least.
     Players in `keep` (just acquired) are never cut.
     """
     current = list(roster)
     out: list[Drop] = []
+    weeks = max(math.end - math.start + 1, 1)  # no weeks left: nobody costs anything
 
     def pos(p: str) -> str:
         return players.get(p, {}).get("position", "?")
@@ -217,10 +225,12 @@ def choose_drops(
         if not cands:
             break
         count = Counter(pos(p) for p in current)
-        capacity = position_capacity(math.lineup_for_week(current, math.start), backups)
+        lineup = math.lineup_for_week(current, math.start)
+        capacity = position_capacity(lineup, backups)
         base = math.ros_lineup_points(current)
         cost = {p: base - math.ros_lineup_points([q for q in current if q != p]) for p in cands}
-        free = [p for p in cands if cost[p] < DROP_LINEUP_COST]  # bench depth: costs ~nothing
+        # bench depth: not starting this week, and barely missed in the weeks left
+        free = [p for p in cands if p not in lineup.starters and cost[p] / weeks < free_ppg]
         streamed = [
             p for p in cands if pos(p) in STREAMED and count[pos(p)] > capacity.get(pos(p), 0)
         ]
@@ -269,7 +279,9 @@ def roster_after(
     if excess <= 0:
         return after, []
     droppable = [p for p in after if p not in rules.reserved]
-    drops = choose_drops(math, players, droppable, set(incoming), excess, rules.bench_backups)
+    drops = choose_drops(
+        math, players, droppable, set(incoming), excess, rules.bench_backups, rules.free_drop_ppg
+    )
     gone = {d.player_id for d in drops}
     return [p for p in after if p not in gone], drops
 

@@ -440,12 +440,14 @@ def regression_view(ctx: LeagueContext, team_id: str, league_limit: int = 200) -
 
 def roster_rules(ctx: LeagueContext) -> tr.RosterRules:
     """The league's roster limit, who sits on IR / taxi (they don't use an active spot), and how
-    much bench depth per position the user keeps (forced drops cut surplus beyond it)."""
+    much bench depth per position the user keeps (forced drops cut surplus beyond it), and when a
+    bench player is free to drop."""
     return tr.RosterRules(
         active_limit=tr.active_limit(ctx.league.roster_positions),
         reserved=frozenset(p for t in ctx.teams for p, s in t.slots.items() if s in ("ir", "taxi")),
         reserve_slots=tr.reserve_slots(ctx.league.roster_positions),
         bench_backups=ctx.tuning.bench_backups_per_position,
+        free_drop_ppg=ctx.tuning.free_drop_ppg,
     )
 
 

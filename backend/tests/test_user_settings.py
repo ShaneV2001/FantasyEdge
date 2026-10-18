@@ -20,6 +20,7 @@ def test_defaults_match_the_tuned_constants():
     assert (s.play_chance_questionable, s.play_chance_doubtful, s.ir_weeks_out) == (0.85, 0.25, 4)
     assert (s.trade_accept_gain, s.trade_lean_gain, s.targets_per_tier) == (8.0, 2.0, 10)
     assert s.bench_backups_per_position == 1
+    assert s.free_drop_ppg == 0.5
 
 
 def test_missing_file_gives_defaults_without_warning(tmp_path):
@@ -78,6 +79,9 @@ def test_field_schema_describes_every_field():
     assert by_key["usage_weight"]["tuned"] and not by_key["gap_min_points"]["tuned"]
     backups = by_key["bench_backups_per_position"]
     assert (backups["default"], backups["integer"], backups["group"]) == (1, True, us.ADV)
+    free = by_key["free_drop_ppg"]
+    assert (free["default"], free["integer"], free["group"]) == (0.5, False, us.ADV)
+    assert "per remaining week" in free["help"]
 
 
 def test_describe_error_names_the_field():

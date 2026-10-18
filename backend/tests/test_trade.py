@@ -415,3 +415,92 @@ def test_superflex_surplus_counts_each_flex_once(extra, cut):
     math = RosMath(players, schedule(["AAA"], weeks=17), 7, 17, SF_DROP_SLOTS)
     (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
     assert (drop.player_id, drop.reason) == (cut[0], f"{cut[1]}, more than your lineup can use")
+
+
+# ───────── free to drop: lineup points per remaining week ─────────
+
+
+def test_a_starting_flex_is_never_free_late_in_the_season():
+    # week 16 of 17: cutting the FLEX (RB3) costs only 2 x 2 = 4 ROS points (Scrub fills in, 2 ppg
+    # worse), under the old 5-point cutoff. But he starts this week, so he's never free to drop
+    players, _ = _drop_league(
+        flex=P("RB3", "RB", 12, market=100), scrub=P("Scrub", "RB", 10, market=300)
+    )
+    math = RosMath(players, schedule(["AAA"], weeks=17), 16, 17, DROP_SLOTS)
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert (drop.player_id, drop.reason) == ("scrub", "lowest market value on your bench")
+
+
+def test_a_starter_is_never_free_even_with_a_backup_almost_as_good():
+    # week 7: Scrub is 0.2 ppg worse than the FLEX (RB3), so cutting RB3 costs 0.2 a week, under
+    # the 0.5 line. He still starts this week, so the cheap bench player goes, not him
+    players, math = _drop_league(
+        flex=P("RB3", "RB", 12, market=100), scrub=P("Scrub", "RB", 11.8, market=300)
+    )
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert (drop.player_id, drop.reason) == ("scrub", "lowest market value on your bench")
+
+
+def test_bench_player_costing_under_half_a_point_a_week_is_free_early():
+    # week 2: Ladd covers WR2's bye (week 9) for 6.4 points, the only points he'll ever score for
+    # us: 6.4 / 16 weeks = 0.4 a week, so he's free to drop (the old 5-point cutoff kept him)
+    players, _ = _drop_league(
+        wr2=P("WR2", "WR", 13, team="BYE", market=6000), ladd=P("Ladd", "WR", 6.4, market=200)
+    )
+    math = RosMath(players, schedule(["AAA", "BYE"], weeks=17, byes={"BYE": 9}), 2, 17, DROP_SLOTS)
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert (drop.player_id, drop.reason) == ("ladd", "lowest market value on your bench")
+
+
+@pytest.mark.parametrize("start", [2, 16])
+@pytest.mark.parametrize("ladd_ppg, cut", [(0.8, "ladd"), (1.2, "scrub")])
+def test_the_same_cost_per_week_gives_the_same_drop_any_week(start, ladd_ppg, cut):
+    # WR2 is out every odd week, so Ladd (the only other WR) starts half the remaining weeks: in
+    # week 2 and week 16 alike he costs ladd_ppg / 2 a week. 0.4 is under the 0.5 line (free: the
+    # cheapest on the market goes); 0.6 isn't (he stays, and Scrub goes)
+    players, _ = _drop_league(ladd=P("Ladd", "WR", ladd_ppg, market=200))
+    wr2_out_odd_weeks = {"wr2": {w: 0.0 if w % 2 else 13.0 for w in range(1, 18)}}
+    math = RosMath(
+        players, schedule(["AAA"], weeks=17), start, 17, DROP_SLOTS, weekly=wr2_out_odd_weeks
+    )
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert drop.player_id == cut
+
+
+def test_a_bench_wr_covering_three_byes_is_not_free():
+    # weeks 2-17: Ladd fills in for three receivers' byes, 3 x 6 = 18 points over 16 weeks (1.1 a
+    # week), so he isn't free; Scrub (a backup QB who never plays) is, and goes though the market
+    # likes him more
+    players = {
+        "qb": P("QB1", "QB", 20, market=4000), "rb1": P("RB1", "RB", 16, market=8000),
+        "rb2": P("RB2", "RB", 14, market=7000), "te": P("TE1", "TE", 10, market=3000),
+        "wr1": P("WR1", "WR", 15, team="B5", market=8000),
+        "wr2": P("WR2", "WR", 13, team="B7", market=6000),
+        "flex": P("WR3", "WR", 12, team="B9", market=5000),
+        "k": P("K1", "K", 8, market=None), "def": P("DEF1", "DEF", 7, market=None),
+        "ladd": P("Ladd", "WR", 6, market=100), "scrub": P("Scrub", "QB", 5, market=300),
+    }  # fmt: skip
+    sched = schedule(["AAA", "B5", "B7", "B9"], weeks=17, byes={"B5": 5, "B7": 7, "B9": 9})
+    math = RosMath(players, sched, 2, 17, DROP_SLOTS)
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert (drop.player_id, drop.reason) == ("scrub", "lowest market value on your bench")
+    # with Scrub gone too, Ladd is the cheapest cut, but as a cost, not as free bench depth
+    (drop,) = tr.choose_drops(math, players, [p for p in players if p != "scrub"], set(), 1)
+    assert (drop.player_id, drop.reason) == ("ladd", "costs your lineup the least")
+
+
+def test_free_drop_line_is_a_setting():
+    players, _ = _drop_league(
+        wr2=P("WR2", "WR", 13, team="BYE", market=6000), ladd=P("Ladd", "WR", 6.4, market=200)
+    )
+    math = RosMath(players, schedule(["AAA", "BYE"], weeks=17, byes={"BYE": 9}), 2, 17, DROP_SLOTS)
+    # 0.4 a week is free at the default 0.5 line, but not for a manager who sets it to 0.3
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1, free_ppg=0.3)
+    assert drop.player_id == "scrub"
+    assert tr.RosterRules().free_drop_ppg == tr.FREE_DROP_PPG == 0.5
+
+
+def test_no_weeks_left_does_not_break_drops():
+    players, _ = _drop_league()
+    math = RosMath(players, schedule(["AAA"], weeks=17), 18, 17, DROP_SLOTS)
+    assert len(tr.choose_drops(math, players, list(players), set(), 1)) == 1

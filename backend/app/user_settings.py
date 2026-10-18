@@ -134,6 +134,12 @@ class UserSettings(BaseModel):
         "fill this week plus this many backups is surplus depth, cut first. Extra kickers and "
         "defenses never count as backups.",
     )  # fmt: skip
+    free_drop_ppg: float = _f(
+        trade.FREE_DROP_PPG, 0, 5, ADV, "Free to drop under (pts/week)",
+        "When a trade or pickup forces a drop, a bench player is free to cut if losing him costs your "
+        "starting lineup less than this many points per remaining week (byes he covers included). "
+        "Someone in this week's starting lineup is never free.",
+    )  # fmt: skip
 
     faab_full_gain: float = _f(
         waivers.FAAB_FULL_GAIN, 5, 200, WAIV, "FAAB: gain worth a full bid (pts)",

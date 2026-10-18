@@ -79,6 +79,16 @@ def test_bench_backups_setting_reaches_forced_drops(client):  # noqa: F811
     assert views.roster_rules(ctx).bench_backups == 3
 
 
+def test_free_drop_setting_reaches_forced_drops(client):  # noqa: F811
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    lid = leagues.league_id_for_team(deps._con, team_id)
+    ctx = context.get_context(deps._con, lid, UserSettings())
+    assert views.roster_rules(ctx).free_drop_ppg == 0.5
+    ctx = context.get_context(deps._con, lid, UserSettings(free_drop_ppg=1.5))
+    assert views.roster_rules(ctx).free_drop_ppg == 1.5
+
+
 def test_engine_follows_settings():
     assert engine_for(UserSettings()) == ENGINE
     e = engine_for(UserSettings(usage_weight=0.2, shrink_games=3))
