@@ -135,7 +135,10 @@ test('regression report', async ({ page }) => {
   const card = page.locator('[data-slot=card-title]', { hasText: 'Regression report' }).locator('xpath=ancestor::*[@data-slot="card"][1]')
   await card.scrollIntoViewIfNeeded()
   const rows = card.locator('ul > li')
-  await clip(page, rows.nth(Math.min(5, (await rows.count()) - 1)), `${OUT}/regression.png`, card)
+  const count = await rows.count()
+  // nth(-1) would mean "last" to Playwright and time out with a confusing error
+  if (count === 0) throw new Error('Demo league produced no regression rows; check demo data or filters.')
+  await clip(page, rows.nth(Math.min(5, count - 1)), `${OUT}/regression.png`, card)
 })
 
 test('player page', async ({ page, request }) => {
