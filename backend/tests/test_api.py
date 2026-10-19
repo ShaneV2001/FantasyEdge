@@ -1125,7 +1125,8 @@ def test_drops_come_with_reasons(client):
     mine["players"].append("7525")
     router.get(f"{SL}/league/{LEAGUE}/rosters").mock(return_value=httpx.Response(200, json=rosters))
     team_id = connect_and_pick(tc)
-    assert len(tc.get(f"/team/{team_id}").json()["roster"]) == 16
+    roster = {p["player_id"] for p in tc.get(f"/team/{team_id}").json()["roster"]}
+    assert len(roster) == 16
     # a 1-for-2 puts us one over the limit: exactly one of ours has to go, with a reason
     trade = _one_for_two(tc, team_id)
     side = trade["me"]
@@ -1133,6 +1134,8 @@ def test_drops_come_with_reasons(client):
     assert len(side["drops"]) == 1 and len(side["drop_reasons"]) == 1
     (dropped,), (why,) = side["drops"], side["drop_reasons"]
     assert isinstance(why, str) and why
+    # one of ours, never a player we just received
+    assert dropped["player_id"] in roster - {p["player_id"] for p in side["gives"]}
     assert any(f"drop {dropped['name']} ({why})" in r for r in trade["reasons"])
 
 
