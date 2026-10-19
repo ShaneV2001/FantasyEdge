@@ -77,6 +77,14 @@ class WeekPoints:
     after: float
 
 
+@dataclass(frozen=True)
+class Drop:
+    """A player a team must release to stay at its roster limit, and why him."""
+
+    player_id: str
+    reason: str
+
+
 @dataclass
 class TradeSide:
     team_id: str
@@ -88,8 +96,7 @@ class TradeSide:
     model_value_in: float
     market_value_out: float | None
     market_value_in: float | None
-    drops: list[str] = field(default_factory=list)  # forced by the roster limit
-    drop_reasons: list[str] = field(default_factory=list)  # why each one, aligned with `drops`
+    drops: list[Drop] = field(default_factory=list)  # forced by the roster limit
     new_short_weeks: list[int] = field(
         default_factory=list
     )  # can't fill a slot after, could before
@@ -179,12 +186,6 @@ STREAMED = {"K": "kicker", "DEF": "defense"}
 def has_market_values(players: Mapping[str, Mapping]) -> bool:
     """Whether any player has a market price (none: the market source is missing or failed)."""
     return any(p.get("market_value") is not None for p in players.values())
-
-
-@dataclass(frozen=True)
-class Drop:
-    player_id: str
-    reason: str
 
 
 def _ordinal(n: int) -> str:
@@ -319,8 +320,7 @@ def _name(players: Mapping[str, Mapping], pids: Sequence[str]) -> str:
 
 def _drop_text(players: Mapping[str, Mapping], side: TradeSide) -> str:
     return " and ".join(
-        f"{players.get(p, {}).get('name', p)} ({why})"
-        for p, why in zip(side.drops, side.drop_reasons, strict=False)
+        f"{players.get(d.player_id, {}).get('name', d.player_id)} ({d.reason})" for d in side.drops
     )
 
 
@@ -339,15 +339,13 @@ def _side(
     rules: RosterRules,
     viable_ppg: Mapping[str, float] | None,
 ) -> TradeSide:
-    after, cut = roster_after(math, players, team_id, roster, gives, receives, rules)
-    drops = [d.player_id for d in cut]
+    after, drops = roster_after(math, players, team_id, roster, gives, receives, rules)
     side = TradeSide(
         team_id, list(gives), list(receives),
         math.ros_lineup_points(roster), math.ros_lineup_points(after),
         (_sum(players, gives, "ros_value_par") or 0.0) , _sum(players, receives, "ros_value_par") or 0.0,
         _sum(players, gives, "market_value"), _sum(players, receives, "market_value"),
         drops=drops,
-        drop_reasons=[d.reason for d in cut],
         weekly=[
             WeekPoints(w, round(math.week_lineup_points(roster, w), 1),
                        round(math.week_lineup_points(after, w), 1))
@@ -355,7 +353,7 @@ def _side(
         ],
     )  # fmt: skip
     if drops:  # a released player's value leaves the team too
-        side.model_value_out += _sum(players, drops, "ros_value_par") or 0.0
+        side.model_value_out += _sum(players, [d.player_id for d in drops], "ros_value_par") or 0.0
     if viable_ppg is not None:
         before_short = short_weeks(roster, players, math, viable_ppg)
         after_short = short_weeks(after, players, math, viable_ppg)

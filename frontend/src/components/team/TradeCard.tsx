@@ -67,12 +67,10 @@ function Side({ side, title }: { side: TradeSideOut; title: string }) {
               <UserMinus className="size-3" /> Must drop
             </span>
             <div className="flex flex-col gap-1">
-              {side.drops!.map((p, i) => (
-                <span key={p.player_id} className="flex flex-wrap items-center gap-x-2">
-                  <PlayerChip player={p} className="opacity-80" />
-                  {side.drop_reasons?.[i] && (
-                    <span className="text-[11px] text-muted-foreground">{side.drop_reasons[i]}</span>
-                  )}
+              {side.drops!.map((d) => (
+                <span key={d.player.player_id} className="flex flex-wrap items-center gap-x-2">
+                  <PlayerChip player={d.player} className="opacity-80" />
+                  {d.reason && <span className="text-[11px] text-muted-foreground">{d.reason}</span>}
                 </span>
               ))}
             </div>

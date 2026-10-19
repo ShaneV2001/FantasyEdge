@@ -1131,8 +1131,9 @@ def test_drops_come_with_reasons(client):
     trade = _one_for_two(tc, team_id)
     side = trade["me"]
     assert "drops" in side
-    assert len(side["drops"]) == 1 and len(side["drop_reasons"]) == 1
-    (dropped,), (why,) = side["drops"], side["drop_reasons"]
+    assert "drop_reasons" not in side  # each drop carries its own reason
+    assert len(side["drops"]) == 1
+    ((dropped, why),) = [(d["player"], d["reason"]) for d in side["drops"]]
     assert isinstance(why, str) and why
     # one of ours, never a player we just received
     assert dropped["player_id"] in roster - {p["player_id"] for p in side["gives"]}
@@ -1159,5 +1160,5 @@ def test_a_roster_with_room_drops_nobody(client):
     # 15 of 16 spots: a 1-for-2 fills the last one, so nobody has to go
     assert len(tc.get(f"/team/{team_id}").json()["roster"]) == 15
     trade = _one_for_two(tc, team_id)
-    assert trade["me"]["drops"] == [] and trade["me"]["drop_reasons"] == []
+    assert trade["me"]["drops"] == []
     assert not any("to make room" in r for r in trade["reasons"])

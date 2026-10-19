@@ -466,8 +466,9 @@ def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
             model_value_in=float(round(s.model_value_in)),
             market_value_out=s.market_value_out,
             market_value_in=s.market_value_in,
-            drops=[player_ref(ctx, p) for p in s.drops],
-            drop_reasons=s.drop_reasons,
+            drops=[
+                m.DropOut(player=player_ref(ctx, d.player_id), reason=d.reason) for d in s.drops
+            ],
             new_short_weeks=s.new_short_weeks,
             fixed_short_weeks=s.fixed_short_weeks,
             weekly=[m.WeekPointsOut(week=w.week, before=w.before, after=w.after) for w in s.weekly],

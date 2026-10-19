@@ -422,6 +422,19 @@ export type CredentialsRequest = {
 };
 
 /**
+ * DropOut
+ */
+export type DropOut = {
+    player: PlayerRef;
+    /**
+     * Reason
+     *
+     * Why this player is the one to cut
+     */
+    reason: string;
+};
+
+/**
  * EspnConnectRequest
  */
 export type EspnConnectRequest = {
@@ -2386,15 +2399,9 @@ export type TradeSideOut = {
     /**
      * Drops
      *
-     * Players this team must release to stay at its roster limit
+     * Players this team must release to stay at its roster limit, each with why
      */
-    drops?: Array<PlayerRef>;
-    /**
-     * Drop Reasons
-     *
-     * Why each drop was chosen (aligned with drops)
-     */
-    drop_reasons?: Array<string>;
+    drops?: Array<DropOut>;
     /**
      * New Short Weeks
      *

@@ -135,8 +135,9 @@ def test_two_for_one_forces_the_cheapest_drop(league):
         math, players, ("A", rosters["A"]), ("B", rosters["B"]),
         ["a_rb4"], ["b_wr3", "b_wr4"], rules=rules,
     )  # fmt: skip
-    assert ev.me.drops == ["a_wr2"]  # benched after the trade, lowest value: costs no lineup points
-    assert not set(ev.me.drops) & {"b_wr3", "b_wr4"}  # never the players just acquired
+    # benched after the trade, lowest value: costs no lineup points
+    assert [d.player_id for d in ev.me.drops] == ["a_wr2"]
+    assert not {d.player_id for d in ev.me.drops} & {"b_wr3", "b_wr4"}  # never the new arrivals
     assert ev.partner.drops == []  # B gives two, gets one
     assert any("drop A WR2" in r for r in ev.reasons)
     # the release counts against the deal
@@ -158,7 +159,7 @@ def test_reserved_players_use_ir_spots_until_they_run_out(league):
         *trade, rules=tr.RosterRules(active_limit=6, reserved=frozenset({"a_wr2"}), reserve_slots=0)
     )
     # (A is already 1 over at 7 of 6; only the extra incoming player forces a release)
-    assert len(ev.me.drops) == 1 and "a_wr2" not in ev.me.drops
+    assert len(ev.me.drops) == 1 and ev.me.drops[0].player_id != "a_wr2"
 
 
 def test_injured_player_received_needs_an_ir_spot(league):
@@ -374,8 +375,25 @@ def test_trade_card_says_who_is_dropped_and_why(backups, why):
         math, players, ("A", mine), ("B", ["b1", "b2"]), ["wr2"], ["b1", "b2"],
         rules=tr.RosterRules(active_limit=len(mine), bench_backups=backups),
     )  # fmt: skip
-    assert ev.me.drops == ["scrub"] and ev.me.drop_reasons == [why]
+    assert ev.me.drops == [tr.Drop("scrub", why)]
     assert any(f"drop Scrub ({why})" in r for r in ev.reasons)
+
+
+def test_trade_text_names_every_dropped_player():
+    # a 1-for-3 leaves us two over: both cuts are named, each with its own reason
+    players, math = _drop_league(
+        b1=P("B1", "WR", 16, market=9000), b2=P("B2", "RB", 15, market=9000),
+        b3=P("B3", "TE", 11, market=4000),
+    )  # fmt: skip
+    mine = [p for p in players if not p.startswith("b")]
+    ev = tr.evaluate(
+        math, players, ("A", mine), ("B", ["b1", "b2", "b3"]), ["wr2"], ["b1", "b2", "b3"],
+        rules=tr.RosterRules(active_limit=len(mine)),
+    )  # fmt: skip
+    assert len(ev.me.drops) == 2
+    (text,) = [r for r in ev.reasons if r.startswith("You'd have to drop")]
+    for d in ev.me.drops:
+        assert f"{players[d.player_id]['name']} ({d.reason})" in text
 
 
 def test_picking_up_a_kicker_drops_the_old_kicker_not_a_bench_player():
@@ -560,9 +578,9 @@ def test_with_no_market_values_anywhere_no_reason_mentions_the_market():
     )  # fmt: skip
     # no market rule: whoever costs the lineup least goes (three bench players cost nothing; Ladd
     # has the lowest projection of them)
-    assert ev.me.drops == ["ladd"] and ev.me.drop_reasons == ["costs your lineup the least"]
+    assert ev.me.drops == [tr.Drop("ladd", "costs your lineup the least")]
     assert ev.market_values_missing
-    assert not any("market" in r.lower() for r in ev.reasons + ev.me.drop_reasons)
+    assert not any("market" in r.lower() for r in ev.reasons + [d.reason for d in ev.me.drops])
     # every rule, one cut at a time: extra kicker, surplus QB, then lowest cost
     players = _no_market(
         _drop_league(k2=P("K2", "K", 7.5), qb2=P("QB2", "QB", 15), qb3=P("QB3", "QB", 14))[0]
