@@ -106,7 +106,7 @@ export function ByesPage() {
 
 function ByeGrid({ weeks, slots }: { weeks: ByeWeekOut[]; slots: string[] }) {
   return (
-    <table className="w-full border-separate border-spacing-1 text-xs">
+    <table data-testid="bye-grid" className="w-full border-separate border-spacing-1 text-xs">
       <thead>
         <tr>
           <th className="w-14 text-left font-medium text-muted-foreground">Slot</th>
