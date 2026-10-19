@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from projections.base import IR_WEEKS_MISSED, STATUS_THIS_WEEK, InjuryAssumptions
 from projections.baseline import SHRINK_GAMES, W_USAGE
 from signals import advisor, trade, waivers
+from signals.lineup import BENCH_BACKUPS
 from signals.schedule import MATCHUP_ALPHA
 from signals.targets import TOP_N
 from signals.verdict import GAP_MIN_POINTS, GAP_MIN_SHARE, STARTABLE_RANK
@@ -126,6 +127,18 @@ class UserSettings(BaseModel):
     trade_lean_gain: float = _f(
         trade.LEAN_GAIN, 0, 50, ADV, "Trade: lean accept at (pts)",
         "Gains between this and the accept line are a lean accept; losses beyond it are a decline.",
+    )  # fmt: skip
+    bench_backups_per_position: int = _f(
+        BENCH_BACKUPS, 0, 5, ADV, "Bench backups per position",
+        "When a trade or pickup forces a drop, a QB, RB, WR or TE beyond the lineup slots he can "
+        "fill this week plus this many backups is surplus depth, cut first. Extra kickers and "
+        "defenses never count as backups.",
+    )  # fmt: skip
+    free_drop_ppg: float = _f(
+        trade.FREE_DROP_PPG, 0, 5, ADV, "Free to drop under (pts/week)",
+        "When a trade or pickup forces a drop, a bench player is free to cut if losing him costs your "
+        "starting lineup less than this many points per remaining week (byes he covers included). "
+        "Someone in this week's starting lineup is never free.",
     )  # fmt: skip
 
     faab_full_gain: float = _f(

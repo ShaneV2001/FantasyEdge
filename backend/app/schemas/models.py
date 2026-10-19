@@ -300,6 +300,11 @@ class WeekPointsOut(BaseModel):
     after: float
 
 
+class DropOut(BaseModel):
+    player: PlayerRef
+    reason: str = Field(description="Why this player is the one to cut")
+
+
 class TradeSideOut(BaseModel):
     team_id: str
     team_name: str
@@ -312,12 +317,9 @@ class TradeSideOut(BaseModel):
     model_value_in: float
     market_value_out: float | None
     market_value_in: float | None
-    drops: list[PlayerRef] = Field(
+    drops: list[DropOut] = Field(
         default_factory=list,
-        description="Players this team must release to stay at its roster limit",
-    )
-    drop_reasons: list[str] = Field(
-        default_factory=list, description="Why each drop was chosen (aligned with drops)"
+        description="Players this team must release to stay at its roster limit, each with why",
     )
     new_short_weeks: list[int] = Field(
         default_factory=list,
@@ -340,6 +342,11 @@ class TradeOut(BaseModel):
     tags: list[str] = []
     partner_accepts: bool | None = Field(
         None, description="Whether the other lineup gains too (null for a hypothetical trade)"
+    )
+    market_values_missing: bool = Field(
+        False,
+        description="No player in the league has a market value: forced drops were chosen by "
+        "projections only",
     )
 
 

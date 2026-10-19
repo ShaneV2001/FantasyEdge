@@ -422,6 +422,19 @@ export type CredentialsRequest = {
 };
 
 /**
+ * DropOut
+ */
+export type DropOut = {
+    player: PlayerRef;
+    /**
+     * Reason
+     *
+     * Why this player is the one to cut
+     */
+    reason: string;
+};
+
+/**
  * EspnConnectRequest
  */
 export type EspnConnectRequest = {
@@ -2327,6 +2340,12 @@ export type TradeOut = {
      * Whether the other lineup gains too (null for a hypothetical trade)
      */
     partner_accepts?: boolean | null;
+    /**
+     * Market Values Missing
+     *
+     * No player in the league has a market value: forced drops were chosen by projections only
+     */
+    market_values_missing?: boolean;
 };
 
 /**
@@ -2380,15 +2399,9 @@ export type TradeSideOut = {
     /**
      * Drops
      *
-     * Players this team must release to stay at its roster limit
+     * Players this team must release to stay at its roster limit, each with why
      */
-    drops?: Array<PlayerRef>;
-    /**
-     * Drop Reasons
-     *
-     * Why each drop was chosen (aligned with drops)
-     */
-    drop_reasons?: Array<string>;
+    drops?: Array<DropOut>;
     /**
      * New Short Weeks
      *

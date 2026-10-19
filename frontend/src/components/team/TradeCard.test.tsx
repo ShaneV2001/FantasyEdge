@@ -26,8 +26,10 @@ const TRADE: TradeOut = {
   reasons: ['Your starting lineup gains 12.0 projected points rest of season.'],
   me: {
     ...side('Mine', 'Waddle', ['Hampton', 'Pacheco']),
-    drops: [{ player_id: 'k2', name: 'Backup Kicker', position: 'K' }],
-    drop_reasons: ['extra kicker'],
+    drops: [
+      { player: { player_id: 'k2', name: 'Backup Kicker', position: 'K' }, reason: 'extra kicker' },
+      { player: { player_id: 'w9', name: 'Bench Receiver', position: 'WR' }, reason: 'lowest market value on your bench' },
+    ],
   },
   partner: side('Theirs', 'Hampton', ['Waddle']),
   partner_accepts: true,
@@ -39,11 +41,30 @@ describe('TradeCard', () => {
     expect(await screen.findByText('Must drop')).toBeInTheDocument()
     expect(screen.getByText('Backup Kicker')).toBeInTheDocument()
     expect(screen.getByText('extra kicker')).toBeInTheDocument()
+    expect(screen.getByText('Bench Receiver')).toBeInTheDocument()
+    expect(screen.getByText('lowest market value on your bench')).toBeInTheDocument()
   })
 
   it('no drop, no Must drop', async () => {
-    renderPage(<TradeCard trade={{ ...TRADE, me: { ...TRADE.me, drops: [], drop_reasons: [] } }} />)
+    renderPage(<TradeCard trade={{ ...TRADE, me: { ...TRADE.me, drops: [] } }} />)
     await screen.findByText('Give Waddle for Hampton + Pacheco')
     expect(screen.queryByText('Must drop')).not.toBeInTheDocument()
+  })
+
+  it('warns when drops were chosen without market values', async () => {
+    renderPage(<TradeCard trade={{ ...TRADE, market_values_missing: true }} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Market values unavailable; drops based on projections only.',
+    )
+  })
+
+  it('no warning with market values, or without a drop', async () => {
+    renderPage(<TradeCard trade={TRADE} />)
+    await screen.findByText('Must drop')
+    expect(screen.queryByText(/Market values unavailable/)).not.toBeInTheDocument()
+    const noDrop = { ...TRADE, market_values_missing: true, me: { ...TRADE.me, drops: [] } }
+    renderPage(<TradeCard trade={noDrop} />)
+    await screen.findAllByText('Give Waddle for Hampton + Pacheco')
+    expect(screen.queryByText(/Market values unavailable/)).not.toBeInTheDocument()
   })
 })

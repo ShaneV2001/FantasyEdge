@@ -16,7 +16,7 @@ from signals import startsit as ss
 from signals import trade as tr
 from signals import waivers as wv
 from signals.byes import RosterEntry, bye_grid
-from signals.lineup import SLOT_ELIGIBILITY, slot_label, starting_slots
+from signals.lineup import SKILL_POSITIONS, SLOT_ELIGIBILITY, slot_label, starting_slots
 from signals.regression import (
     FLAG_SCALES,
     TDOE_THRESHOLD,
@@ -439,11 +439,15 @@ def regression_view(ctx: LeagueContext, team_id: str, league_limit: int = 200) -
 
 
 def roster_rules(ctx: LeagueContext) -> tr.RosterRules:
-    """The league's roster limit, and who sits on IR / taxi (they don't use an active spot)."""
+    """The league's roster limit, who sits on IR / taxi (they don't use an active spot), and how
+    much bench depth per position the user keeps (forced drops cut surplus beyond it), and when a
+    bench player is free to drop."""
     return tr.RosterRules(
         active_limit=tr.active_limit(ctx.league.roster_positions),
         reserved=frozenset(p for t in ctx.teams for p, s in t.slots.items() if s in ("ir", "taxi")),
         reserve_slots=tr.reserve_slots(ctx.league.roster_positions),
+        bench_backups=ctx.tuning.bench_backups_per_position,
+        free_drop_ppg=ctx.tuning.free_drop_ppg,
     )
 
 
@@ -462,8 +466,9 @@ def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
             model_value_in=float(round(s.model_value_in)),
             market_value_out=s.market_value_out,
             market_value_in=s.market_value_in,
-            drops=[player_ref(ctx, p) for p in s.drops],
-            drop_reasons=s.drop_reasons,
+            drops=[
+                m.DropOut(player=player_ref(ctx, d.player_id), reason=d.reason) for d in s.drops
+            ],
             new_short_weeks=s.new_short_weeks,
             fixed_short_weeks=s.fixed_short_weeks,
             weekly=[m.WeekPointsOut(week=w.week, before=w.before, after=w.after) for w in s.weekly],
@@ -479,6 +484,7 @@ def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
         danger_weeks_after=ev.danger_weeks_after,
         tags=ev.tags,
         partner_accepts=ev.partner_accepts,
+        market_values_missing=ev.market_values_missing,
     )
 
 
@@ -1172,7 +1178,7 @@ def player_trades_view(
             "free_agent",
             message=f"{p['name']} is a free agent: add him off waivers instead of trading for him.",
         )
-    if p.get("position") not in tr.SKILL:
+    if p.get("position") not in SKILL_POSITIONS:
         return out("unavailable", message="Trade ideas cover QBs, RBs, WRs and TEs.")
 
     common = dict(

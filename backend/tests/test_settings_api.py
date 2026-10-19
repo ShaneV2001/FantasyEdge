@@ -1,7 +1,7 @@
 import json
 
 from app import deps
-from app.services import context, leagues
+from app.services import context, leagues, views
 from app.services.context import ENGINE, engine_for
 from app.user_settings import UserSettings
 from tests.test_api import client, connect_and_pick  # noqa: F401  (pytest fixture)
@@ -67,6 +67,26 @@ def test_context_cache_is_keyed_on_settings(client):  # noqa: F811
     assert context.get_context(deps._con, lid, UserSettings()) is a
     b = context.get_context(deps._con, lid, UserSettings(gap_min_points=20))
     assert b is not a and b.tuning.gap_min_points == 20
+
+
+def test_bench_backups_setting_reaches_forced_drops(client):  # noqa: F811
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    lid = leagues.league_id_for_team(deps._con, team_id)
+    ctx = context.get_context(deps._con, lid, UserSettings())
+    assert views.roster_rules(ctx).bench_backups == 1
+    ctx = context.get_context(deps._con, lid, UserSettings(bench_backups_per_position=3))
+    assert views.roster_rules(ctx).bench_backups == 3
+
+
+def test_free_drop_setting_reaches_forced_drops(client):  # noqa: F811
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    lid = leagues.league_id_for_team(deps._con, team_id)
+    ctx = context.get_context(deps._con, lid, UserSettings())
+    assert views.roster_rules(ctx).free_drop_ppg == 0.5
+    ctx = context.get_context(deps._con, lid, UserSettings(free_drop_ppg=1.5))
+    assert views.roster_rules(ctx).free_drop_ppg == 1.5
 
 
 def test_engine_follows_settings():

@@ -2363,6 +2363,24 @@
         ],
         "title": "CredentialsRequest"
       },
+      "DropOut": {
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Why this player is the one to cut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player",
+          "reason"
+        ],
+        "title": "DropOut"
+      },
       "EspnConnectRequest": {
         "properties": {
           "league_id": {
@@ -5669,6 +5687,12 @@
             ],
             "title": "Partner Accepts",
             "description": "Whether the other lineup gains too (null for a hypothetical trade)"
+          },
+          "market_values_missing": {
+            "type": "boolean",
+            "title": "Market Values Missing",
+            "description": "No player in the league has a market value: forced drops were chosen by projections only",
+            "default": false
           }
         },
         "type": "object",
@@ -5748,19 +5772,11 @@
           },
           "drops": {
             "items": {
-              "$ref": "#/components/schemas/PlayerRef"
+              "$ref": "#/components/schemas/DropOut"
             },
             "type": "array",
             "title": "Drops",
-            "description": "Players this team must release to stay at its roster limit"
-          },
-          "drop_reasons": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Drop Reasons",
-            "description": "Why each drop was chosen (aligned with drops)"
+            "description": "Players this team must release to stay at its roster limit, each with why"
           },
           "new_short_weeks": {
             "items": {

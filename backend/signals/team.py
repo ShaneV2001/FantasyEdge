@@ -73,7 +73,7 @@ class RosMath:
         return p["position"] if p else "?"
 
     def lineup_for_week(self, pids: Iterable[str], week: int) -> Lineup:
-        avail = [LineupPlayer(p, self._pos(p), self.week_points(p)[week]) for p in pids]
+        avail = [LineupPlayer(p, self._pos(p), self.week_points(p).get(week, 0.0)) for p in pids]
         return optimal_lineup([a for a in avail if a.points > 0], self.slots)
 
     def week_lineup_points(self, pids: Iterable[str], week: int) -> float:
