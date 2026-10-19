@@ -1,8 +1,9 @@
-import { ArrowDownLeft, ArrowUpRight, Scale, UserMinus } from 'lucide-react'
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Scale, UserMinus } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import type { TradeOut, TradeSideOut } from '@/api'
 import { PlayerChip } from '@/components/player/badges'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -137,8 +138,15 @@ function WeekStrip({ side }: { side: TradeSideOut }) {
 }
 
 export function TradeDetail({ trade }: { trade: TradeOut }) {
+  const drops = (trade.me.drops ?? []).length + (trade.partner?.drops ?? []).length
   return (
     <div className="flex flex-col gap-3">
+      {trade.market_values_missing && drops > 0 && (
+        <Alert className="border-warn/40">
+          <AlertTriangle className="text-warn" />
+          <AlertDescription>Market values unavailable; drops based on projections only.</AlertDescription>
+        </Alert>
+      )}
       <div className={cn('grid gap-3', trade.partner && 'md:grid-cols-2')}>
         <Side side={trade.me} title="You" />
         {trade.partner && <Side side={trade.partner} title={trade.partner.team_name} />}

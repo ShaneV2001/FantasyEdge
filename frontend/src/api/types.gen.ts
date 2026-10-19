@@ -2327,6 +2327,12 @@ export type TradeOut = {
      * Whether the other lineup gains too (null for a hypothetical trade)
      */
     partner_accepts?: boolean | null;
+    /**
+     * Market Values Missing
+     *
+     * No player in the league has a market value: forced drops were chosen by projections only
+     */
+    market_values_missing?: boolean;
 };
 
 /**

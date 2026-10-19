@@ -504,3 +504,92 @@ def test_no_weeks_left_does_not_break_drops():
     players, _ = _drop_league()
     math = RosMath(players, schedule(["AAA"], weeks=17), 18, 17, DROP_SLOTS)
     assert len(tr.choose_drops(math, players, list(players), set(), 1)) == 1
+
+
+# ───────── missing market values ─────────
+
+
+def _unpriced(p):
+    return p | {"market_value": None}
+
+
+@pytest.mark.parametrize(
+    "rookie_par, cut", [(40, "scrub"), (20, "rookie")]
+)  # our projection likes him more than Scrub, or less
+def test_a_rookie_with_no_market_price_is_judged_by_our_projection(rookie_par, cut):
+    # the market has no price for the rookie: that's not a price of 0, so the bench is compared by
+    # our rest-of-season value instead (Scrub: 6.5 ppg x 5 = 32.5)
+    players, math = _drop_league(ladd=_unpriced(P("Rookie", "WR", 6, par=rookie_par)))
+    players["rookie"] = players.pop("ladd")
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert (drop.player_id, drop.reason) == (
+        cut,
+        "lowest value on your bench (our projection; no market price)",
+    )
+
+
+def test_priced_benches_still_go_by_market():
+    players, math = _drop_league(ladd=P("Ladd", "WR", 6, market=5500, par=1))
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert (drop.player_id, drop.reason) == ("scrub", "lowest market value on your bench")
+
+
+def test_surplus_without_a_price_is_judged_by_our_projection():
+    # 4 QBs in a 1-QB league: the unpriced one isn't the 4th to go just for having no price
+    players, math = _drop_league(
+        qb2=P("QB2", "QB", 15, market=2000, par=10), qb3=P("QB3", "QB", 14, market=1500, par=5),
+        qb4=_unpriced(P("QB4", "QB", 13, par=60)),
+    )  # fmt: skip
+    (drop,) = tr.choose_drops(math, players, list(players), set(), 1)
+    assert (drop.player_id, drop.reason) == ("qb3", "4th QB, more than your lineup can use")
+
+
+def _no_market(players):
+    return {k: _unpriced(v) for k, v in players.items()}
+
+
+def test_with_no_market_values_anywhere_no_reason_mentions_the_market():
+    players, _ = _drop_league(b1=P("B1", "WR", 16), b2=P("B2", "RB", 15))
+    players = _no_market(players)
+    math = RosMath(players, schedule(["AAA"], weeks=17), 7, 17, DROP_SLOTS)
+    assert not tr.has_market_values(players)
+    mine = [p for p in players if p not in ("b1", "b2")]
+    ev = tr.evaluate(
+        math, players, ("A", mine), ("B", ["b1", "b2"]), ["wr2"], ["b1", "b2"],
+        rules=tr.RosterRules(active_limit=len(mine), bench_backups=2),
+    )  # fmt: skip
+    # no market rule: whoever costs the lineup least goes (three bench players cost nothing; Ladd
+    # has the lowest projection of them)
+    assert ev.me.drops == ["ladd"] and ev.me.drop_reasons == ["costs your lineup the least"]
+    assert ev.market_values_missing
+    assert not any("market" in r.lower() for r in ev.reasons + ev.me.drop_reasons)
+    # every rule, one cut at a time: extra kicker, surplus QB, then lowest cost
+    players = _no_market(
+        _drop_league(k2=P("K2", "K", 7.5), qb2=P("QB2", "QB", 15), qb3=P("QB3", "QB", 14))[0]
+    )
+    math = RosMath(players, schedule(["AAA"], weeks=17), 7, 17, DROP_SLOTS)
+    drops = tr.choose_drops(math, players, list(players), set(), 4)
+    assert [d.reason for d in drops] == [
+        "extra kicker",
+        "3rd QB, more than your lineup can use",
+        "costs your lineup the least",
+        "costs your lineup the least",
+    ]
+
+
+def test_market_values_flag_is_off_when_the_league_has_prices(league):
+    players, rosters, math = league
+    ev = evaluate(math, players, ("A", rosters["A"]), ("B", rosters["B"]), ["a_rb4"], ["b_wr4"])
+    assert tr.has_market_values(players) and not ev.market_values_missing
+
+
+@pytest.mark.parametrize("ir_spots", [1, 0])  # in an IR spot, or over the IR limit
+def test_a_player_on_ir_is_never_dropped(ir_spots):
+    # the injured receiver has no price and the lowest projection: he'd be the first cut otherwise
+    players, math = _drop_league(hurt=_unpriced(P("Hurt", "WR", 0, par=0)))
+    roster = [p for p in players if p != "scrub"]
+    rules = tr.RosterRules(
+        active_limit=len(roster) - ir_spots, reserved=frozenset({"hurt"}), reserve_slots=ir_spots
+    )
+    after, drops = tr.roster_after(math, players, "A", roster, [], ["scrub"], rules)
+    assert len(drops) == 1 and drops[0].player_id != "hurt" and "hurt" in after

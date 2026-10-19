@@ -46,4 +46,21 @@ describe('TradeCard', () => {
     await screen.findByText('Give Waddle for Hampton + Pacheco')
     expect(screen.queryByText('Must drop')).not.toBeInTheDocument()
   })
+
+  it('warns when drops were chosen without market values', async () => {
+    renderPage(<TradeCard trade={{ ...TRADE, market_values_missing: true }} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Market values unavailable; drops based on projections only.',
+    )
+  })
+
+  it('no warning with market values, or without a drop', async () => {
+    renderPage(<TradeCard trade={TRADE} />)
+    await screen.findByText('Must drop')
+    expect(screen.queryByText(/Market values unavailable/)).not.toBeInTheDocument()
+    const noDrop = { ...TRADE, market_values_missing: true, me: { ...TRADE.me, drops: [], drop_reasons: [] } }
+    renderPage(<TradeCard trade={noDrop} />)
+    await screen.findAllByText('Give Waddle for Hampton + Pacheco')
+    expect(screen.queryByText(/Market values unavailable/)).not.toBeInTheDocument()
+  })
 })

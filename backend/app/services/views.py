@@ -483,6 +483,7 @@ def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
         danger_weeks_after=ev.danger_weeks_after,
         tags=ev.tags,
         partner_accepts=ev.partner_accepts,
+        market_values_missing=ev.market_values_missing,
     )
 
 

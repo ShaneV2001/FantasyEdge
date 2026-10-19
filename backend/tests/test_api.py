@@ -1136,6 +1136,20 @@ def test_drops_come_with_reasons(client):
     assert any(f"drop {dropped['name']} ({why})" in r for r in trade["reasons"])
 
 
+def test_trades_flag_a_league_without_market_values(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    trade = _one_for_two(tc, team_id)
+    assert trade["market_values_missing"] is False
+    # the market source is down: no player has a price, and the trade says so
+    ctx = context.get_context(deps._con, f"sl-{LEAGUE}")
+    ctx.players = {k: v | {"market_value": None} for k, v in ctx.players.items()}
+    ctx.memo.clear()
+    give = [p["player_id"] for p in trade["me"]["gives"]]
+    receive = [p["player_id"] for p in trade["me"]["receives"]]
+    assert views.evaluate_trade(ctx, team_id, give, receive).market_values_missing
+
+
 def test_a_roster_with_room_drops_nobody(client):
     tc, _ = client
     team_id = connect_and_pick(tc)

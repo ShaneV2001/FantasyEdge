@@ -7,7 +7,8 @@ so a trade is judged by what it does to each lineup, not by summing player value
 Two things make a deal real rather than theoretical:
 - **Roster spots.** A 2-for-1 leaves the receiving team a player over its limit, so it must drop
   someone. We cut who a manager would: an extra K/DEF, then surplus depth at an over-stocked
-  position, then the bench player with the lowest market value; the loss counts against the deal.
+  position, then the bench player with the lowest market value (our own projection where the
+  market has no price); the loss counts against the deal.
 - **Bye weeks.** Every remaining week is checked for both teams; a suggestion that leaves either
   team unable to fill a lineup slot in a week it can fill today is not offered.
 """
@@ -15,7 +16,7 @@ Two things make a deal real rather than theoretical:
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from itertools import combinations
 
@@ -112,6 +113,7 @@ class TradeEvaluation:
     score: float = 0.0
     tags: list[str] = field(default_factory=list)
     partner_accepts: bool | None = None  # would their lineup gain too (None: no partner modelled)
+    market_values_missing: bool = False  # no player has a price: drops went by projections only
 
     @property
     def key(self) -> tuple:
@@ -174,6 +176,11 @@ def danger_weeks(
 STREAMED = {"K": "kicker", "DEF": "defense"}
 
 
+def has_market_values(players: Mapping[str, Mapping]) -> bool:
+    """Whether any player has a market price (none: the market source is missing or failed)."""
+    return any(p.get("market_value") is not None for p in players.values())
+
+
 @dataclass(frozen=True)
 class Drop:
     player_id: str
@@ -205,17 +212,31 @@ def choose_drops(
        included) with the lowest market value, so a valuable young bench player outlasts waiver
        fodder;
     3. if everyone starts, whoever costs the lineup the least.
+    A missing market price is not a price of 0: when one of the players being compared has none,
+    they're all compared by our rest-of-season value (`ros_value_par`) instead. When no player
+    has a price at all, step 2 is skipped (nothing to rank the bench by but the lineup cost).
     Players in `keep` (just acquired) are never cut.
     """
     current = list(roster)
     out: list[Drop] = []
     weeks = max(math.end - math.start + 1, 1)  # no weeks left: nobody costs anything
+    priced = has_market_values(players)
 
     def pos(p: str) -> str:
         return players.get(p, {}).get("position", "?")
 
-    def market(p: str) -> float:
-        return players.get(p, {}).get("market_value") or 0.0
+    def market(p: str) -> float | None:
+        return players.get(p, {}).get("market_value")
+
+    def ours(p: str) -> float:
+        return players.get(p, {}).get("ros_value_par") or 0.0
+
+    def by_value(group: Sequence[str]) -> tuple[Callable[[str], float], bool]:
+        """How to rank `group` by value: (key, whether it's our projection, not the market)."""
+        prices = {q: market(q) for q in group}
+        if priced and all(v is not None for v in prices.values()):
+            return lambda q: prices[q] or 0.0, False
+        return ours, True
 
     def points(p: str) -> float:
         return sum(math.week_points(p).values())
@@ -242,19 +263,25 @@ def choose_drops(
         # surplus depth; a cut that costs nothing (< 1 point) before one that costs a little
         dead = {q: 0 for q in streamed} | {q: 1 for q in surplus}
         if dead:
+            value = by_value(surplus)[0]
             p = min(
-                (cost[q] >= 1.0, t, round(cost[q], 1) if t == 0 else market(q), points(q), q)
+                (cost[q] >= 1.0, t, round(cost[q], 1) if t == 0 else value(q), points(q), q)
                 for q, t in dead.items()
             )[-1]
             if dead[p] == 0:
                 drop = Drop(p, f"extra {STREAMED[pos(p)]}")
             else:
                 drop = Drop(p, f"{_ordinal(count[pos(p)])} {pos(p)}, more than your lineup can use")
-        elif free:
-            p = min(free, key=lambda q: (market(q), points(q), q))
-            drop = Drop(p, "lowest market value on your bench")
+        elif free and priced:
+            value, projected = by_value(free)
+            p = min(free, key=lambda q: (value(q), points(q), q))
+            if projected:
+                drop = Drop(p, "lowest value on your bench (our projection; no market price)")
+            else:
+                drop = Drop(p, "lowest market value on your bench")
         else:
-            p = min(cands, key=lambda q: (round(cost[q], 2), market(q), q))
+            value = by_value(cands)[0]
+            p = min(cands, key=lambda q: (round(cost[q], 2), value(q), q))
             drop = Drop(p, "costs your lineup the least")
         out.append(drop)
         current.remove(drop.player_id)
@@ -431,8 +458,9 @@ def evaluate(
     }[verdict]
     accepts = None if them is None else them.lineup_delta > 0 and not them.new_short_weeks
     return TradeEvaluation(
-        me, them, verdict, headline, reasons, before, after, score=d, partner_accepts=accepts
-    )
+        me, them, verdict, headline, reasons, before, after, score=d, partner_accepts=accepts,
+        market_values_missing=not has_market_values(players),
+    )  # fmt: skip
 
 
 # ───────── idea generator ─────────

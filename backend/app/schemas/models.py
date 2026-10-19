@@ -341,6 +341,11 @@ class TradeOut(BaseModel):
     partner_accepts: bool | None = Field(
         None, description="Whether the other lineup gains too (null for a hypothetical trade)"
     )
+    market_values_missing: bool = Field(
+        False,
+        description="No player in the league has a market value: forced drops were chosen by "
+        "projections only",
+    )
 
 
 class ActionOut(BaseModel):

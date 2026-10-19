@@ -5669,6 +5669,12 @@
             ],
             "title": "Partner Accepts",
             "description": "Whether the other lineup gains too (null for a hypothetical trade)"
+          },
+          "market_values_missing": {
+            "type": "boolean",
+            "title": "Market Values Missing",
+            "description": "No player in the league has a market value: forced drops were chosen by projections only",
+            "default": false
           }
         },
         "type": "object",

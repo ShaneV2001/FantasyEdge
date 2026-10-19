@@ -72,7 +72,8 @@ Every number comes from a formula you can read and change; nothing is hidden ins
   to each team's rest-of-season starting lineup, week by week, after any player you'd have to drop.
 - **Who gets dropped.** When a trade or pickup overfills a roster, FantasyEdge cuts who a manager
   would: an extra kicker or D/ST first, then surplus depth (a 4th QB), then the bench player with
-  the lowest market value, never a starter while bench depth remains. Each drop says why.
+  the lowest market value (our own projection when the market has no price for him), never a
+  starter while bench depth remains. Each drop says why.
 
 **Measured, not guessed.** A walk-forward backtest replays 2023–2025, projecting each week from
 earlier games only. The weights were tuned on 2023–24 and checked on 2025.
