@@ -180,6 +180,9 @@ def danger_weeks(
 
 
 STREAMED = {"K": "kicker", "DEF": "defense"}
+SURPLUS = "more than your lineup can use"
+BENCH_BY_MARKET = "lowest market value on your bench"
+BENCH_BY_PROJECTION = "lowest value on your bench (our projection; no market price)"
 
 
 def has_market_values(players: Mapping[str, Mapping]) -> bool:
@@ -191,6 +194,20 @@ def _ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
+@dataclass(frozen=True)
+class DropCandidate:
+    """Someone `choose_drops` could cut: the rule that makes him a candidate (extra, surplus,
+    bench or cost) and the reason shown if he's the one."""
+
+    player_id: str
+    rule: str
+    reason: str
+
+
+def _lowest(cands: Sequence[DropCandidate], key: Callable[[str], tuple]) -> DropCandidate | None:
+    return min(cands, key=lambda c: key(c.player_id)) if cands else None
+
+
 def choose_drops(
     math: RosMath,
     players: Mapping[str, Mapping],
@@ -200,21 +217,24 @@ def choose_drops(
     backups: int = BENCH_BACKUPS,
     free_ppg: float = FREE_DROP_PPG,
 ) -> list[Drop]:
-    """The `n` players a manager would cut, one at a time (counts are redone after each):
+    """The `n` players a manager would cut, one at a time (counts are redone after each).
 
-    1. dead weight: an extra kicker or defense (more than the lineup can start, whatever he
-       costs: nobody carries two kickers), or surplus depth at an over-stocked position
-       (`position_capacity` of this week's lineup with `backups` bench players per skill
-       position, e.g. a 3rd QB in a 1-QB league) that the lineup barely needs. A cut
-       that costs nothing (< 1 point) goes before one that costs a little;
-    2. otherwise the bench player who is free to drop (not in this week's starting lineup, and
-       cutting him costs the lineup < `free_ppg` points per remaining week, byes he covers
-       included) with the lowest market value, so a valuable young bench player outlasts waiver
-       fodder;
-    3. if everyone starts, whoever costs the lineup the least.
+    Dead weight is an extra kicker or defense (more than the lineup can start, whatever he
+    costs: nobody carries two kickers) or surplus depth at an over-stocked position
+    (`position_capacity` of this week's lineup with `backups` bench players per skill position,
+    e.g. a 3rd QB in a 1-QB league) who is free to drop: not in this week's starting lineup, and
+    cutting him costs the lineup < `free_ppg` points per remaining week, byes he covers included.
+    Each cut is the first pass that finds someone:
+
+    1. dead weight that costs nothing (< 1 point): an extra K/DEF (the cheapest), then surplus
+       depth (the lowest value);
+    2. dead weight that costs a little, in the same order (e.g. a 2nd D/ST covering a bye);
+    3. the free-to-drop bench player with the lowest market value, so a valuable young bench
+       player outlasts waiver fodder;
+    4. whoever costs the lineup the least (e.g. everyone starts).
     A missing market price is not a price of 0: when one of the players being compared has none,
     they're all compared by our rest-of-season value (`ros_value_par`) instead. When no player
-    has a price at all, step 2 is skipped (nothing to rank the bench by but the lineup cost).
+    has a price at all, pass 3 is skipped (nothing to rank the bench by but the lineup cost).
     Players in `keep` (just acquired) are never cut.
     """
     current = list(roster)
@@ -241,50 +261,63 @@ def choose_drops(
     def points(p: str) -> float:
         return sum(math.week_points(p).values())
 
-    for _ in range(n):
-        cands = [p for p in current if p not in keep]
-        if not cands:
-            break
+    def next_cut(cands: list[str]) -> DropCandidate:
+        """The first pass (see above) that finds someone among `cands`, for `current`."""
         count = Counter(pos(p) for p in current)
         lineup = math.lineup_for_week(current, math.start)
         capacity = position_capacity(lineup, backups)
         base = math.ros_lineup_points(current)
         cost = {p: base - math.ros_lineup_points([q for q in current if q != p]) for p in cands}
+
+        def over(p: str) -> bool:
+            return count[pos(p)] > capacity.get(pos(p), 0)
+
         # bench depth: not starting this week, and barely missed in the weeks left
         free = [p for p in cands if p not in lineup.starters and cost[p] / weeks < free_ppg]
-        streamed = [
-            p for p in cands if pos(p) in STREAMED and count[pos(p)] > capacity.get(pos(p), 0)
+        extras = [
+            DropCandidate(p, "extra", f"extra {STREAMED[pos(p)]}")
+            for p in cands
+            if pos(p) in STREAMED and over(p)
         ]
         surplus = [
-            p for p in free
-            if pos(p) in SKILL_POSITIONS and count[pos(p)] > capacity.get(pos(p), 0)
-        ]  # fmt: skip
-        # dead weight first: an extra K/DEF (whatever it costs: nobody carries two kickers) or
-        # surplus depth; a cut that costs nothing (< 1 point) before one that costs a little
-        dead = {q: 0 for q in streamed} | {q: 1 for q in surplus}
-        if dead:
-            value = by_value(surplus)[0]
-            p = min(
-                (cost[q] >= 1.0, t, round(cost[q], 1) if t == 0 else value(q), points(q), q)
-                for q, t in dead.items()
-            )[-1]
-            if dead[p] == 0:
-                drop = Drop(p, f"extra {STREAMED[pos(p)]}")
-            else:
-                drop = Drop(p, f"{_ordinal(count[pos(p)])} {pos(p)}, more than your lineup can use")
-        elif free and priced:
-            value, projected = by_value(free)
-            p = min(free, key=lambda q: (value(q), points(q), q))
-            if projected:
-                drop = Drop(p, "lowest value on your bench (our projection; no market price)")
-            else:
-                drop = Drop(p, "lowest market value on your bench")
-        else:
-            value = by_value(cands)[0]
-            p = min(cands, key=lambda q: (round(cost[q], 2), value(q), q))
-            drop = Drop(p, "costs your lineup the least")
-        out.append(drop)
-        current.remove(drop.player_id)
+            DropCandidate(p, "surplus", f"{_ordinal(count[pos(p)])} {pos(p)}, {SURPLUS}")
+            for p in free
+            if pos(p) in SKILL_POSITIONS and over(p)
+        ]
+        surplus_value = by_value([c.player_id for c in surplus])[0]
+        bench_value, projected = by_value(free)
+        why = BENCH_BY_PROJECTION if projected else BENCH_BY_MARKET
+        bench = [DropCandidate(p, "bench", why) for p in free] if priced else []
+        anyone = [DropCandidate(p, "cost", "costs your lineup the least") for p in cands]
+        anyone_value = by_value(cands)[0]
+
+        def light(c: DropCandidate) -> bool:
+            return cost[c.player_id] < 1.0
+
+        def cheapest(p: str) -> tuple:
+            return (round(cost[p], 1), points(p), p)
+
+        def least_surplus(p: str) -> tuple:
+            return (surplus_value(p), points(p), p)
+
+        pick = (
+            _lowest([c for c in extras if light(c)], cheapest)  # 1. dead weight, costs nothing
+            or _lowest([c for c in surplus if light(c)], least_surplus)
+            or _lowest([c for c in extras if not light(c)], cheapest)  # 2. costs a little
+            or _lowest([c for c in surplus if not light(c)], least_surplus)
+            or _lowest(bench, lambda p: (bench_value(p), points(p), p))  # 3. free bench
+            or _lowest(anyone, lambda p: (round(cost[p], 2), anyone_value(p), p))  # 4. the rest
+        )
+        assert pick is not None  # `anyone` is never empty
+        return pick
+
+    for _ in range(n):
+        cands = [p for p in current if p not in keep]
+        if not cands:
+            break
+        pick = next_cut(cands)
+        out.append(Drop(pick.player_id, pick.reason))
+        current.remove(pick.player_id)
     return out
 
 
