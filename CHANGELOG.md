@@ -2,6 +2,34 @@
 
 All notable changes to FantasyEdge. Dates are when the work was pushed.
 
+## [0.2.1] — 2026-10-18
+
+Fixes from a code review of forced drops (F1–F9). Details: `docs/fix-summary-review-findings.md`.
+
+### Fixed
+- **"Free to drop" now depends on weeks left.** A bench player is free to cut when he costs your
+  lineup less than 0.5 points per remaining week, instead of a fixed 5 points for the rest of the
+  season. Late in the season, starters no longer look free; early on, bench filler no longer looks
+  costly. This week's starters are never free.
+- **A missing market price no longer counts as 0.** An unpriced player (a rookie, a kicker) is
+  compared by our own projection, and the reason says so. If the whole league has no market
+  values, drops go by lineup cost, and the trade card shows "Market values unavailable; drops
+  based on projections only."
+- **Flex slots count once.** Surplus depth used to count every flex slot for every position it
+  accepts, so a superflex league never showed a surplus. Each flex now counts for the player the
+  lineup puts there.
+- Players on IR are never dropped (now tested).
+- README screenshots wait for the page's own content, not the sidebar, and fail with a clear
+  message when the demo league has no regression rows.
+
+### Added
+- Settings **Bench backups per position** (default 1) and **Free to drop under** (default 0.5
+  pts/week), under "Advisor & trades".
+
+### Changed
+- **API:** a trade side's `drops` is now a list of `{player, reason}`, and `drop_reasons` is gone.
+  Trade responses add `market_values_missing`.
+
 ## [0.2.0] — 2026-10-18
 
 ### Added

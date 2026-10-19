@@ -73,7 +73,13 @@ Every number comes from a formula you can read and change; nothing is hidden ins
 - **Who gets dropped.** When a trade or pickup overfills a roster, FantasyEdge cuts who a manager
   would: an extra kicker or D/ST first, then surplus depth (a 4th QB), then the bench player with
   the lowest market value (our own projection when the market has no price for him), never a
-  starter while bench depth remains. Each drop says why.
+  starter while bench depth remains. Each drop says why. Two settings tune this:
+  - **Bench backups per position** (default 1): players at a position beyond what this week's
+    lineup starts there (each flex slot counts once, for whoever fills it) plus this many backups
+    are surplus.
+  - **Free to drop under** (default 0.5 pts/week): a bench player is free to cut when losing him
+    costs your lineup less than this per remaining week, byes he covers included. This week's
+    starters are never free.
 
 **Measured, not guessed.** A walk-forward backtest replays 2023–2025, projecting each week from
 earlier games only. The weights were tuned on 2023–24 and checked on 2025.
