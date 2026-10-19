@@ -16,7 +16,7 @@ from signals import startsit as ss
 from signals import trade as tr
 from signals import waivers as wv
 from signals.byes import RosterEntry, bye_grid
-from signals.lineup import SLOT_ELIGIBILITY, slot_label, starting_slots
+from signals.lineup import SKILL_POSITIONS, SLOT_ELIGIBILITY, slot_label, starting_slots
 from signals.regression import (
     FLAG_SCALES,
     TDOE_THRESHOLD,
@@ -1178,7 +1178,7 @@ def player_trades_view(
             "free_agent",
             message=f"{p['name']} is a free agent: add him off waivers instead of trading for him.",
         )
-    if p.get("position") not in tr.SKILL:
+    if p.get("position") not in SKILL_POSITIONS:
         return out("unavailable", message="Trade ideas cover QBs, RBs, WRs and TEs.")
 
     common = dict(

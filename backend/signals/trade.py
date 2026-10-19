@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from itertools import combinations
 
 from signals.byes import RosterEntry, bye_grid
-from signals.lineup import BENCH_BACKUPS, NON_STARTING, position_capacity
+from signals.lineup import BENCH_BACKUPS, NON_STARTING, SKILL_POSITIONS, position_capacity
 from signals.team import RosMath
 
 ACCEPT_GAIN = 8.0
@@ -34,7 +34,6 @@ PAGE_SIZE = 8
 # Cutting a bench player who costs the lineup less than this many points per remaining week is
 # free (bench depth); a user setting. Per week, so the same player is judged alike in week 2 and 16.
 FREE_DROP_PPG = 0.5
-SKILL = ("QB", "RB", "WR", "TE")
 
 
 @dataclass(frozen=True)
@@ -258,7 +257,7 @@ def choose_drops(
         ]
         surplus = [
             p for p in free
-            if pos(p) in ("QB", "RB", "WR", "TE") and count[pos(p)] > capacity.get(pos(p), 0)
+            if pos(p) in SKILL_POSITIONS and count[pos(p)] > capacity.get(pos(p), 0)
         ]  # fmt: skip
         # dead weight first: an extra K/DEF (whatever it costs: nobody carries two kickers) or
         # surplus depth; a cut that costs nothing (< 1 point) before one that costs a little
@@ -468,7 +467,9 @@ def _tradeable(players: Mapping[str, Mapping], pids: Sequence[str], use_market: 
     return [
         p
         for p in pids
-        if p in players and players[p]["position"] in SKILL and trade_value(players, p, use_market)
+        if p in players
+        and players[p]["position"] in SKILL_POSITIONS
+        and trade_value(players, p, use_market)
     ]
 
 
@@ -649,7 +650,7 @@ def find_for(
     my_id, my_roster = my_team
     if not give or not set(give) <= set(my_roster):
         raise ValueError("pick players from your roster to give")
-    positions = set(SKILL) if want_position == "ANY" else {want_position}
+    positions = set(SKILL_POSITIONS) if want_position == "ANY" else {want_position}
     my_after_give = [p for p in my_roster if p not in give]
     my_base = math.ros_lineup_points(my_roster)
     found: list[TradeEvaluation] = []

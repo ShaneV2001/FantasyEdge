@@ -611,3 +611,9 @@ def test_a_player_on_ir_is_never_dropped(ir_spots):
     )
     after, drops = tr.roster_after(math, players, "A", roster, [], ["scrub"], rules)
     assert len(drops) == 1 and drops[0].player_id != "hurt" and "hurt" in after
+
+
+def test_trade_spells_the_skill_positions_once():
+    from signals import lineup
+
+    assert tr.SKILL_POSITIONS is lineup.SKILL_POSITIONS and not hasattr(tr, "SKILL")
