@@ -2,6 +2,27 @@
 
 All notable changes to FantasyEdge. Dates are when the work was pushed.
 
+## [0.3.0] — 2026-10-20
+
+### Changed
+- **Trades are fair by market value.** "Trade for X", "Shop him", Find a trade, Trade ideas and
+  the Advisor only suggest deals where each side gets at least 85% of the value it gives up (a
+  player at the other team's weak position counts 10% more to them). Deals grow to 3 players, or
+  pick up a small throw-in, to even the values out; waiver filler never balances a star. When
+  nothing is fair, you see how close your best package gets. No more "a backup receiver for a
+  top-5 WR".
+- Trade cards say why a team would likely say no: **Below their value**, **You overpay**, or
+  **Doesn't help their lineup**, instead of one "Unlikely to accept" for everything.
+- **Bye-week planner:** only bye and injury changes are colored (amber: a backup fills in, with
+  who he replaces; red: nobody can fill the slot). Week headers show the points lost, and weeks
+  with no change are tucked behind "Show all weeks".
+
+### Added
+- Settings **Trade: fair value band** (default 0.15) and **Trade: need bonus** (default 0.10),
+  under "Advisor & trades".
+- API: trades include `fair_value` and `market_gap`; Find a trade returns `message` when nothing
+  is fair; bye cells include `replaces`, `why` and `hole`, and weeks include `points_lost`.
+
 ## [0.2.1] — 2026-10-18
 
 Fixes from a code review of forced drops (F1–F9). Details: `docs/fix-summary-review-findings.md`.
