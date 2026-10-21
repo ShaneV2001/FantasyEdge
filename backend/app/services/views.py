@@ -339,6 +339,9 @@ def byes_view(ctx: LeagueContext, team_id: str) -> m.ByesOut:
                     status=c.status,  # type: ignore[arg-type]
                     player=player_ref(ctx, c.player_id) if c.player_id else None,
                     ppg=c.ppg,
+                    replaces=c.replaces,
+                    why=c.why,  # type: ignore[arg-type]
+                    hole=c.hole,
                 )
                 for c in r.cells
             ],
@@ -348,6 +351,7 @@ def byes_view(ctx: LeagueContext, team_id: str) -> m.ByesOut:
             danger_slots=r.danger_slots,
             lineup_points=r.lineup_points,
             full_strength_points=r.full_strength_points,
+            points_lost=round(max(r.full_strength_points - r.lineup_points, 0.0), 1),
         )
         for r in rows
     ]

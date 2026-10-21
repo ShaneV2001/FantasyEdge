@@ -2177,6 +2177,12 @@
           "full_strength_points": {
             "type": "number",
             "title": "Full Strength Points"
+          },
+          "points_lost": {
+            "type": "number",
+            "title": "Points Lost",
+            "description": "Full strength minus this week's lineup points",
+            "default": 0.0
           }
         },
         "type": "object",
@@ -4989,6 +4995,40 @@
               }
             ],
             "title": "Ppg"
+          },
+          "replaces": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces",
+            "description": "The full-strength starter this player fills in for this week"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "bye",
+                  "injury"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why",
+            "description": "Why that starter is out"
+          },
+          "hole": {
+            "type": "boolean",
+            "title": "Hole",
+            "description": "Nobody can fill the slot this week, unlike at full strength",
+            "default": false
           }
         },
         "type": "object",

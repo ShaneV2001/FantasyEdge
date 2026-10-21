@@ -319,6 +319,12 @@ export type ByeWeekOut = {
      * Full Strength Points
      */
     full_strength_points: number;
+    /**
+     * Points Lost
+     *
+     * Full strength minus this week's lineup points
+     */
+    points_lost?: number;
 };
 
 /**
@@ -1924,6 +1930,24 @@ export type SlotCellOut = {
      * Ppg
      */
     ppg?: number | null;
+    /**
+     * Replaces
+     *
+     * The full-strength starter this player fills in for this week
+     */
+    replaces?: string | null;
+    /**
+     * Why
+     *
+     * Why that starter is out
+     */
+    why?: 'bye' | 'injury' | null;
+    /**
+     * Hole
+     *
+     * Nobody can fill the slot this week, unlike at full strength
+     */
+    hole?: boolean;
 };
 
 /**

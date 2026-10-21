@@ -421,6 +421,13 @@ class SlotCellOut(BaseModel):
     status: Literal["ok", "thin", "empty"]
     player: PlayerRef | None = None
     ppg: float | None = None
+    replaces: str | None = Field(
+        None, description="The full-strength starter this player fills in for this week"
+    )
+    why: Literal["bye", "injury"] | None = Field(None, description="Why that starter is out")
+    hole: bool = Field(
+        False, description="Nobody can fill the slot this week, unlike at full strength"
+    )
 
 
 class ByeWeekOut(BaseModel):
@@ -433,6 +440,7 @@ class ByeWeekOut(BaseModel):
     danger_slots: list[str]
     lineup_points: float
     full_strength_points: float
+    points_lost: float = Field(0.0, description="Full strength minus this week's lineup points")
 
 
 class PlayerByeOut(BaseModel):

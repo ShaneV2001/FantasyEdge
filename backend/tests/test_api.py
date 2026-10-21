@@ -138,6 +138,15 @@ def test_advice_regression_byes(client):
     assert byes["weeks"][0]["week"] == byes["week"]
     assert len(byes["weeks"][0]["cells"]) == len(byes["slots"])
     assert all(c["status"] in ("ok", "thin", "empty") for w in byes["weeks"] for c in w["cells"])
+    for w in byes["weeks"]:
+        assert w["points_lost"] == pytest.approx(
+            max(w["full_strength_points"] - w["lineup_points"], 0), abs=0.06
+        )
+        for c in w["cells"]:
+            assert c["why"] in (None, "bye", "injury") and (c["why"] is None) == (
+                c["replaces"] is None
+            )
+            assert not c["hole"] or c["status"] == "empty"
 
 
 def test_trade_evaluate_and_suggest(client):
