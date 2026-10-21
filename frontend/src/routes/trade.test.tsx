@@ -84,7 +84,7 @@ describe('FindTrade', () => {
 
     await user.click(screen.getByRole('radio', { name: 'TE' }))
     await user.click(findBtn)
-    expect(await screen.findByText('Unlikely to accept')).toBeInTheDocument()
+    expect(await screen.findByText("Doesn't help their lineup")).toBeInTheDocument()
     const sent = JSON.parse(calls.find((c) => c.url.includes('/trade/find'))!.body!)
     expect(sent).toEqual({ team_id: 't', give: ['w1', 'q1', 'w2'], want_position: 'TE', receive_count: 1 })
   })

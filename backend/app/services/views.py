@@ -339,6 +339,9 @@ def byes_view(ctx: LeagueContext, team_id: str) -> m.ByesOut:
                     status=c.status,  # type: ignore[arg-type]
                     player=player_ref(ctx, c.player_id) if c.player_id else None,
                     ppg=c.ppg,
+                    replaces=c.replaces,
+                    why=c.why,  # type: ignore[arg-type]
+                    hole=c.hole,
                 )
                 for c in r.cells
             ],
@@ -348,6 +351,7 @@ def byes_view(ctx: LeagueContext, team_id: str) -> m.ByesOut:
             danger_slots=r.danger_slots,
             lineup_points=r.lineup_points,
             full_strength_points=r.full_strength_points,
+            points_lost=round(max(r.full_strength_points - r.lineup_points, 0.0), 1),
         )
         for r in rows
     ]
@@ -451,6 +455,40 @@ def roster_rules(ctx: LeagueContext) -> tr.RosterRules:
     )
 
 
+def fairness(ctx: LeagueContext) -> tr.Fairness:
+    """How trades are judged by value: the user's fair band and need bonus, each team's weak
+    positions (team grades), and market values when the league has a market source."""
+    if "fairness" not in ctx.memo:
+        ctx.memo["fairness"] = tr.Fairness(
+            band=ctx.tuning.trade_fair_band,
+            need_premium=ctx.tuning.trade_need_premium,
+            use_market=ctx.market_source is not None,
+            needs={tid: frozenset(p.needs) for tid, p in profiles(ctx).items()},
+        )
+    return ctx.memo["fairness"]
+
+
+def no_fair_deal(ctx: LeagueContext, offers: tr.Offers, whose: str) -> str:
+    """Why no trade is shown: the closest package by value, or that fair ones all hurt you."""
+    if offers.fair_found:
+        return (
+            f"Fair packages by value exist, but none leaves your lineup better off "
+            f"({offers.fair_found} checked)."
+        )
+    c = offers.closest
+    if c is None:
+        return f"No fair package: {whose} have no market value to compare."
+
+    def names(pids: tuple[str, ...]) -> str:
+        return " + ".join(ctx.players[p]["name"] for p in pids)
+
+    side = "you'd be short" if c.mine >= c.theirs else "you'd overpay"
+    return (
+        f"No fair package within {ctx.tuning.trade_fair_band:.0%}. Closest: {names(c.give)} "
+        f"({c.value_out:,.0f}) for {names(c.receive)} ({c.value_in:,.0f}); {side} by {c.gap:.0%}."
+    )
+
+
 def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
     def side(s: tr.TradeSide) -> m.TradeSideOut:
         return m.TradeSideOut(
@@ -485,6 +523,8 @@ def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
         tags=ev.tags,
         partner_accepts=ev.partner_accepts,
         market_values_missing=ev.market_values_missing,
+        fair_value=ev.fair_value,
+        market_gap=ev.market_gap,
     )
 
 
@@ -523,6 +563,7 @@ def evaluate_trade(
             accept_gain=ctx.tuning.trade_accept_gain,
             lean_gain=ctx.tuning.trade_lean_gain,
             rules=roster_rules(ctx),
+            fairness=fairness(ctx),
         )
     except ValueError as exc:  # signals/ stays app-agnostic and raises plain ValueError
         raise InvalidInput(str(exc)) from exc
@@ -549,6 +590,7 @@ def trade_candidates(ctx: LeagueContext, team_id: str) -> list[tr.TradeEvaluatio
                 lean_gain=ctx.tuning.trade_lean_gain,
                 viable_ppg=ctx.replacement_ppg,
                 rules=roster_rules(ctx),
+                fairness=fairness(ctx),
             )
     return ctx.memo[key]
 
@@ -578,7 +620,7 @@ def find_view(
         raise InvalidInput("Finding trade partners needs a synced Sleeper or ESPN league.")
     others = {t.team_id: t.player_ids for t in ctx.teams if t.team_id != team_id}
     try:
-        ideas = tr.find_for(
+        offers = tr.find_for(
             ros_math(ctx),
             ctx.players,
             (team.team_id, team.player_ids),
@@ -591,6 +633,7 @@ def find_view(
             market_label=market_label(ctx),
             accept_gain=ctx.tuning.trade_accept_gain,
             lean_gain=ctx.tuning.trade_lean_gain,
+            fairness=fairness(ctx),
         )
     except ValueError as exc:
         raise InvalidInput(str(exc)) from exc
@@ -598,7 +641,8 @@ def find_view(
         team_id=team_id,
         deadline_passed=ctx.deadline_passed,
         searched_teams=len(others),
-        ideas=[trade_out(ctx, ev) for ev in ideas],
+        ideas=[trade_out(ctx, ev) for ev in offers.ideas],
+        message=None if offers.ideas else no_fair_deal(ctx, offers, "those players"),
     )
 
 
@@ -1187,28 +1231,35 @@ def player_trades_view(
         market_label=market_label(ctx),
         accept_gain=ctx.tuning.trade_accept_gain,
         lean_gain=ctx.tuning.trade_lean_gain,
+        fairness=fairness(ctx),
     )
     math = ros_math(ctx)
     mine = (team.team_id, team.player_ids)
     if owner.team_id == team_id:
         others = {t.team_id: t.player_ids for t in ctx.teams if t.team_id != team_id}
-        ideas = [
-            ev
+        found = [
+            tr.find_for(math, ctx.players, mine, others, [player_id], want_position, n, **common)
             for n in (1, 2)
-            for ev in tr.find_for(
-                math, ctx.players, mine, others, [player_id], want_position, n, **common
-            )
         ]
-        ideas.sort(key=lambda e: (not e.partner_accepts, -e.score))
-        return out("sell", ideas[:PLAYER_TRADE_LIMIT])
-    ideas = tr.acquire_for(
+        ideas = sorted((ev for f in found for ev in f.ideas), key=tr.offer_rank)[
+            :PLAYER_TRADE_LIMIT
+        ]
+        offers = tr.Offers(
+            ideas,
+            min((f.closest for f in found if f.closest), key=lambda c: c.gap, default=None),
+            sum(f.fair_found for f in found),
+        )
+        return out(
+            "sell", ideas, None if ideas else no_fair_deal(ctx, offers, "he or their players")
+        )
+    offers = tr.acquire_for(
         math,
         ctx.players,
         mine,
         (owner.team_id, owner.player_ids),
         player_id,
         limit=PLAYER_TRADE_LIMIT,
-        use_market=ctx.market_source is not None,
         **common,
     )
-    return out("buy", ideas)
+    message = None if offers.ideas else no_fair_deal(ctx, offers, "he or your players")
+    return out("buy", offers.ideas, message)

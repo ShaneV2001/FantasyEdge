@@ -17,7 +17,27 @@ const VERDICT: Record<TradeOut['verdict'], { label: string; cls: string }> = {
   decline: { label: 'Decline', cls: 'bg-sell/15 text-sell ring-sell/30' },
 }
 
-export function VerdictBadge({ verdict }: { verdict: TradeOut['verdict'] }) {
+export /** Why the other team would likely say no: uneven by value, or their lineup doesn't gain. */
+function AcceptChip({ trade }: { trade: TradeOut }) {
+  if (trade.partner_accepts !== false) return null
+  let label = "Doesn't help their lineup"
+  let why = "Fair by value, but their projected lineup doesn't improve"
+  if (trade.fair_value === false) {
+    const { market_value_in: got, market_value_out: gave } = trade.me
+    const overpay = got != null && gave != null && got < gave
+    label = overpay ? 'You overpay' : 'Below their value'
+    why = overpay
+      ? 'By value you give up much more than you get'
+      : 'By value they give up much more than they get, so they would likely say no'
+  }
+  return (
+    <Badge variant="outline" className="border-warn/40 text-warn" title={why}>
+      {label}
+    </Badge>
+  )
+}
+
+function VerdictBadge({ verdict }: { verdict: TradeOut['verdict'] }) {
   const v = VERDICT[verdict]
   return (
     <span className={cn('inline-flex h-6 items-center rounded-md px-2 text-xs font-semibold ring-1 ring-inset', v.cls)}>
@@ -187,11 +207,7 @@ export function TradeCard({
               {t}
             </Badge>
           ))}
-          {trade.partner_accepts === false && (
-            <Badge variant="outline" className="border-warn/40 text-warn" title="Their projected lineup doesn't improve">
-              Unlikely to accept
-            </Badge>
-          )}
+          <AcceptChip trade={trade} />
         </CardTitle>
         <CardDescription>
           {trade.partner ? `with ${trade.partner.team_name}` : 'Hypothetical trade — only your side is modelled'}

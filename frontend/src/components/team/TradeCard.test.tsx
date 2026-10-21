@@ -51,6 +51,27 @@ describe('TradeCard', () => {
     expect(screen.queryByText('Must drop')).not.toBeInTheDocument()
   })
 
+  it('says why the other team would likely say no', async () => {
+    const priced = (out: number, inn: number) => ({ ...TRADE.me, market_value_out: out, market_value_in: inn })
+    const { unmount } = renderPage(
+      <TradeCard trade={{ ...TRADE, partner_accepts: false, fair_value: false, me: priced(1314, 9671) }} />,
+    )
+    expect(await screen.findByText('Below their value')).toBeInTheDocument()
+    unmount()
+    const r2 = renderPage(<TradeCard trade={{ ...TRADE, partner_accepts: false, fair_value: false, me: priced(9000, 3000) }} />)
+    expect(await screen.findByText('You overpay')).toBeInTheDocument()
+    r2.unmount()
+    renderPage(<TradeCard trade={{ ...TRADE, partner_accepts: false, fair_value: true }} />)
+    expect(await screen.findByText("Doesn't help their lineup")).toBeInTheDocument()
+  })
+
+  it('no chip when they would likely accept', async () => {
+    renderPage(<TradeCard trade={{ ...TRADE, fair_value: true }} />)
+    await screen.findByText('Give Waddle for Hampton + Pacheco')
+    expect(screen.queryByText('Below their value')).not.toBeInTheDocument()
+    expect(screen.queryByText("Doesn't help their lineup")).not.toBeInTheDocument()
+  })
+
   it('warns when drops were chosen without market values', async () => {
     renderPage(<TradeCard trade={{ ...TRADE, market_values_missing: true }} />)
     expect(await screen.findByRole('alert')).toHaveTextContent(

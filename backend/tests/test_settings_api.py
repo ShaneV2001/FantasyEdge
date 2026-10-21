@@ -79,6 +79,41 @@ def test_bench_backups_setting_reaches_forced_drops(client):  # noqa: F811
     assert views.roster_rules(ctx).bench_backups == 3
 
 
+def test_fair_trade_settings_reach_the_trade_engine(client):  # noqa: F811
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    lid = leagues.league_id_for_team(deps._con, team_id)
+    ctx = context.get_context(deps._con, lid, UserSettings())
+    f = views.fairness(ctx)
+    assert (f.band, f.need_premium) == (0.15, 0.10)
+    assert set(f.needs) == {t.team_id for t in ctx.teams}  # every team's weak spots
+    ctx = context.get_context(
+        deps._con, lid, UserSettings(trade_fair_band=0.3, trade_need_premium=0.2)
+    )
+    assert (views.fairness(ctx).band, views.fairness(ctx).need_premium) == (0.3, 0.2)
+
+
+def test_no_fair_deal_names_the_closest_package(client):  # noqa: F811
+    from signals import trade as tr
+
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    lid = leagues.league_id_for_team(deps._con, team_id)
+    ctx = context.get_context(deps._con, lid, UserSettings())
+    a, b = [p for p in ctx.team(team_id).player_ids if ctx.players[p].get("market_value")][:2]
+    close = tr.MarketCheck((a,), (b,), 1000.0, 2000.0, 2.0, 0.5, 0.5, True, False)
+    msg = views.no_fair_deal(ctx, tr.Offers([], close), "he or your players")
+    name_a, name_b = ctx.players[a]["name"], ctx.players[b]["name"]
+    assert msg == (
+        f"No fair package within 15%. Closest: {name_a} (1,000) for {name_b} (2,000); "
+        "you'd be short by 50%."
+    )
+    assert "none leaves your lineup better off" in views.no_fair_deal(
+        ctx, tr.Offers([], None, fair_found=4), "x"
+    )
+    assert "no market value" in views.no_fair_deal(ctx, tr.Offers([]), "he or your players")
+
+
 def test_free_drop_setting_reaches_forced_drops(client):  # noqa: F811
     tc, _ = client
     team_id = connect_and_pick(tc)

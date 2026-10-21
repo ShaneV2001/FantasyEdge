@@ -26,7 +26,17 @@ from signals.team import RosMath
 
 ACCEPT_GAIN = 8.0
 LEAN_GAIN = 2.0
-MARKET_BAND = (0.7, 1.45)  # acceptable value ratio (received / given) for suggested deals
+# A deal is fair when each side gets at least (1 - FAIR_BAND) of the value it gives up, and a player
+# at a position the receiving team is weak at counts NEED_PREMIUM more to it (both user settings).
+FAIR_BAND = 0.15
+NEED_PREMIUM = 0.10
+# Every player in a deal is worth at least this share of its most valuable one: no waiver filler
+# stacked up to "balance" a star.
+MIN_PIECE = 0.10
+# A player added only to even out the values is worth at most this share of the main player he
+# balances (a throw-in, not a second target).
+ADDON_SHARE = 0.5
+GAP_STEP = 0.05  # value gaps within the same 5% rank as equal, so simpler deals win ties
 MAX_PER_PARTNER = 2
 MAX_PER_GIVE = 2
 MAX_PER_RECEIVE = 1  # don't show the same target twice
@@ -118,8 +128,11 @@ class TradeEvaluation:
     danger_weeks_after: int | None = None
     score: float = 0.0
     tags: list[str] = field(default_factory=list)
-    partner_accepts: bool | None = None  # would their lineup gain too (None: no partner modelled)
+    # fair by value, their lineup gains, and no new short week (None: no partner modelled)
+    partner_accepts: bool | None = None
     market_values_missing: bool = False  # no player has a price: drops went by projections only
+    fair_value: bool | None = None  # within the fair band for both sides (None: can't be judged)
+    market_gap: float | None = None  # MarketCheck.gap
 
     @property
     def key(self) -> tuple:
@@ -144,6 +157,84 @@ def trade_value(players: Mapping[str, Mapping], pid: str, use_market: bool) -> f
     if use_market:
         return p.get("market_value")
     return max(p.get("ros_value_par") or 0.0, 0.0) + 1.0
+
+
+@dataclass(frozen=True)
+class Fairness:
+    """How deals are judged by value. `needs` = each team's weak positions (team grades); a player
+    there counts `need_premium` more to the team receiving him. `use_market`: market values, or
+    our model value when the league has no market source."""
+
+    band: float = FAIR_BAND
+    need_premium: float = NEED_PREMIUM
+    use_market: bool = True
+    needs: Mapping[str, frozenset[str]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class MarketCheck:
+    """One deal by value, from your side. `mine` / `theirs` = what a side gets (its need bonus
+    included) per unit it gives up; `gap` = how far the worse-off side falls short of even."""
+
+    give: tuple[str, ...]
+    receive: tuple[str, ...]
+    value_out: float
+    value_in: float
+    mine: float
+    theirs: float
+    gap: float
+    no_filler: bool  # every player is worth at least MIN_PIECE of the best one in the deal
+    fair: bool
+
+
+def package_value(
+    players: Mapping[str, Mapping],
+    pids: Sequence[str],
+    use_market: bool,
+    needs: frozenset[str] = frozenset(),
+    premium: float = 0.0,
+) -> float | None:
+    """Sum of trade values, with players at a `needs` position counted `premium` more. None when
+    anyone has no value (e.g. no market price)."""
+    total = 0.0
+    for p in pids:
+        v = trade_value(players, p, use_market)
+        if not v:
+            return None
+        total += v * (1 + premium) if players[p].get("position") in needs else v
+    return total
+
+
+def market_check(
+    players: Mapping[str, Mapping],
+    give: Sequence[str],
+    receive: Sequence[str],
+    my_id: str,
+    partner_id: str,
+    fairness: Fairness,
+) -> MarketCheck | None:
+    """Is this deal fair by value for both sides? None when a side is empty or a player has no
+    value to judge him by."""
+    f = fairness
+    out = package_value(players, give, f.use_market)
+    inn = package_value(players, receive, f.use_market)
+    if not out or not inn:
+        return None
+    mine = package_value(
+        players, receive, f.use_market, f.needs.get(my_id, frozenset()), f.need_premium
+    )
+    theirs = package_value(
+        players, give, f.use_market, f.needs.get(partner_id, frozenset()), f.need_premium
+    )
+    assert mine is not None and theirs is not None
+    mine, theirs = mine / out, theirs / inn
+    values = [trade_value(players, p, f.use_market) or 0.0 for p in (*give, *receive)]
+    no_filler = min(values) >= MIN_PIECE * max(values)
+    gap = max(0.0, 1 - min(mine, theirs))
+    return MarketCheck(
+        tuple(give), tuple(receive), out, inn, round(mine, 4), round(theirs, 4), round(gap, 4),
+        no_filler, no_filler and gap <= f.band + 1e-9,
+    )  # fmt: skip
 
 
 def _entries(pids: Iterable[str], players: Mapping[str, Mapping]) -> list[RosterEntry]:
@@ -406,10 +497,12 @@ def evaluate(
     accept_gain: float = ACCEPT_GAIN,
     lean_gain: float = LEAN_GAIN,
     rules: RosterRules | None = None,
+    fairness: Fairness | None = None,
 ) -> TradeEvaluation:
     """Score a trade for both sides; with partner=None only your side is computed
     (a hypothetical deal, e.g. for a manual team or a player from another league)."""
     rules = rules or RosterRules()
+    fairness = fairness or Fairness()
     my_id, my_roster = my_team
     if not set(give) <= set(my_roster):
         raise ValueError("you can only give players on your roster")
@@ -450,16 +543,26 @@ def evaluate(
     reasons.append(
         f"Model value (points above replacement): you give {me.model_value_out:.0f}, get {me.model_value_in:.0f}."
     )
-    if me.market_value_out and me.market_value_in is not None:
-        ratio = me.market_value_in / me.market_value_out
-        fair = (
-            "fair by market"
-            if 0.85 <= ratio <= 1.18
-            else ("you win on market value" if ratio > 1.18 else "you overpay by market value")
-        )
+    check = (
+        market_check(players, give, receive, my_id, partner[0], fairness)
+        if partner is not None
+        else market_check(players, give, receive, my_id, "", fairness)
+    )
+    if check is not None:
+        label = market_label if fairness.use_market else "Model"
+        if check.fair:
+            fair = "fair by value"
+        elif check.mine < check.theirs:
+            fair = f"you overpay: you get {check.mine:.0%} of what you give"
+        else:
+            fair = f"they'd get {check.theirs:.0%} of what they give"
         reasons.append(
-            f"{market_label} value: you give {me.market_value_out:,.0f}, get {me.market_value_in:,.0f} ({fair})."
+            f"{label} value: you give {check.value_out:,.0f}, get {check.value_in:,.0f} ({fair})."
         )
+        if them is not None and not check.fair and check.theirs < check.mine:
+            reasons.insert(
+                1, "They'd give up far more value than they get, so they'd likely say no."
+            )
 
     before = after = None
     if viable_ppg is not None:
@@ -486,10 +589,16 @@ def evaluate(
         "neutral": "Neutral: roughly even for your lineup",
         "decline": "Decline: weakens your lineup",
     }[verdict]
-    accepts = None if them is None else them.lineup_delta > 0 and not them.new_short_weeks
+    fair = None if check is None else check.fair
+    accepts = (
+        None
+        if them is None
+        else them.lineup_delta > 0 and not them.new_short_weeks and fair is not False
+    )
     return TradeEvaluation(
         me, them, verdict, headline, reasons, before, after, score=d, partner_accepts=accepts,
-        market_values_missing=not has_market_values(players),
+        market_values_missing=not has_market_values(players), fair_value=fair,
+        market_gap=None if check is None else check.gap,
     )  # fmt: skip
 
 
@@ -521,16 +630,19 @@ def candidate_trades(
     market_label: str = "Market",
     accept_gain: float = ACCEPT_GAIN,
     lean_gain: float = LEAN_GAIN,
+    fairness: Fairness | None = None,
 ) -> list[TradeEvaluation]:
-    """Every 1-for-1 and 2-for-1 (both directions) deal where *both* lineups gain after forced
-    drops, and neither team is left short in a week it can fill today; best first."""
+    """Every 1-for-1 and 2-for-1 (both directions) deal that's fair by value (`market_check`) and
+    where *both* lineups gain after forced drops, and neither team is left short in a week it can
+    fill today; best first."""
+    fairness = fairness or Fairness(use_market=use_market)
     my_id, my_roster = my_team
-    mine = _tradeable(players, my_roster, use_market)
+    mine = _tradeable(players, my_roster, fairness.use_market)
     my_base = math.ros_lineup_points(my_roster)
     results: list[TradeEvaluation] = []
 
     for their_id, their_roster in others.items():
-        theirs = _tradeable(players, their_roster, use_market)
+        theirs = _tradeable(players, their_roster, fairness.use_market)
         their_base = math.ros_lineup_points(their_roster)
         packages: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
             ((a,), (b,)) for a in mine for b in theirs
@@ -539,11 +651,9 @@ def candidate_trades(
         packages += [((a,), r) for a in mine for r in combinations(theirs, 2)]
         scored = []
         for g, r in packages:
-            vg = sum(trade_value(players, p, use_market) or 0 for p in g)
-            vr = sum(trade_value(players, p, use_market) or 0 for p in r)
-            if not vg or not (MARKET_BAND[0] <= vr / vg <= MARKET_BAND[1]):
-                continue
-            scored.append((abs(1 - vr / vg), g, r))
+            check = market_check(players, g, r, my_id, their_id, fairness)
+            if check is not None and check.fair:
+                scored.append((check.gap, g, r))
         scored.sort(key=lambda x: x[0])
         # quick screen without drops or bye checks, then the full evaluation for the best few
         hits = []
@@ -560,7 +670,7 @@ def candidate_trades(
             ev = evaluate(
                 math, players, my_team, (their_id, their_roster), g, r,
                 viable_ppg=viable_ppg, market_label=market_label,
-                accept_gain=accept_gain, lean_gain=lean_gain, rules=rules,
+                accept_gain=accept_gain, lean_gain=lean_gain, rules=rules, fairness=fairness,
             )  # fmt: skip
             assert ev.partner is not None
             md, td = ev.me.lineup_delta, ev.partner.lineup_delta
@@ -638,12 +748,13 @@ def suggest(
     lean_gain: float = LEAN_GAIN,
     viable_ppg: Mapping[str, float] | None = None,
     rules: RosterRules | None = None,
+    fairness: Fairness | None = None,
 ) -> list[TradeEvaluation]:
     """The first page of mutually beneficial ideas (see `candidate_trades`)."""
     cands = candidate_trades(
         math, players, my_team, others, use_market=use_market, min_gain=min_gain,
         max_evals_per_partner=max_evals_per_partner, viable_ppg=viable_ppg, rules=rules,
-        market_label=market_label, accept_gain=accept_gain, lean_gain=lean_gain,
+        market_label=market_label, accept_gain=accept_gain, lean_gain=lean_gain, fairness=fairness,
     )  # fmt: skip
     return paginate(cands, 0, limit)[0]
 
@@ -651,12 +762,113 @@ def suggest(
 # ───────── targeted finder ─────────
 
 
-def _shortlist_key(my_gain: float, their_gain: float) -> tuple[bool, float]:
-    """Sort key for the quick screen (before drops and bye checks): deals both lineups like
-    first, best for both (then you); then the rest by your gain."""
-    if their_gain > 0:
-        return (False, -(min(my_gain, their_gain) + 0.5 * my_gain))
-    return (True, -my_gain)
+@dataclass
+class Offers:
+    """Fair deals, best first. When none survive, `closest` is the package nearest to even by value
+    (for a "no fair package" note) and `fair_found` says whether fair ones existed but none helped
+    your lineup."""
+
+    ideas: list[TradeEvaluation]
+    closest: MarketCheck | None = None
+    fair_found: int = 0
+
+
+def offer_rank(ev: TradeEvaluation) -> tuple:
+    """Deals their lineup also likes first; then the most even by value (gaps within the same
+    GAP_STEP count as equal); then the simplest (fewest players); then your gain."""
+    return (
+        not ev.partner_accepts,
+        int((ev.market_gap or 0.0) / GAP_STEP),
+        len(ev.me.gives) + len(ev.me.receives),
+        -ev.me.lineup_delta,
+    )
+
+
+def _varied(
+    evs: list[TradeEvaluation], limit: int, side: str = "gives", per_player: int = 3
+) -> list[TradeEvaluation]:
+    """Best first, but each package on the side that varies (`gives` when shopping for one target,
+    `receives` when the give is fixed) only once, and no player there in more than `per_player`
+    deals, so the list isn't ten versions of one offer."""
+    picked: list[TradeEvaluation] = []
+    seen: set[frozenset[str]] = set()
+    uses: dict[str, int] = {}
+    for ev in sorted(evs, key=offer_rank):
+        pkg = frozenset(getattr(ev.me, side))
+        if pkg in seen or any(uses.get(p, 0) >= per_player for p in pkg):
+            continue
+        picked.append(ev)
+        seen.add(pkg)
+        for p in pkg:
+            uses[p] = uses.get(p, 0) + 1
+        if len(picked) >= limit:
+            break
+    return picked
+
+
+def _addons(
+    players: Mapping[str, Mapping], pool: Sequence[str], main: Sequence[str], use_market: bool
+) -> list[str]:
+    """Players from `pool` small enough to be a throw-in next to `main` (ADDON_SHARE)."""
+    top = max((trade_value(players, p, use_market) or 0.0) for p in main)
+    return [p for p in pool if (trade_value(players, p, use_market) or 0.0) <= ADDON_SHARE * top]
+
+
+def _closest(checks: Iterable[MarketCheck]) -> MarketCheck | None:
+    return min((c for c in checks if c.no_filler), key=lambda c: c.gap, default=None)
+
+
+def _shop(
+    math: RosMath,
+    players: Mapping[str, Mapping],
+    my_team: tuple[str, Sequence[str]],
+    partner: tuple[str, Sequence[str]],
+    packages: Iterable[tuple[tuple[str, ...], tuple[str, ...]]],
+    fairness: Fairness,
+    shortlist: int,
+    quick_limit: int,
+    **eval_kwargs,
+) -> tuple[list[TradeEvaluation], list[MarketCheck]]:
+    """Value-check every (give, receive) package with one partner, lineup-check the most even fair
+    ones (your lineup must gain), then fully evaluate the best `shortlist`. Returns (deals that
+    still improve your lineup after drops, every value check)."""
+    my_id, my_roster = my_team
+    their_id, their_roster = partner
+    checks = [
+        c for g, r in packages if (c := market_check(players, g, r, my_id, their_id, fairness))
+    ]
+    fair = sorted((c for c in checks if c.fair), key=lambda c: c.gap)
+    my_base = math.ros_lineup_points(my_roster)
+    their_base = math.ros_lineup_points(their_roster)
+    quick = []
+    for c in fair[:quick_limit]:
+        md = math.ros_lineup_points([p for p in my_roster if p not in c.give] + list(c.receive))
+        if md - my_base <= 0:
+            continue
+        td = math.ros_lineup_points([p for p in their_roster if p not in c.receive] + list(c.give))
+        quick.append(((td - their_base <= 0, c.gap, my_base - md), c))
+    quick.sort(key=lambda x: x[0])
+    evs = []
+    for _, c in quick[:shortlist]:
+        ev = evaluate(
+            math, players, my_team, partner, c.give, c.receive, fairness=fairness, **eval_kwargs
+        )
+        if ev.me.lineup_delta <= 0:
+            continue
+        assert ev.partner is not None
+        ev.headline = f"Give {_name(players, c.give)} for {_name(players, c.receive)}"
+        ev.tags = [f"{len(c.give)}-for-{len(c.receive)}"]
+        if not ev.partner_accepts:
+            loss = -ev.partner.lineup_delta
+            ev.reasons.insert(
+                1,
+                f"Fair by value, but their lineup would lose {loss:.1f} points, so they may say no."
+                if loss > 0
+                else "Fair by value, but their lineup gains nothing (or a week goes short), so they may say no.",
+            )
+        ev.score = ev.me.lineup_delta
+        evs.append(ev)
+    return evs, checks
 
 
 def find_for(
@@ -671,59 +883,49 @@ def find_for(
     limit: int = 10,
     per_partner: int = MAX_PER_PARTNER,
     shortlist_per_partner: int = 8,
+    quick_limit: int = 40,
     viable_ppg: Mapping[str, float] | None = None,
     rules: RosterRules | None = None,
     market_label: str = "Market",
     accept_gain: float = ACCEPT_GAIN,
     lean_gain: float = LEAN_GAIN,
-) -> list[TradeEvaluation]:
+    fairness: Fairness | None = None,
+) -> Offers:
     """ "I'll give these players for a <position>": every team's players at that position (or
-    pairs, for 2 back), deals that improve your lineup only. Deals their lineup also likes come
-    first; the rest are marked as unlikely to be accepted."""
+    pairs, for 2 back), fair by value and improving your lineup. When the values don't line up,
+    one more player evens them out: one of yours if you'd be short, one of theirs if you'd
+    overpay. Deals their lineup also likes come first, then the most even."""
+    fairness = fairness or Fairness()
     my_id, my_roster = my_team
     if not give or not set(give) <= set(my_roster):
         raise ValueError("pick players from your roster to give")
     positions = set(SKILL_POSITIONS) if want_position == "ANY" else {want_position}
-    my_after_give = [p for p in my_roster if p not in give]
-    my_base = math.ros_lineup_points(my_roster)
+    give = tuple(give)
+    my_extras = [p for p in _tradeable(players, my_roster, fairness.use_market) if p not in give]
     found: list[TradeEvaluation] = []
+    checks: list[MarketCheck] = []
+    common = dict(
+        viable_ppg=viable_ppg, rules=rules, market_label=market_label,
+        accept_gain=accept_gain, lean_gain=lean_gain,
+    )  # fmt: skip
+    use = fairness.use_market
     for their_id, their_roster in others.items():
-        pool = [p for p in their_roster if players.get(p, {}).get("position") in positions]
-        packages = [tuple(c) for c in combinations(pool, receive_count)]
-        their_base = math.ros_lineup_points(their_roster)
-        quick = []
-        for r in packages:
-            md = math.ros_lineup_points(my_after_give + list(r)) - my_base
-            if md > 0:
-                td = math.ros_lineup_points([p for p in their_roster if p not in r] + list(give))
-                quick.append((_shortlist_key(md, td - their_base), r))
-        quick.sort(key=lambda x: x[0])
-        evs = []
-        for _, r in quick[:shortlist_per_partner]:
-            ev = evaluate(
-                math, players, my_team, (their_id, their_roster), give, r,
-                viable_ppg=viable_ppg, market_label=market_label,
-                accept_gain=accept_gain, lean_gain=lean_gain, rules=rules,
-            )  # fmt: skip
-            if ev.me.lineup_delta <= 0:
-                continue
-            assert ev.partner is not None
-            ev.headline = f"Give {_name(players, give)} for {_name(players, r)}"
-            ev.tags = [f"{len(give)}-for-{len(r)}"]
-            if not ev.partner_accepts:
-                loss = -ev.partner.lineup_delta
-                ev.reasons.insert(
-                    1,
-                    f"Their lineup would lose {loss:.1f} points, so they're unlikely to accept as is."
-                    if loss > 0
-                    else "Their lineup gains nothing (or a week goes short), so they're unlikely to accept as is.",
-                )
-            ev.score = ev.me.lineup_delta
-            evs.append(ev)
-        evs.sort(key=lambda e: (not e.partner_accepts, -e.score))
-        found += evs[:per_partner]
-    found.sort(key=lambda e: (not e.partner_accepts, -e.score))
-    return found[:limit]
+        theirs = _tradeable(players, their_roster, use)
+        pool = [p for p in theirs if players[p]["position"] in positions]
+        packages: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+        for r in combinations(pool, receive_count):
+            packages.append((give, r))
+            packages += [((*give, x), r) for x in _addons(players, my_extras, give, use)]
+            others_r = [p for p in theirs if p not in r]
+            packages += [(give, (*r, x)) for x in _addons(players, others_r, r, use)]
+        evs, cs = _shop(
+            math, players, my_team, (their_id, their_roster), packages, fairness,
+            shortlist_per_partner, quick_limit, **common,
+        )  # fmt: skip
+        found += _varied(evs, per_partner, side="receives")
+        checks += cs
+    ideas = sorted(found, key=offer_rank)[:limit]
+    return Offers(ideas, None if ideas else _closest(checks), sum(1 for c in checks if c.fair))
 
 
 def acquire_for(
@@ -733,56 +935,36 @@ def acquire_for(
     owner: tuple[str, Sequence[str]],
     target: str,
     *,
-    max_give: int = 2,
+    max_give: int = 3,
     limit: int = 10,
-    shortlist: int = 10,
-    use_market: bool = True,
+    shortlist: int = 15,
+    quick_limit: int = 80,
     viable_ppg: Mapping[str, float] | None = None,
     rules: RosterRules | None = None,
     market_label: str = "Market",
     accept_gain: float = ACCEPT_GAIN,
     lean_gain: float = LEAN_GAIN,
-) -> list[TradeEvaluation]:
-    """ "What would it take to get him?": packages of 1..`max_give` of your players for `target`
-    that improve your lineup. Deals his team's lineup also likes come first."""
-    my_id, my_roster = my_team
+    fairness: Fairness | None = None,
+) -> Offers:
+    """ "What would it take to get him?": packages of 1..`max_give` of your players for `target`,
+    fair by value and improving your lineup. If you'd overpay, his team can add one more player to
+    even it out. Deals his team's lineup also likes come first, then the most even."""
+    fairness = fairness or Fairness()
     owner_id, owner_roster = owner
     if target not in owner_roster:
         raise ValueError("that player isn't on the other team's roster")
-    mine = _tradeable(players, my_roster, use_market)
-    my_base = math.ros_lineup_points(my_roster)
-    found: list[TradeEvaluation] = []
-    their_base = math.ros_lineup_points(owner_roster)
-    their_after_out = [p for p in owner_roster if p != target]
+    mine = _tradeable(players, my_team[1], fairness.use_market)
+    others_t = [p for p in _tradeable(players, owner_roster, fairness.use_market) if p != target]
+    extras = _addons(players, others_t, (target,), fairness.use_market)
+    packages: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
     for n in range(1, max_give + 1):
-        quick = []
         for g in combinations(mine, n):
-            md = math.ros_lineup_points([p for p in my_roster if p not in g] + [target]) - my_base
-            if md > 0:
-                td = math.ros_lineup_points(their_after_out + list(g)) - their_base
-                quick.append((_shortlist_key(md, td), g))
-        quick.sort(key=lambda x: x[0])
-        for _, g in quick[:shortlist]:
-            ev = evaluate(
-                math, players, my_team, (owner_id, owner_roster), g, [target],
-                viable_ppg=viable_ppg, market_label=market_label,
-                accept_gain=accept_gain, lean_gain=lean_gain, rules=rules,
-            )  # fmt: skip
-            if ev.me.lineup_delta <= 0:
-                continue
-            assert ev.partner is not None
-            ev.headline = f"Give {_name(players, g)} for {_name(players, [target])}"
-            ev.tags = [f"{len(g)}-for-1"]
-            if not ev.partner_accepts:
-                loss = -ev.partner.lineup_delta
-                ev.reasons.insert(
-                    1,
-                    f"Their lineup would lose {loss:.1f} points, so they're unlikely to accept as is."
-                    if loss > 0
-                    else "Their lineup gains nothing (or a week goes short), so they're unlikely to accept as is.",
-                )
-            ev.score = ev.me.lineup_delta
-            found.append(ev)
-    # mutually good deals first; among those, the ones that leave your lineup best off
-    found.sort(key=lambda e: (not e.partner_accepts, -e.score))
-    return found[:limit]
+            packages.append((g, (target,)))
+            packages += [(g, (target, x)) for x in extras]
+    evs, checks = _shop(
+        math, players, my_team, owner, packages, fairness, shortlist, quick_limit,
+        viable_ppg=viable_ppg, rules=rules, market_label=market_label,
+        accept_gain=accept_gain, lean_gain=lean_gain,
+    )  # fmt: skip
+    ideas = _varied(evs, limit)
+    return Offers(ideas, None if ideas else _closest(checks), sum(1 for c in checks if c.fair))

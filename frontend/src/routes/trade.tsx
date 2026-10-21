@@ -121,8 +121,8 @@ export function TradePage() {
           {team.platform !== 'manual' && !deadlinePassed && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
-                {page === 0 ? 'Best ideas first.' : `More ideas · set ${page + 1}.`} Only deals where both lineups gain after
-                any forced drops, and neither team is left short in a bye week.
+                {page === 0 ? 'Best ideas first.' : `More ideas · set ${page + 1}.`} Only deals that are fair by market
+                value, where both lineups gain after any forced drops, and neither team is left short in a bye week.
               </p>
               <div className="flex gap-2">
                 <Button
@@ -383,15 +383,16 @@ export function FindTrade({
       </Card>
       {find.isError && <ErrorState error={find.error} />}
       {find.data && find.data.ideas.length === 0 && (
-        <EmptyState title="No deal improves your lineup">
-          Nobody in the league has a {want === 'ANY' ? 'player' : want} that makes your lineup better for those players.
+        <EmptyState title="No fair deal improves your lineup">
+          {find.data.message ??
+            `Nobody in the league has a ${want === 'ANY' ? 'player' : want} that makes your lineup better for those players.`}{' '}
           Try giving different players or asking for a different position.
         </EmptyState>
       )}
       {find.data && find.data.ideas.length > 0 && (
         <p className="text-sm text-muted-foreground">
-          Searched {find.data.searched_teams} teams. {find.data.ideas.filter((t) => t.partner_accepts).length} deal(s)
-          help both lineups; the rest only help yours and are marked "Unlikely to accept".
+          Searched {find.data.searched_teams} teams. Every deal is fair by market value (one more player may be added to
+          even it out); {find.data.ideas.filter((t) => t.partner_accepts).length} also improve their lineup.
         </p>
       )}
       {find.data?.ideas.map((t) => (

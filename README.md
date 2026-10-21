@@ -20,10 +20,10 @@ Data only flows **in**. FantasyEdge never changes anything on Sleeper or ESPN.
 | **Start/Sit** | This week's best lineup vs the one you've set, plus a drag-and-drop board to try your own, with undo, reset and copy. Only valid moves are allowed. |
 | **Waivers** | Free agents ranked by how much they'd add to *your* lineup for the rest of the season, who you'd drop and why, a FAAB bid range, and Sleeper's trending adds. |
 | **Players** | Every player: search, filter by position, team or who owns him, and sort by projection, rest-of-season points, value or verdict. |
-| **Trade** | Ideas where *both* lineups improve, "find me a running back for these two players", and an analyzer for any deal. Bye weeks are counted for both teams, and when a team has to make room it cuts who a manager would: an extra K or D/ST, surplus depth, or its lowest-value bench player. |
+| **Trade** | Ideas where *both* lineups improve and the values are fair, "find me a running back for these two players", and an analyzer for any deal. Bye weeks are counted for both teams, and when a team has to make room it cuts who a manager would: an extra K or D/ST, surplus depth, or its lowest-value bench player. |
 | **Rankings / Buy targets** | Schedule-adjusted top 10–30 at every position, and players the market undervalues. |
 | **Player pages** | Projected vs actual points every week, usage and efficiency, trades built around him, and an injury what-if ("out for the season", "back in week 12"). |
-| **Byes** | A week-by-week grid of the lineup slots you can't fill, flagged before those weeks arrive. |
+| **Byes** | The weeks a bye or injury changes your lineup: who fills in, the points you lose, and the slots nobody can fill. |
 
 Switch between saved teams from the sidebar. Every weight and threshold can be tuned in **Settings**.
 
@@ -80,6 +80,12 @@ Every number comes from a formula you can read and change; nothing is hidden ins
   - **Free to drop under** (default 0.5 pts/week): a bench player is free to cut when losing him
     costs your lineup less than this per remaining week, byes he covers included. This week's
     starters are never free.
+- **Fair trades.** Every suggested trade is fair by market value (FantasyCalc): each side gets at
+  least 85% of what it gives up. A player at a position the other team is weak at counts 10% more
+  to them. To even the values out, a deal can grow to 3 players, or the side that's short adds a
+  smaller player (at most half the main one); waiver-level filler never balances a star. When
+  nothing on your roster comes within 15%, the player page says how close the best package gets.
+  Both numbers are settings (**Trade: fair value band**, **Trade: need bonus**).
 
 **Measured, not guessed.** A walk-forward backtest replays 2023–2025, projecting each week from
 earlier games only. The weights were tuned on 2023–24 and checked on 2025.

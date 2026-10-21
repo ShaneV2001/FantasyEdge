@@ -91,6 +91,29 @@ describe('PlayerTrades', () => {
     expect(urls[0]).toContain('/team/t/players/p1/trades')
   })
 
+  it('says every offer is fair, or names the closest package when none is', async () => {
+    const user = userEvent.setup()
+    renderPage(<PlayerTrades d={player({})} teamId="t" manual={false} />)
+    await user.click(await screen.findByRole('button', { name: /Generate trades/ }))
+    expect(await screen.findByText(/Every offer is fair by market value/)).toBeInTheDocument()
+  })
+
+  it('shows why there is no fair package', async () => {
+    const note = "No fair package within 15%. Closest: A (6,100) for Omarion Hampton (9,671); you'd be short by 37%."
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        const data: PlayerTradesOut = { team_id: 't', player: { player_id: 'p1', name: 'Omarion Hampton', position: 'RB' }, mode: 'buy', owner: 'NFL Youngboy', ideas: [], message: note }
+        return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
+      }),
+    )
+    const user = userEvent.setup()
+    renderPage(<PlayerTrades d={player({})} teamId="t" manual={false} />)
+    await user.click(await screen.findByRole('button', { name: /Generate trades/ }))
+    expect(await screen.findByText(note)).toBeInTheDocument()
+    expect(screen.queryByText('No deal improves your lineup')).not.toBeInTheDocument()
+  })
+
   it('shops your own player with a position filter', async () => {
     renderPage(<PlayerTrades d={player({ mine: true, owner: 'My team', name: "Ja'Marr Chase" })} teamId="t" manual={false} />)
     expect(await screen.findByText("Shop Ja'Marr Chase")).toBeInTheDocument()

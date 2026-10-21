@@ -81,3 +81,37 @@ def test_bye_overlap_counts_only_upcoming():
     assert bye_overlap([7, 7, 9, None], 7, start_week=5) == 2
     assert bye_overlap([7, 7], 4, start_week=5) == 0
     assert bye_overlap([7], None, start_week=5) == 0
+
+
+def test_fill_ins_name_who_they_replace_and_why():
+    roster = [*_roster(), RosterEntry("te2", "TE Two", "TE", "AAA", 2.0)]
+    sched = schedule(["AAA", "BBB", "CCC"], weeks=10, byes={"CCC": 8})
+    rows = {r.week: r for r in bye_grid(roster, SLOTS, sched, 5, 10, VIABLE)}
+    te = next(c for c in rows[8].cells if c.slot == "TE")
+    assert (te.name, te.replaces, te.why, te.hole) == ("TE Two", "TE One", "bye", False)
+    # a normal week changes nothing, however weak a starter is
+    assert all(c.replaces is None and not c.hole for c in rows[5].cells)
+
+
+def test_an_injured_starter_shows_injury_as_the_reason():
+    roster = [
+        *_roster()[1:],
+        RosterEntry("qb1", "QB One", "QB", "AAA", 20, injury_status="Out"),
+        RosterEntry("qb2", "QB Two", "QB", "BBB", 14),
+    ]
+    sched = schedule(["AAA", "BBB", "CCC"], weeks=10)
+    wk5 = next(r for r in bye_grid(roster, SLOTS, sched, 5, 10, VIABLE) if r.week == 5)
+    qb = next(c for c in wk5.cells if c.slot == "QB")
+    assert (qb.name, qb.replaces, qb.why) == ("QB Two", "QB One", "injury")
+
+
+def test_a_hole_is_only_a_slot_empty_this_week():
+    sched = schedule(["AAA", "BBB", "CCC"], weeks=10, byes={"AAA": 7})
+    rows = {r.week: r for r in bye_grid(_roster(), SLOTS, sched, 5, 10, VIABLE)}
+    qb = next(c for c in rows[7].cells if c.slot == "QB")
+    assert qb.status == "empty" and qb.hole  # QB One on bye, nobody else
+    # no TE on the roster at all: empty every week, but that's not a bye hole
+    no_te = [e for e in _roster() if e.position != "TE"]
+    rows = {r.week: r for r in bye_grid(no_te, SLOTS, sched, 5, 10, VIABLE)}
+    te = next(c for c in rows[5].cells if c.slot == "TE")
+    assert te.status == "empty" and not te.hole

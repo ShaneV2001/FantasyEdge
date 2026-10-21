@@ -6,6 +6,10 @@ A slot is
   empty — nobody eligible is available.
 A *danger week* is one where some slot is worse than it is at full strength (i.e. the bye or an
 injury creates the hole), so a weak position all season doesn't flag every week.
+
+For the grid, a cell is a *fill-in* when its player isn't one of the full-strength starters
+(`replaces` names the starter who is out, `why` says bye or injury), and a *hole* when nobody can
+fill a slot that is filled at full strength.
 """
 
 from __future__ import annotations
@@ -40,6 +44,9 @@ class SlotCell:
     name: str | None = None
     position: str | None = None
     ppg: float | None = None
+    replaces: str | None = None  # the full-strength starter this fill-in stands in for
+    why: str | None = None  # "bye" or "injury": why that starter is out
+    hole: bool = False  # empty this week, filled at full strength
 
 
 @dataclass
@@ -107,6 +114,7 @@ def bye_grid(
             if a > 0:
                 avail.append(LineupPlayer(e.player_id, e.position, e.ppg * a))
         cells, pts = _cells(roster, avail, slots, viable_ppg)
+        _mark_changes(cells, base_cells, base_starters, roster, schedule, w)
         danger_slots = [
             c.label
             for c, b in zip(cells, base_cells, strict=True)
@@ -127,6 +135,30 @@ def bye_grid(
             )
         )
     return rows
+
+
+def _mark_changes(
+    cells: list[SlotCell],
+    base_cells: list[SlotCell],
+    base_starters: set[str],
+    roster: dict[str, RosterEntry],
+    schedule: Schedule,
+    week: int,
+) -> None:
+    """Tag this week's fill-ins with the full-strength starter each stands in for (same position
+    first) and why he's out, and mark slots that are empty only this week."""
+    starting = {c.player_id for c in cells if c.player_id}
+    out = [roster[p] for p in base_starters if p not in starting]
+    out.sort(key=lambda e: -e.ppg)
+    for c, b in zip(cells, base_cells, strict=True):
+        c.hole = c.player_id is None and b.player_id is not None
+    for c in cells:
+        if not c.player_id or c.player_id in base_starters or not out:
+            continue
+        starter = next((e for e in out if e.position == c.position), out[0])
+        out.remove(starter)
+        c.replaces = starter.name
+        c.why = "bye" if not schedule.has_game(starter.nfl_team, week) else "injury"
 
 
 def bye_overlap(team_byes: list[int | None], candidate_bye: int | None, start_week: int) -> int:

@@ -21,6 +21,7 @@ def test_defaults_match_the_tuned_constants():
     assert (s.trade_accept_gain, s.trade_lean_gain, s.targets_per_tier) == (8.0, 2.0, 10)
     assert s.bench_backups_per_position == 1
     assert s.free_drop_ppg == 0.5
+    assert (s.trade_fair_band, s.trade_need_premium) == (0.15, 0.10)
 
 
 def test_missing_file_gives_defaults_without_warning(tmp_path):

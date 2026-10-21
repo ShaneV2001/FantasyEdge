@@ -319,6 +319,12 @@ export type ByeWeekOut = {
      * Full Strength Points
      */
     full_strength_points: number;
+    /**
+     * Points Lost
+     *
+     * Full strength minus this week's lineup points
+     */
+    points_lost?: number;
 };
 
 /**
@@ -1924,6 +1930,24 @@ export type SlotCellOut = {
      * Ppg
      */
     ppg?: number | null;
+    /**
+     * Replaces
+     *
+     * The full-strength starter this player fills in for this week
+     */
+    replaces?: string | null;
+    /**
+     * Why
+     *
+     * Why that starter is out
+     */
+    why?: 'bye' | 'injury' | null;
+    /**
+     * Hole
+     *
+     * Nobody can fill the slot this week, unlike at full strength
+     */
+    hole?: boolean;
 };
 
 /**
@@ -2277,6 +2301,12 @@ export type TradeFindOut = {
      * Ideas
      */
     ideas: Array<TradeOut>;
+    /**
+     * Message
+     *
+     * Why there are no ideas: the closest package by value, if any
+     */
+    message?: string | null;
 };
 
 /**
@@ -2337,7 +2367,7 @@ export type TradeOut = {
     /**
      * Partner Accepts
      *
-     * Whether the other lineup gains too (null for a hypothetical trade)
+     * Whether the other team would likely say yes: fair by value, their lineup gains, and no new short week (null for a hypothetical trade)
      */
     partner_accepts?: boolean | null;
     /**
@@ -2346,6 +2376,18 @@ export type TradeOut = {
      * No player in the league has a market value: forced drops were chosen by projections only
      */
     market_values_missing?: boolean;
+    /**
+     * Fair Value
+     *
+     * Within the fair-value band for both sides, need bonus included (null when a player has no value to judge by)
+     */
+    fair_value?: boolean | null;
+    /**
+     * Market Gap
+     *
+     * How far the worse-off side falls short of even by value (0.1 = 10%)
+     */
+    market_gap?: number | null;
 };
 
 /**

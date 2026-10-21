@@ -341,12 +341,22 @@ class TradeOut(BaseModel):
     danger_weeks_after: int | None = None
     tags: list[str] = []
     partner_accepts: bool | None = Field(
-        None, description="Whether the other lineup gains too (null for a hypothetical trade)"
+        None,
+        description="Whether the other team would likely say yes: fair by value, their lineup "
+        "gains, and no new short week (null for a hypothetical trade)",
     )
     market_values_missing: bool = Field(
         False,
         description="No player in the league has a market value: forced drops were chosen by "
         "projections only",
+    )
+    fair_value: bool | None = Field(
+        None,
+        description="Within the fair-value band for both sides, need bonus included (null when a "
+        "player has no value to judge by)",
+    )
+    market_gap: float | None = Field(
+        None, description="How far the worse-off side falls short of even by value (0.1 = 10%)"
     )
 
 
@@ -411,6 +421,13 @@ class SlotCellOut(BaseModel):
     status: Literal["ok", "thin", "empty"]
     player: PlayerRef | None = None
     ppg: float | None = None
+    replaces: str | None = Field(
+        None, description="The full-strength starter this player fills in for this week"
+    )
+    why: Literal["bye", "injury"] | None = Field(None, description="Why that starter is out")
+    hole: bool = Field(
+        False, description="Nobody can fill the slot this week, unlike at full strength"
+    )
 
 
 class ByeWeekOut(BaseModel):
@@ -423,6 +440,7 @@ class ByeWeekOut(BaseModel):
     danger_slots: list[str]
     lineup_points: float
     full_strength_points: float
+    points_lost: float = Field(0.0, description="Full strength minus this week's lineup points")
 
 
 class PlayerByeOut(BaseModel):
@@ -656,6 +674,9 @@ class TradeFindOut(BaseModel):
     deadline_passed: bool
     searched_teams: int
     ideas: list[TradeOut]
+    message: str | None = Field(
+        None, description="Why there are no ideas: the closest package by value, if any"
+    )
 
 
 # ───────── availability what-if ─────────

@@ -104,7 +104,7 @@ test('player page trades', async ({ page, request }) => {
   expect(target, 'no rival player with a mutually good deal').toBeTruthy()
   await page.goto(`/players/${target}`)
   await page.getByRole('button', { name: 'Generate trades' }).click()
-  await expect(page.getByText(/deal\(s\) help both lineups/)).toBeVisible({ timeout: 120_000 })
+  await expect(page.getByText(/Every offer is fair by market value/)).toBeVisible({ timeout: 120_000 })
   const card = page.locator('[data-slot=card-title]', { hasText: 'Trade for' }).locator('xpath=ancestor::*[@data-slot="card"][1]')
   const firstDeal = card.locator('[data-slot=card]').first()
   await clip(page, (await firstDeal.count()) ? firstDeal : card, `${OUT}/player-trades.png`, card)
