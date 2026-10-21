@@ -2277,6 +2277,12 @@ export type TradeFindOut = {
      * Ideas
      */
     ideas: Array<TradeOut>;
+    /**
+     * Message
+     *
+     * Why there are no ideas: the closest package by value, if any
+     */
+    message?: string | null;
 };
 
 /**
@@ -2337,7 +2343,7 @@ export type TradeOut = {
     /**
      * Partner Accepts
      *
-     * Whether the other lineup gains too (null for a hypothetical trade)
+     * Whether the other team would likely say yes: fair by value, their lineup gains, and no new short week (null for a hypothetical trade)
      */
     partner_accepts?: boolean | null;
     /**
@@ -2346,6 +2352,18 @@ export type TradeOut = {
      * No player in the league has a market value: forced drops were chosen by projections only
      */
     market_values_missing?: boolean;
+    /**
+     * Fair Value
+     *
+     * Within the fair-value band for both sides, need bonus included (null when a player has no value to judge by)
+     */
+    fair_value?: boolean | null;
+    /**
+     * Market Gap
+     *
+     * How far the worse-off side falls short of even by value (0.1 = 10%)
+     */
+    market_gap?: number | null;
 };
 
 /**

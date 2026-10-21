@@ -635,10 +635,12 @@ def test_trade_idea_pages_and_finder(client):
     assert r.status_code == 200, r.text
     found = r.json()
     assert found["searched_teams"] == 3
+    assert found["ideas"] or found["message"]  # ideas, or why there are none
     for idea in found["ideas"]:
-        assert [p["player_id"] for p in idea["me"]["gives"]] == give
-        assert all(p["position"] == "RB" for p in idea["me"]["receives"])
-        assert idea["me"]["lineup_delta"] > 0
+        # the players offered (maybe one more to even out the values) for an RB (maybe a throw-in)
+        assert [p["player_id"] for p in idea["me"]["gives"]][:2] == give
+        assert idea["me"]["receives"][0]["position"] == "RB"
+        assert idea["me"]["lineup_delta"] > 0 and idea["fair_value"] is True
         assert idea["partner_accepts"] in (True, False)
     bad = tc.post("/trade/find", json={"team_id": team_id, "give": [], "want_position": "RB"})
     assert bad.status_code == 422
@@ -658,17 +660,19 @@ def test_trades_for_one_player(client):
 
     sell = tc.get(f"/team/{team_id}/players/{mine['player_id']}/trades").json()
     assert sell["mode"] == "sell" and sell["owner"] == team["team_name"]
+    assert sell["ideas"] or sell["message"]
     for idea in sell["ideas"]:
-        assert [p["player_id"] for p in idea["me"]["gives"]] == [mine["player_id"]]
-        assert idea["me"]["lineup_delta"] > 0
+        assert idea["me"]["gives"][0]["player_id"] == mine["player_id"]
+        assert idea["me"]["lineup_delta"] > 0 and idea["fair_value"] is True
     wr_only = tc.get(f"/team/{team_id}/players/{mine['player_id']}/trades?want=WR").json()
-    assert all(p["position"] == "WR" for i in wr_only["ideas"] for p in i["me"]["receives"])
+    assert all(i["me"]["receives"][0]["position"] == "WR" for i in wr_only["ideas"])
 
     buy = tc.get(f"/team/{team_id}/players/{theirs['player_id']}/trades").json()
     assert buy["mode"] == "buy" and buy["owner"] == other["team_name"]
+    assert buy["ideas"] or buy["message"]
     for idea in buy["ideas"]:
-        assert [p["player_id"] for p in idea["me"]["receives"]] == [theirs["player_id"]]
-        assert idea["partner"]["team_id"] == other["team_id"]
+        assert idea["me"]["receives"][0]["player_id"] == theirs["player_id"]
+        assert idea["partner"]["team_id"] == other["team_id"] and idea["fair_value"] is True
 
     # release him from his team (in the cached league context): now nobody rosters him
     ctx = context.get_context(deps._con, f"sl-{LEAGUE}")

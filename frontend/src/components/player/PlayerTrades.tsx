@@ -37,9 +37,9 @@ export function PlayerTrades({ d, teamId, manual }: { d: PlayerDetailOut; teamId
   const tradeable = ['QB', 'RB', 'WR', 'TE'].includes(d.position)
   const title = d.mine ? `Shop ${d.name}` : d.owner ? `Trade for ${d.name}` : 'Trades'
   const description = d.mine
-    ? 'Deals that give him away for 1 or 2 players from any team, judged on both starting lineups.'
+    ? 'Deals that give him away for 1 or 2 players from any team, fair by market value and judged on both starting lineups.'
     : d.owner
-      ? `What it would take to get him from ${d.owner}: packages of 1 or 2 of your players.`
+      ? `What it would take to get him from ${d.owner}: packages of up to 3 of your players, fair by market value.`
       : null
 
   let body
@@ -85,13 +85,13 @@ export function PlayerTrades({ d, teamId, manual }: { d: PlayerDetailOut; teamId
           <EmptyState title="No deal improves your lineup">
             {d.mine
               ? 'Nobody has a player that makes your lineup better for him right now. Try another position.'
-              : "None of your 1- or 2-player packages for him leaves your lineup better off."}
+              : 'None of your packages for him leaves your lineup better off.'}
           </EmptyState>
         )}
         {q.data && q.data.ideas.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            {q.data.ideas.filter((t) => t.partner_accepts).length} of {q.data.ideas.length} deal(s) help both lineups; the
-            rest only help yours and are marked "Unlikely to accept".
+            Every offer is fair by market value; {q.data.ideas.filter((t) => t.partner_accepts).length} of{' '}
+            {q.data.ideas.length} also improve their lineup. Most even first.
           </p>
         )}
         {q.data?.ideas.map((t) => (

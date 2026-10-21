@@ -5556,6 +5556,18 @@
             },
             "type": "array",
             "title": "Ideas"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "Why there are no ideas: the closest package by value, if any"
           }
         },
         "type": "object",
@@ -5686,13 +5698,37 @@
               }
             ],
             "title": "Partner Accepts",
-            "description": "Whether the other lineup gains too (null for a hypothetical trade)"
+            "description": "Whether the other team would likely say yes: fair by value, their lineup gains, and no new short week (null for a hypothetical trade)"
           },
           "market_values_missing": {
             "type": "boolean",
             "title": "Market Values Missing",
             "description": "No player in the league has a market value: forced drops were chosen by projections only",
             "default": false
+          },
+          "fair_value": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fair Value",
+            "description": "Within the fair-value band for both sides, need bonus included (null when a player has no value to judge by)"
+          },
+          "market_gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Gap",
+            "description": "How far the worse-off side falls short of even by value (0.1 = 10%)"
           }
         },
         "type": "object",

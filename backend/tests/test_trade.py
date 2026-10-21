@@ -74,7 +74,7 @@ def test_suggest_only_returns_mutual_gains(league):
     assert any(set(ev.me.gives) & {"a_rb3", "a_rb4"} for ev in ideas)
 
 
-def test_suggest_respects_market_band(league):
+def test_suggest_only_offers_fair_value(league):
     players, rosters, math = league
     players = {k: dict(v) for k, v in players.items()}
     for pid in ("b_wr1", "b_wr2", "b_wr3", "b_wr4"):
@@ -228,61 +228,115 @@ def test_finder_looks_for_the_position_you_want(league):
     found = tr.find_for(
         math, players, ("A", rosters["A"]), {"B": rosters["B"]}, ["a_rb3", "a_rb4"], "WR", 1,
         rules=tr.RosterRules(active_limit=7),
-    )  # fmt: skip
+    ).ideas  # fmt: skip
     assert found
     for ev in found:
-        assert ev.me.gives == ["a_rb3", "a_rb4"]
-        assert all(players[p]["position"] == "WR" for p in ev.me.receives)
+        assert ev.me.gives[:2] == ["a_rb3", "a_rb4"]  # the players you offer (plus maybe one more)
+        assert players[ev.me.receives[0]]["position"] == "WR"  # the position you asked for
         assert all(p in rosters["B"] for p in ev.me.receives)
-        assert ev.me.lineup_delta > 0
+        assert ev.me.lineup_delta > 0 and ev.fair_value
     order = [ev.partner_accepts for ev in found]
     assert order == sorted(order, key=lambda a: not a)  # deals they'd accept come first
     pairs = tr.find_for(math, players, ("A", rosters["A"]), {"B": rosters["B"]}, ["a_rb1"], "WR", 2)
-    assert all(len(ev.me.receives) == 2 for ev in pairs)
+    assert all(len(ev.me.receives) >= 2 for ev in pairs.ideas)
     with pytest.raises(ValueError):
         tr.find_for(math, players, ("A", rosters["A"]), {"B": rosters["B"]}, ["b_wr1"], "RB")
 
 
-def test_acquire_for_builds_packages_for_one_target(league):
+def test_acquire_for_builds_fair_packages_for_one_target(league):
     players, rosters, math = league
-    found = tr.acquire_for(
+    offers = tr.acquire_for(
         math, players, ("A", rosters["A"]), ("B", rosters["B"]), "b_wr1",
         rules=tr.RosterRules(active_limit=7),
     )  # fmt: skip
-    assert found
-    sizes = set()
-    for ev in found:
-        assert ev.me.receives == ["b_wr1"]  # always the target, nothing else
-        assert set(ev.me.gives) <= set(rosters["A"]) and 1 <= len(ev.me.gives) <= 2
+    assert offers.ideas and offers.closest is None
+    for ev in offers.ideas:
+        assert ev.me.receives[0] == "b_wr1"  # the target, maybe with a throw-in from his team
+        assert set(ev.me.receives) <= set(rosters["B"])
+        assert set(ev.me.gives) <= set(rosters["A"]) and 1 <= len(ev.me.gives) <= 3
+        assert ev.fair_value and ev.market_gap <= tr.FAIR_BAND
         assert ev.me.lineup_delta > 0
-        sizes.add(len(ev.me.gives))
-    assert sizes == {1, 2}  # 1-for-1 and 2-for-1 packages both considered
-    order = [ev.partner_accepts for ev in found]
-    assert order == sorted(order, key=lambda a: not a)
+    # the even 1-for-1 (both worth 4,800) comes first
+    assert offers.ideas[0].me.gives == ["a_rb1"] and offers.ideas[0].me.receives == ["b_wr1"]
+    assert [tr.offer_rank(e) for e in offers.ideas] == sorted(
+        tr.offer_rank(e) for e in offers.ideas
+    )
     with pytest.raises(ValueError):
         tr.acquire_for(math, players, ("A", rosters["A"]), ("B", rosters["B"]), "a_rb1")
 
 
+def test_a_star_out_of_reach_gets_no_offer_but_the_closest_package(league):
+    players, rosters, _ = league
+    players = {k: dict(v) for k, v in players.items()}
+    players["b_wr1"]["market_value"] = 50_000  # worth far more than A's best three together
+    math = RosMath(players, schedule(["AAA"], weeks=17), 5, 17, SLOTS)
+    offers = tr.acquire_for(math, players, ("A", rosters["A"]), ("B", rosters["B"]), "b_wr1")
+    assert offers.ideas == [] and offers.fair_found == 0
+    c = offers.closest
+    assert c is not None and not c.fair and c.receive == ("b_wr1",)
+    # everyone else on A is worth under 10% of him (filler), so A QB alone is the closest offer
+    assert c.give == ("a_qb",) and c.no_filler
+    assert c.theirs < 1 - tr.FAIR_BAND  # B would be short-changed
+
+
+def test_their_throw_in_evens_out_an_overpay(league):
+    players, rosters, math = league
+    # A RB1 (4,800) for B WR4 (3,600) alone: A gets 75% of what it gives. B adds B RB2 (1,500).
+    offers = tr.acquire_for(math, players, ("A", rosters["A"]), ("B", rosters["B"]), "b_wr4")
+    deal = next(ev for ev in offers.ideas if ev.me.gives == ["a_rb1"])
+    assert deal.me.receives == ["b_wr4", "b_rb2"] and deal.fair_value
+    alone = tr.market_check(players, ["a_rb1"], ["b_wr4"], "A", "B", tr.Fairness())
+    assert alone is not None and not alone.fair
+
+
 def test_shopping_one_player(league):
     players, rosters, math = league
-    found = tr.find_for(math, players, ("A", rosters["A"]), {"B": rosters["B"]}, ["a_rb4"], "ANY")
-    assert found and all(ev.me.gives == ["a_rb4"] for ev in found)
+    offers = tr.find_for(math, players, ("A", rosters["A"]), {"B": rosters["B"]}, ["a_rb4"], "ANY")
+    assert offers.ideas and all(ev.me.gives[0] == "a_rb4" for ev in offers.ideas)
+    assert all(ev.fair_value for ev in offers.ideas)
 
 
-def test_shortlists_keep_deals_both_teams_like(league):
-    """Even when only one package per size gets the full evaluation, it's a mutually good one if
-    any exists (it used to be whichever helped *you* most, which the other team usually hates)."""
+# ───────── fair value ─────────
+
+
+def test_market_check_band_need_bonus_and_filler():
+    players = {
+        "mine": P("Mine", "RB", 10, market=800), "theirs": P("Theirs", "WR", 10, market=1000),
+        "filler": P("Filler", "WR", 1, market=90), "star": P("Star", "WR", 30, market=900),
+        "rookie": P("Rookie", "WR", 5, market=None),
+    }  # fmt: skip
+    players["rookie"]["market_value"] = None
+    plain = tr.Fairness()
+    c = tr.market_check(players, ["mine"], ["theirs"], "A", "B", plain)
+    assert c is not None and c.gap == pytest.approx(0.2) and not c.fair  # they'd get 80%
+    # B is weak at RB: the back is worth 10% more to them, 88% is within 15%
+    needy = tr.Fairness(needs={"B": frozenset({"RB"})})
+    c = tr.market_check(players, ["mine"], ["theirs"], "A", "B", needy)
+    assert c.fair and c.gap == pytest.approx(0.12)
+    # only the receiving team's need counts: A being weak at RB doesn't help A's offer
+    c = tr.market_check(
+        players, ["mine"], ["theirs"], "A", "B", tr.Fairness(needs={"A": frozenset({"RB"})})
+    )
+    assert not c.fair
+    # 900 + 90 = 990 for 1,000 is even, but 90 is filler next to a 1,000 player
+    c = tr.market_check(players, ["star", "filler"], ["theirs"], "A", "B", plain)
+    assert c.gap < 0.05 and not c.no_filler and not c.fair
+    assert tr.market_check(players, ["rookie"], ["theirs"], "A", "B", plain) is None  # no price
+    assert tr.market_check(players, [], ["theirs"], "A", "B", plain) is None
+
+
+def test_an_unfair_trade_is_flagged_and_unlikely(league):
     players, rosters, math = league
-    full = tr.acquire_for(
-        math, players, ("A", rosters["A"]), ("B", rosters["B"]), "b_wr1", shortlist=50
-    )
-    assert any(ev.partner_accepts for ev in full)  # a deal B likes exists
-    tight = tr.acquire_for(
-        math, players, ("A", rosters["A"]), ("B", rosters["B"]), "b_wr1", shortlist=1
-    )
-    assert tight and tight[0].partner_accepts
-    assert tr._shortlist_key(10, 2) < tr._shortlist_key(30, -5)  # mutual beats one-sided
-    assert tr._shortlist_key(10, 8) < tr._shortlist_key(9, 8)  # then the better deal
+    players = {k: dict(v) for k, v in players.items()}
+    players["b_wr4"]["market_value"] = 20_000  # B gives far more value than it gets
+    math = RosMath(players, schedule(["AAA"], weeks=17), 5, 17, SLOTS)
+    ev = evaluate(math, players, ("A", rosters["A"]), ("B", rosters["B"]), ["a_rb4"], ["b_wr4"])
+    assert ev.partner.lineup_delta > 0  # their lineup would still gain...
+    assert ev.fair_value is False and ev.partner_accepts is False  # ...but they'd say no
+    assert any("give up far more value" in r for r in ev.reasons)
+    assert any("they'd get 18% of what they give" in r for r in ev.reasons)
+    fair = evaluate(math, players, ("A", rosters["A"]), ("B", rosters["B"]), ["a_rb4"], ["b_wr3"])
+    assert fair.fair_value and fair.partner_accepts
 
 
 # ───────── who gets cut when a roster overflows ─────────

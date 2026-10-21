@@ -128,6 +128,16 @@ class UserSettings(BaseModel):
         trade.LEAN_GAIN, 0, 50, ADV, "Trade: lean accept at (pts)",
         "Gains between this and the accept line are a lean accept; losses beyond it are a decline.",
     )  # fmt: skip
+    trade_fair_band: float = _f(
+        trade.FAIR_BAND, 0, 0.5, ADV, "Trade: fair value band (share)",
+        "Suggested trades must be fair by market value: neither side may get more than this share "
+        "less than it gives up (0.15 = within 15%).",
+    )  # fmt: skip
+    trade_need_premium: float = _f(
+        trade.NEED_PREMIUM, 0, 0.5, ADV, "Trade: need bonus (share)",
+        "A player at a position the receiving team is weak at counts this much more to it when "
+        "judging fairness (0.10 = 10%).",
+    )  # fmt: skip
     bench_backups_per_position: int = _f(
         BENCH_BACKUPS, 0, 5, ADV, "Bench backups per position",
         "When a trade or pickup forces a drop, a QB, RB, WR or TE beyond the lineup slots he can "
