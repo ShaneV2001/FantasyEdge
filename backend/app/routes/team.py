@@ -44,10 +44,34 @@ def team_ctx(
     return ctx
 
 
+RosterView = Literal["current", "after"]
+ROSTER_QUERY = Query(
+    "current", description="after: as if your accepted ESPN trades had already gone through"
+)
+
+
+def view_ctx(
+    ctx: LeagueContext, con: duckdb.DuckDBPyConnection, team_id: str, roster: RosterView
+) -> tuple[LeagueContext, list]:
+    """The league for this view: today's, or (for `after`, when the team has accepted trades
+    waiting to process) a copy with those trades applied, plus the trades."""
+    if roster == "after":
+        rows = views.involves(leagues.pending_trades(con, ctx.league.league_id), team_id)
+        if rows:
+            return views.with_trades(ctx, rows), rows
+    return ctx, []
+
+
 @router.get("/{team_id}", response_model=m.TeamOut)
-def get_team(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.TeamOut:
+def get_team(
+    team_id: str,
+    roster: RosterView = ROSTER_QUERY,
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.TeamOut:
     """Roster with projections, ROS value, market value, flags and grades vs the league."""
-    return views.team_view(ctx, team_id)
+    view, rows = view_ctx(ctx, con, team_id, roster)
+    return views.team_view(view, team_id, len(rows), views.arriving(rows, team_id))
 
 
 @router.get("/{team_id}/players", response_model=m.PlayersTableOut)
@@ -146,15 +170,26 @@ def get_waivers(
 
 
 @router.get("/{team_id}/advice", response_model=m.AdviceOut)
-def get_advice(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.AdviceOut:
+def get_advice(
+    team_id: str,
+    roster: RosterView = ROSTER_QUERY,
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.AdviceOut:
     """Ranked advisor feed (Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team grades."""
-    return views.advice_view(ctx, team_id)
+    view, rows = view_ctx(ctx, con, team_id, roster)
+    return views.advice_view(view, team_id, len(rows))
 
 
 @router.get("/{team_id}/regression", response_model=m.RegressionOut)
-def get_regression(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.RegressionOut:
+def get_regression(
+    team_id: str,
+    roster: RosterView = ROSTER_QUERY,
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.RegressionOut:
     """TD over expected, efficiency outliers and usage/production mismatches."""
-    return views.regression_view(ctx, team_id)
+    return views.regression_view(view_ctx(ctx, con, team_id, roster)[0], team_id)
 
 
 @router.get("/{team_id}/byes", response_model=m.ByesOut)

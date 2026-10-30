@@ -2,14 +2,14 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CalendarDays, Pencil } from 'lucide-react'
 
-import { getPendingTradesOptions, getRegressionOptions, getTeamOptions } from '@/api/@tanstack/react-query.gen'
+import { getRegressionOptions, getTeamOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { PositionStrengthChart } from '@/components/team/PositionStrengthChart'
 import { BackToTop } from '@/components/common/BackToTop'
 import { LeagueRegressionList, RegressionList } from '@/components/team/RegressionList'
 import { RosterTable } from '@/components/team/RosterTable'
 import { TeamGrades } from '@/components/team/TeamGrades'
-import { PendingTradesBanner } from '@/components/trade/PendingTrades'
+import { PendingTradesBanner, RosterViewToggle, usePendingTrades } from '@/components/trade/PendingTrades'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { platformName } from '@/lib/format'
@@ -20,10 +20,17 @@ import { useTeamStore } from '@/stores/team'
 
 export function TeamPage() {
   const team = useTeamStore((s) => s.team)!
-  const q = useQuery(getTeamOptions({ path: { team_id: team.teamId } }))
-  const reg = useQuery(getRegressionOptions({ path: { team_id: team.teamId } }))
-  const pending = useQuery({ ...getPendingTradesOptions({ path: { team_id: team.teamId } }), enabled: team.platform === 'espn' })
+  const pending = usePendingTrades(team)
+  const after = pending.view === 'after'
+  const path = { team_id: team.teamId }
+  // today's roster stays loaded in the After view: its grades and points show what the trades change
+  const current = useQuery(getTeamOptions({ path }))
+  const afterTeam = useQuery({ ...getTeamOptions({ path, query: { roster: 'after' } }), enabled: after })
+  const q = after ? afterTeam : current
+  const reg = useQuery({ ...getRegressionOptions({ path, query: after ? { roster: 'after' } : undefined }) })
   const data = q.data
+  const was = data?.view === 'after' ? current.data : undefined
+  const n = data?.pending_trades ?? 0
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,7 +38,7 @@ export function TeamPage() {
         title={data?.team_name ?? team.teamName}
         description={
           data
-            ? `${data.record} · ${data.league.name} · ${data.league.scoring} · starting lineup projects ${fmtNum(data.starter_points)} ppg`
+            ? `${data.record} · ${data.league.name} · ${data.league.scoring}${n ? ` · after ${n} accepted trade${n > 1 ? 's' : ''}` : ''} · starting lineup projects ${fmtNum(data.starter_points)} ppg${was ? ` (was ${fmtNum(was.starter_points)})` : ''}`
             : 'Loading roster…'
         }
         actions={
@@ -63,26 +70,36 @@ export function TeamPage() {
       />
       {q.isPending && <ListSkeleton rows={6} height="h-12" />}
       {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
-      {pending.data && (
+      {pending.has && pending.data && (
         <PendingTradesBanner
           data={pending.data}
           action={
-            <Button asChild size="sm" variant="outline" className="mt-1 self-start">
-              <Link to="/byes" search={{ view: 'after' }}>
-                <CalendarDays /> See your lineups after the trades
-              </Link>
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <RosterViewToggle view={pending.view} onChange={pending.setView} />
+              <Button asChild size="sm" variant="ghost" className="mt-1">
+                <Link to="/byes" search={{ view: 'after' }}>
+                  <CalendarDays /> Week-by-week lineups
+                </Link>
+              </Button>
+            </div>
           }
         />
       )}
       {data && (
         <>
-          <TeamGrades grades={data.grades} overall={data.overall_grade} basis={data.grade_basis} needs={data.needs} />
+          <TeamGrades
+            grades={data.grades}
+            overall={data.overall_grade}
+            basis={data.grade_basis}
+            needs={data.needs}
+            compare={was?.grades}
+            compareOverall={was?.overall_grade}
+          />
           {/* the roster needs the full width for its columns until the screen is very wide */}
           <div className="grid gap-6 2xl:grid-cols-3">
             <Card className="2xl:col-span-2">
               <CardHeader>
-                <CardTitle>Roster</CardTitle>
+                <CardTitle>{was ? 'Roster after the accepted trades' : 'Roster'}</CardTitle>
                 <CardDescription>
                   This week's best lineup on top (players on bye or ruled out can't start). ROS value = projected rest-of-season points above a replacement-level player at
                   the position for your league.

@@ -1,9 +1,49 @@
+import { useQuery } from '@tanstack/react-query'
+import { useSearch } from '@tanstack/react-router'
 import { Clock } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import type { PendingTradesOut, PlayerRef } from '@/api'
+import { getPendingTradesOptions } from '@/api/@tanstack/react-query.gen'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { apiDate } from '@/lib/format'
+import type { ConnectedTeam } from '@/stores/team'
+
+export type RosterView = 'now' | 'after'
+
+/** Accepted trades still waiting on ESPN (only ESPN reports them) and which roster the page shows:
+ * today's, or the one after they go through (`?view=after` opens on it). */
+export function usePendingTrades(team: ConnectedTeam) {
+  const pending = useQuery({ ...getPendingTradesOptions({ path: { team_id: team.teamId } }), enabled: team.platform === 'espn' })
+  const search = useSearch({ strict: false }) as Record<string, unknown>
+  const [chosen, setView] = useState<RosterView>(search.view === 'after' ? 'after' : 'now')
+  const has = (pending.data?.trades.length ?? 0) > 0
+  const view: RosterView = has ? chosen : 'now'
+  return { data: pending.data, has, view, setView }
+}
+
+/** Current roster | After accepted trades. */
+export function RosterViewToggle({ view, onChange }: { view: RosterView; onChange: (v: RosterView) => void }) {
+  return (
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      size="sm"
+      className="mt-1 self-start"
+      value={view}
+      onValueChange={(v) => v && onChange(v as RosterView)}
+      aria-label="Roster to plan for"
+    >
+      <ToggleGroupItem value="now" className="px-2 text-xs">
+        Current roster
+      </ToggleGroupItem>
+      <ToggleGroupItem value="after" className="px-2 text-xs">
+        After accepted trades
+      </ToggleGroupItem>
+    </ToggleGroup>
+  )
+}
 
 const names = (ps: PlayerRef[]) => ps.map((p) => p.name).join(', ')
 

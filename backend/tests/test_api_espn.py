@@ -164,6 +164,27 @@ def test_pending_trade_shows_until_espn_processes_it(client):  # noqa: F811
         "team_id": f"{LEAGUE}-3", "review_hours": 24, "trades": [], "outlook": None,
     }  # fmt: skip
 
+    # the advisor can show the league as if the trade had gone through
+    now = tc.get(f"/team/{team_id}/advice").json()
+    after = tc.get(f"/team/{team_id}/advice?roster=after").json()
+    assert (now["view"], now["pending_trades"]) == ("current", 0)
+    assert (after["view"], after["pending_trades"]) == ("after", 1)
+    assert any("as if your accepted trade had gone through" in n for n in after["notes"])
+    assert after["grades"] and after["grades"] != now["grades"]  # graded on the new roster
+    other = tc.get(f"/team/{LEAGUE}-3/advice?roster=after").json()
+    assert (other["view"], other["pending_trades"]) == ("current", 0)  # not in the trade
+
+    # ...and so can My Team: the roster, grades and regression list after the trade
+    team_now = tc.get(f"/team/{team_id}").json()
+    team_after = tc.get(f"/team/{team_id}?roster=after").json()
+    assert (team_after["view"], team_after["pending_trades"]) == ("after", 1)
+    ids = {p["player_id"]: p for p in team_after["roster"]}
+    assert give not in ids and ids[get]["arriving"] and ids[get]["slot"] == "bench"
+    assert not any(p["arriving"] for p in team_now["roster"])
+    assert team_after["grades"] != team_now["grades"]
+    assert tc.get(f"/team/{team_id}/regression?roster=after").status_code == 200
+    assert tc.get(f"/team/{LEAGUE}-3?roster=after").json()["view"] == "current"
+
     # ESPN processes it: the players move, the feed may still say PENDING for a while
     e1 = next(e for e in t1["roster"]["entries"] if e["playerId"] == mine)
     e2 = next(e for e in t2["roster"]["entries"] if e["playerId"] == theirs)

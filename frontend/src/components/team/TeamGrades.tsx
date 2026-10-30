@@ -12,17 +12,28 @@ function zText(z: number) {
   return `${z >= 0 ? '+' : '−'}${Math.abs(z).toFixed(1)}σ`
 }
 
+/** A grade or league rank that differs from `was` (the grade before the trades). */
+function changed(g: PositionGradeOut, was?: PositionGradeOut | null): was is PositionGradeOut {
+  return was != null && (was.grade !== g.grade || was.rank !== g.rank)
+}
+
 function GradeCard({
   label,
   g,
+  was,
   need,
   detail,
 }: {
   label: React.ReactNode
   g: PositionGradeOut
+  /** The same grade before the accepted trades, to show what they change */
+  was?: PositionGradeOut | null
   need?: boolean
   detail: string
 }) {
+  const moved = changed(g, was)
+  // better = a higher league rank, or the same rank with a better letter (A is best)
+  const dir = moved ? Math.sign(was.rank - g.rank || was.grade.localeCompare(g.grade)) : 0
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -33,12 +44,20 @@ function GradeCard({
               <span className="text-xs text-muted-foreground">
                 #{g.rank} of {g.teams} · {zText(g.z ?? 0)}
               </span>
+              {moved && (
+                <span data-testid="grade-was" className={cn('text-xs font-medium', dir > 0 ? 'text-buy' : dir < 0 ? 'text-sell' : 'text-muted-foreground')}>
+                  {dir > 0 ? '▲' : dir < 0 ? '▼' : '•'} was {was.grade} · #{was.rank}
+                </span>
+              )}
             </div>
             <span className={cn('font-mono text-3xl font-semibold', GRADE_CLASS[g.grade])}>{g.grade}</span>
           </CardContent>
         </Card>
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs">{detail}</TooltipContent>
+      <TooltipContent className="max-w-xs">
+        {detail}
+        {moved && ` Before the trades: ${was.grade}, #${was.rank} of ${was.teams} (${fmtNum(was.points)} pts).`}
+      </TooltipContent>
     </Tooltip>
   )
 }
@@ -57,11 +76,16 @@ export function TeamGrades({
   overall,
   basis,
   needs = [],
+  compare,
+  compareOverall,
 }: {
   grades: Record<string, PositionGradeOut>
   overall?: PositionGradeOut | null
   basis?: string
   needs?: string[]
+  /** Grades before the accepted trades: each card that changes says what it was */
+  compare?: Record<string, PositionGradeOut>
+  compareOverall?: PositionGradeOut | null
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -70,6 +94,7 @@ export function TeamGrades({
           <GradeCard
             label={<span className="text-xs font-semibold tracking-wide uppercase">Overall</span>}
             g={overall}
+            was={compare ? compareOverall : undefined}
             detail={`Full-strength starting lineup projects ${fmtNum(overall.points)} ppg vs ${fmtNum(overall.league_avg)} average (${zText(overall.z ?? 0)}).`}
           />
         )}
@@ -80,6 +105,7 @@ export function TeamGrades({
               key={pos}
               label={<PositionBadge position={pos} />}
               g={g}
+              was={compare?.[pos]}
               need={needs.includes(pos)}
               detail={gradeDetail(pos, g, needs.includes(pos))}
             />

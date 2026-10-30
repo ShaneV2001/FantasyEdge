@@ -84,6 +84,7 @@ class RosterPlayer(PlayerValue):
     )
     on_bye: bool = Field(False, description="His NFL team doesn't play this week")
     flags: list[FlagOut] = []
+    arriving: bool = Field(False, description="Received in an accepted trade not processed yet")
 
 
 # ───────── leagues ─────────
@@ -289,6 +290,10 @@ class TeamOut(BaseModel):
     starter_points: float
     league_teams: list[TeamSummary]
     market: MarketInfo
+    view: Literal["current", "after"] = Field(
+        "current", description="after: as if the team's accepted pending trades had gone through"
+    )
+    pending_trades: int = Field(0, description="How many accepted trades the 'after' view applies")
 
 
 # ───────── advice / regression / byes ─────────
@@ -386,6 +391,10 @@ class AdviceOut(BaseModel):
     deadline_passed: bool
     market: MarketInfo
     notes: list[str] = []
+    view: Literal["current", "after"] = Field(
+        "current", description="after: as if the team's accepted pending trades had gone through"
+    )
+    pending_trades: int = Field(0, description="How many accepted trades the 'after' view applies")
 
 
 class PlayerFlagsOut(BaseModel):

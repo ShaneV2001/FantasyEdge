@@ -1,18 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
-import { useSearch } from '@tanstack/react-router'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { useState } from 'react'
 
-import { getByesOptions, getPendingTradesOptions } from '@/api/@tanstack/react-query.gen'
+import { getByesOptions } from '@/api/@tanstack/react-query.gen'
 import { ByeGridCard } from '@/components/byes/ByeGrid'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { PositionBadge } from '@/components/player/badges'
 import { PlayerLink } from '@/components/player/PlayerLink'
-import { PendingTradesBanner } from '@/components/trade/PendingTrades'
+import { PendingTradesBanner, RosterViewToggle, usePendingTrades } from '@/components/trade/PendingTrades'
 import { RosterOutlook } from '@/components/trade/TradeOutlook'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { fmtNum } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useTeamStore } from '@/stores/team'
@@ -20,14 +17,11 @@ import { useTeamStore } from '@/stores/team'
 export function ByesPage() {
   const team = useTeamStore((s) => s.team)!
   const q = useQuery(getByesOptions({ path: { team_id: team.teamId } }))
-  // only ESPN reports trades that were accepted but haven't gone through yet
-  const pending = useQuery({ ...getPendingTradesOptions({ path: { team_id: team.teamId } }), enabled: team.platform === 'espn' })
-  const search = useSearch({ strict: false }) as Record<string, unknown>
-  const [view, setView] = useState<'now' | 'after'>(search.view === 'after' ? 'after' : 'now')
+  const pending = usePendingTrades(team)
   const d = q.data
   const holeWeeks = d?.weeks.filter((w) => w.danger) ?? []
   const after = pending.data?.outlook
-  const showAfter = view === 'after' && after != null
+  const showAfter = pending.view === 'after' && after != null
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,27 +30,7 @@ export function ByesPage() {
         description="Your best lineup for each remaining week. Amber: a backup fills in for a starter on bye or injured. Red: nobody on your roster can fill the slot."
       />
       {pending.data && after && (
-        <PendingTradesBanner
-          data={pending.data}
-          action={
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              className="mt-1 self-start"
-              value={view}
-              onValueChange={(v) => v && setView(v as 'now' | 'after')}
-              aria-label="Roster to plan for"
-            >
-              <ToggleGroupItem value="now" className="px-2 text-xs">
-                Current roster
-              </ToggleGroupItem>
-              <ToggleGroupItem value="after" className="px-2 text-xs">
-                After accepted trades
-              </ToggleGroupItem>
-            </ToggleGroup>
-          }
-        />
+        <PendingTradesBanner data={pending.data} action={<RosterViewToggle view={pending.view} onChange={pending.setView} />} />
       )}
       {q.isPending && <ListSkeleton rows={4} height="h-16" />}
       {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}

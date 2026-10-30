@@ -1,8 +1,8 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AdviceOut } from '@/api'
+import type { AdviceOut, PendingTradesOut } from '@/api'
 import { renderPage as renderWithRouter } from '@/test/render'
 import { useTeamStore } from '@/stores/team'
 import { AdvisorPage } from './advisor'
@@ -123,5 +123,79 @@ describe('AdvisorPage', () => {
     renderPage()
     expect(await screen.findByText('Could not reach the FantasyEdge API.')).toBeInTheDocument()
     expect(screen.getByText(/python tasks.py api/)).toBeInTheDocument()
+  })
+})
+
+describe('AdvisorPage with accepted trades waiting on ESPN', () => {
+  const PENDING: PendingTradesOut = {
+    team_id: 'es-1-2026-9',
+    review_hours: 24,
+    trades: [
+      {
+        id: 'p1',
+        partner_team_id: 'es-1-2026-1',
+        partner_name: 'Rival',
+        give: [{ player_id: 'q', name: 'Jayden Daniels', position: 'QB' }],
+        receive: [{ player_id: 'h', name: 'Tyler Huntley', position: 'QB' }],
+        drops: [],
+        accepted_at: '2026-10-30T02:42:32',
+      },
+    ],
+    outlook: null,
+  }
+  const AFTER: AdviceOut = {
+    ...ADVICE,
+    team_id: 'es-1-2026-9',
+    view: 'after',
+    pending_trades: 1,
+    // QB drops a rank; TE improves its letter at the same rank
+    grades: { ...ADVICE.grades, QB: { ...grade('QB', 'C', 0), rank: 7 }, TE: grade('TE', 'B', 0.1) },
+    actions: [{ ...ADVICE.actions[0], headline: 'Start Bryce Young over Tyler Huntley' }],
+    notes: ['Advice and grades as if your accepted trade had gone through (still waiting on ESPN).'],
+  }
+  let urls: string[] = []
+
+  beforeEach(() => {
+    urls = []
+    useTeamStore.getState().setTeam({ teamId: 'es-1-2026-9', leagueId: 'es-1-2026', teamName: 'Mine', leagueName: 'L', platform: 'espn' })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (req: Request) => {
+        const url = new URL(req.url)
+        urls.push(url.pathname + url.search)
+        if (url.pathname.endsWith('/pending-trades')) return Response.json(PENDING)
+        return Response.json(url.searchParams.get('roster') === 'after' ? AFTER : { ...ADVICE, team_id: 'es-1-2026-9' })
+      }),
+    )
+  })
+
+  it('switches the feed and grades to the roster after the trades, showing what changed', async () => {
+    renderPage()
+    expect(await screen.findByText('Sell high on Chuba Hubbard')).toBeInTheDocument()
+    const banner = await screen.findByTestId('pending-trades')
+    expect(screen.queryByTestId('grade-was')).not.toBeInTheDocument() // today's view: nothing to compare
+
+    await userEvent.click(within(banner).getByRole('radio', { name: 'After accepted trades' }))
+    expect(await screen.findByText('Start Bryce Young over Tyler Huntley')).toBeInTheDocument()
+    expect(urls).toContain('/team/es-1-2026-9/advice?roster=after')
+    expect(screen.getByText('Team grade after the accepted trades')).toBeInTheDocument()
+    expect(screen.getByText(/as if your accepted trade had gone through/)).toBeInTheDocument()
+    const was = screen.getAllByTestId('grade-was')
+    expect(was.map((w) => w.textContent)).toEqual(['▼ was A · #2', '▲ was C · #2']) // QB and TE moved, RB/WR didn't
+
+    await userEvent.click(within(banner).getByRole('radio', { name: 'Current roster' }))
+    expect(await screen.findByText('Sell high on Chuba Hubbard')).toBeInTheDocument()
+  })
+
+  it('has no roster toggle without pending trades', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (req: Request) =>
+        Response.json(new URL(req.url).pathname.endsWith('/pending-trades') ? { ...PENDING, trades: [] } : ADVICE),
+      ),
+    )
+    renderPage()
+    await screen.findByText('Sell high on Chuba Hubbard')
+    expect(screen.queryByTestId('pending-trades')).not.toBeInTheDocument()
   })
 })

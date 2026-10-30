@@ -9,6 +9,11 @@ All notable changes to FantasyEdge. Dates are when the work was pushed.
   before the players move. My Team and the Bye-week planner now list those trades, and the
   planner's **After accepted trades** view shows each remaining week's lineup once they go
   through: the weakest weeks first, who's out and why, and the slots nobody can fill.
+- **Advisor and My Team: Current roster | After accepted trades.** With pending ESPN trades, both
+  pages can show everything as if they had gone through. The Advisor's moves, the team grades,
+  needs and surplus, the roster (incoming players marked NEW), starter points and the regression
+  list are all recomputed on the new rosters, the trade partner's included. Grades that change
+  say what they were ("▲ was D · #8").
 - **Week-by-week lineups on every trade card.** Opens both teams' lineups before and after the
   deal, with the same week grid as the Bye-week planner.
 - An empty slot in the week grid names the starter it's missing ("for Kraft · bye").

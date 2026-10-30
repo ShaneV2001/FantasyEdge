@@ -318,6 +318,22 @@
               "type": "string",
               "title": "Team Id"
             }
+          },
+          {
+            "name": "roster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "current",
+                "after"
+              ],
+              "type": "string",
+              "description": "after: as if your accepted ESPN trades had already gone through",
+              "default": "current",
+              "title": "Roster"
+            },
+            "description": "after: as if your accepted ESPN trades had already gone through"
           }
         ],
         "responses": {
@@ -952,6 +968,22 @@
               "type": "string",
               "title": "Team Id"
             }
+          },
+          {
+            "name": "roster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "current",
+                "after"
+              ],
+              "type": "string",
+              "description": "after: as if your accepted ESPN trades had already gone through",
+              "default": "current",
+              "title": "Roster"
+            },
+            "description": "after: as if your accepted ESPN trades had already gone through"
           }
         ],
         "responses": {
@@ -995,6 +1027,22 @@
               "type": "string",
               "title": "Team Id"
             }
+          },
+          {
+            "name": "roster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "current",
+                "after"
+              ],
+              "type": "string",
+              "description": "after: as if your accepted ESPN trades had already gone through",
+              "default": "current",
+              "title": "Roster"
+            },
+            "description": "after: as if your accepted ESPN trades had already gone through"
           }
         ],
         "responses": {
@@ -1889,6 +1937,22 @@
             "type": "array",
             "title": "Notes",
             "default": []
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "current",
+              "after"
+            ],
+            "title": "View",
+            "description": "after: as if the team's accepted pending trades had gone through",
+            "default": "current"
+          },
+          "pending_trades": {
+            "type": "integer",
+            "title": "Pending Trades",
+            "description": "How many accepted trades the 'after' view applies",
+            "default": 0
           }
         },
         "type": "object",
@@ -5041,6 +5105,12 @@
             "type": "array",
             "title": "Flags",
             "default": []
+          },
+          "arriving": {
+            "type": "boolean",
+            "title": "Arriving",
+            "description": "Received in an accepted trade not processed yet",
+            "default": false
           }
         },
         "type": "object",
@@ -5707,6 +5777,22 @@
           },
           "market": {
             "$ref": "#/components/schemas/MarketInfo"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "current",
+              "after"
+            ],
+            "title": "View",
+            "description": "after: as if the team's accepted pending trades had gone through",
+            "default": "current"
+          },
+          "pending_trades": {
+            "type": "integer",
+            "title": "Pending Trades",
+            "description": "How many accepted trades the 'after' view applies",
+            "default": 0
           }
         },
         "type": "object",

@@ -122,6 +122,14 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
                   <PlayerLink playerId={p.player_id} className={cn('font-medium', !p.optimal_starter && 'text-muted-foreground')}>
                     {p.name}
                   </PlayerLink>
+                  {p.arriving && (
+                    <span
+                      className="rounded bg-buy/15 px-1 font-mono text-[10px] font-semibold text-buy"
+                      title="Coming in an accepted trade that ESPN hasn't processed yet"
+                    >
+                      NEW
+                    </span>
+                  )}
                   <Trend p={p} />
                   <InjuryTag status={p.injury_status} returnWeek={p.return_week} />
                   {p.on_bye && (

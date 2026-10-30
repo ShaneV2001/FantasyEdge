@@ -95,6 +95,18 @@ export type AdviceOut = {
      * Notes
      */
     notes?: Array<string>;
+    /**
+     * View
+     *
+     * after: as if the team's accepted pending trades had gone through
+     */
+    view?: 'current' | 'after';
+    /**
+     * Pending Trades
+     *
+     * How many accepted trades the 'after' view applies
+     */
+    pending_trades?: number;
 };
 
 /**
@@ -1885,6 +1897,12 @@ export type RosterPlayer = {
      * Flags
      */
     flags?: Array<FlagOut>;
+    /**
+     * Arriving
+     *
+     * Received in an accepted trade not processed yet
+     */
+    arriving?: boolean;
 };
 
 /**
@@ -2302,6 +2320,18 @@ export type TeamOut = {
      */
     league_teams: Array<TeamSummary>;
     market: MarketInfo;
+    /**
+     * View
+     *
+     * after: as if the team's accepted pending trades had gone through
+     */
+    view?: 'current' | 'after';
+    /**
+     * Pending Trades
+     *
+     * How many accepted trades the 'after' view applies
+     */
+    pending_trades?: number;
 };
 
 /**
@@ -3056,7 +3086,14 @@ export type GetTeamData = {
          */
         team_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Roster
+         *
+         * after: as if your accepted ESPN trades had already gone through
+         */
+        roster?: 'current' | 'after';
+    };
     url: '/team/{team_id}';
 };
 
@@ -3392,7 +3429,14 @@ export type GetAdviceData = {
          */
         team_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Roster
+         *
+         * after: as if your accepted ESPN trades had already gone through
+         */
+        roster?: 'current' | 'after';
+    };
     url: '/team/{team_id}/advice';
 };
 
@@ -3422,7 +3466,14 @@ export type GetRegressionData = {
          */
         team_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Roster
+         *
+         * after: as if your accepted ESPN trades had already gone through
+         */
+        roster?: 'current' | 'after';
+    };
     url: '/team/{team_id}/regression';
 };
 

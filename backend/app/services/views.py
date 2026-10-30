@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import unicodedata
 from collections.abc import Sequence
 from datetime import datetime
@@ -229,7 +230,14 @@ def _on_bye(ctx: LeagueContext, pid: str) -> bool:
     return bool(team) and not ctx.schedule.has_game(team, ctx.week)
 
 
-def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
+def team_view(
+    ctx: LeagueContext,
+    team_id: str,
+    pending_trades: int = 0,
+    arriving_ids: frozenset[str] = frozenset(),
+) -> m.TeamOut:
+    """Roster, grades and league table. `pending_trades` > 0 means `ctx` is `with_trades(...)`;
+    `arriving_ids` are the players those trades bring in."""
     team = ctx.team(team_id)
     profs = profiles(ctx)
     prof = profs.get(team_id)
@@ -248,6 +256,7 @@ def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
                 optimal_starter=pid in optimal,
                 on_bye=_on_bye(ctx, pid),
                 flags=[flag_out(f) for f in ctx.regression.for_player(pid)],
+                arriving=pid in arriving_ids,
             )
         )
     roster.sort(
@@ -289,6 +298,8 @@ def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
         starter_points=prof.starter_points if prof else 0.0,
         league_teams=summaries,
         market=market_info(ctx),
+        view="after" if pending_trades else "current",
+        pending_trades=pending_trades,
     )
 
 
@@ -614,6 +625,51 @@ def outlook_view(
     )
 
 
+def involves(rows: Sequence, team_id: str) -> list:
+    """The pending trades this team is part of."""
+    return [r for r in rows if any(team_id in (mv["from_team"], mv["to_team"]) for mv in r.moves)]
+
+
+def arriving(rows: Sequence, team_id: str) -> frozenset[str]:
+    """Players these trades bring to the team."""
+    return frozenset(mv["player_id"] for r in rows for mv in r.moves if mv["to_team"] == team_id)
+
+
+def with_trades(ctx: LeagueContext, rows: Sequence) -> LeagueContext:
+    """The league as if these accepted trades had gone through: a copy with the players moved
+    (received players start on the bench) and its own memo, so every view built on it
+    (advice, grades, lineups) reflects the new rosters. The cached context is left untouched.
+    No forced drops: ESPN only processes a trade that leaves both rosters legal."""
+    key = ("after", tuple(sorted(r.external_id for r in rows)))
+    if key not in ctx.memo:
+        gone: dict[str, set[str]] = {}
+        incoming: dict[str, list[str]] = {}
+        for r in rows:
+            for mv in r.moves:
+                gone.setdefault(mv["from_team"], set()).add(mv["player_id"])
+                incoming.setdefault(mv["to_team"], []).append(mv["player_id"])
+            for d in r.drops:
+                gone.setdefault(d["team_id"], set()).add(d["player_id"])
+        teams = []
+        for t in ctx.teams:
+            out, new = gone.get(t.team_id, set()), incoming.get(t.team_id, [])
+            if not out and not new:
+                teams.append(t)
+                continue
+            added = [p for p in new if p not in t.player_ids]
+            teams.append(
+                dataclasses.replace(
+                    t,
+                    player_ids=[p for p in t.player_ids if p not in out] + added,
+                    starters=[p for p in t.starters if p not in out],
+                    slots={p: s for p, s in t.slots.items() if p not in out}
+                    | dict.fromkeys(added, "bench"),
+                )
+            )
+        ctx.memo[key] = dataclasses.replace(ctx, teams=teams, memo={})
+    return ctx.memo[key]
+
+
 def pending_view(
     ctx: LeagueContext, team_id: str, rows: Sequence, review_hours: int | None
 ) -> m.PendingTradesOut:
@@ -736,7 +792,9 @@ def find_view(
 # ───────── advice ─────────
 
 
-def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
+def advice_view(ctx: LeagueContext, team_id: str, pending_trades: int = 0) -> m.AdviceOut:
+    """The advisor feed and grades. `pending_trades` > 0 means `ctx` is `with_trades(...)`: the
+    roster after that many accepted trades go through."""
     team = ctx.team(team_id)
     profs = profiles(ctx)
     msgs: dict[str, list[str]] = {}
@@ -781,6 +839,12 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
         notes.append(
             f"Trade deadline (week {ctx.league.trade_deadline_week}) has passed — trade advice hidden."
         )
+    if pending_trades:
+        n = "accepted trade" if pending_trades == 1 else f"{pending_trades} accepted trades"
+        notes.append(
+            f"Advice and grades as if your {n} had gone through "
+            f"(still waiting on {'ESPN' if ctx.league.platform == 'espn' else 'the league'})."
+        )
     if ctx.league.platform == "manual":
         notes.append(
             "Manual team: waiver advice and trade partners need a synced league (free agents and "
@@ -814,6 +878,8 @@ def advice_view(ctx: LeagueContext, team_id: str) -> m.AdviceOut:
         deadline_passed=ctx.deadline_passed,
         market=market_info(ctx),
         notes=notes,
+        view="after" if pending_trades else "current",
+        pending_trades=pending_trades,
     )
 
 

@@ -18,6 +18,7 @@ import { EmptyState, ErrorState, ListSkeleton, PageHeader } from '@/components/c
 import { PlayerChip } from '@/components/player/badges'
 import { TeamGrades } from '@/components/team/TeamGrades'
 import { TradeDetail } from '@/components/team/TradeCard'
+import { PendingTradesBanner, RosterViewToggle, usePendingTrades } from '@/components/trade/PendingTrades'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -38,7 +39,13 @@ const TYPE_META: Record<ActionOut['type'], { icon: typeof Info; cls: string }> =
 
 export function AdvisorPage() {
   const team = useTeamStore((s) => s.team)!
-  const advice = useQuery(getAdviceOptions({ path: { team_id: team.teamId } }))
+  const pending = usePendingTrades(team)
+  const after = pending.view === 'after'
+  // today's advice stays loaded in the After view: its grades show what the trades change
+  const current = useQuery(getAdviceOptions({ path: { team_id: team.teamId } }))
+  const afterAdvice = useQuery({ ...getAdviceOptions({ path: { team_id: team.teamId }, query: { roster: 'after' } }), enabled: after })
+  const advice = after ? afterAdvice : current
+  const n = advice.data?.pending_trades ?? 0
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,10 +53,13 @@ export function AdvisorPage() {
         title="Advisor"
         description={
           advice.data
-            ? `${team.teamName} · Week ${advice.data.week} · ${advice.data.actions.length} recommended moves, highest priority first`
+            ? `${team.teamName} · Week ${advice.data.week}${n ? ` · after ${n} accepted trade${n > 1 ? 's' : ''}` : ''} · ${advice.data.actions.length} recommended moves, highest priority first`
             : team.teamName
         }
       />
+      {pending.has && pending.data && (
+        <PendingTradesBanner data={pending.data} action={<RosterViewToggle view={pending.view} onChange={pending.setView} />} />
+      )}
       {advice.isPending && (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -64,12 +74,16 @@ export function AdvisorPage() {
       {advice.data && (
         <>
           <section className="flex flex-col gap-2">
-            <h2 className="text-sm font-medium text-muted-foreground">Team grade</h2>
+            <h2 className="text-sm font-medium text-muted-foreground">
+              {advice.data.view === 'after' ? 'Team grade after the accepted trades' : 'Team grade'}
+            </h2>
             <TeamGrades
               grades={advice.data.grades}
               overall={advice.data.overall_grade}
               basis={advice.data.grade_basis}
               needs={advice.data.needs}
+              compare={advice.data.view === 'after' ? current.data?.grades : undefined}
+              compareOverall={advice.data.view === 'after' ? current.data?.overall_grade : undefined}
             />
           </section>
           {(advice.data.notes ?? []).map((n) => (
