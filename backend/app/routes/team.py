@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from app.deps import get_clients, get_con, get_tuning, write_lock
 from app.errors import AuthRequired
 from app.schemas import models as m
-from app.services import context, leagues, player, views
+from app.services import context, leagues, player, recap, views
 from app.services.context import LeagueContext, get_context
 from app.user_settings import UserSettings
 from ingest.http import AuthRejected, SourceUnavailable
@@ -244,6 +244,18 @@ def get_matchup(
     """This week's head-to-head matchup with your win chance, the standings with playoff odds,
     and your week-by-week schedule."""
     return views.matchup_view(ctx, team_id, leagues.matchups(con, ctx.league.league_id))
+
+
+@router.get("/{team_id}/recap", response_model=m.RecapOut)
+def get_recap(
+    team_id: str,
+    week: int | None = Query(None, ge=1, le=18, description="Default: the last completed week"),
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.RecapOut:
+    """A played week looked back on: your lineup vs the best you could have set and vs the one
+    FantasyEdge's projections would have picked, plus how the projections held up this season."""
+    return recap.recap_view(ctx, team_id, leagues.matchups(con, ctx.league.league_id), week)
 
 
 @router.get("/{team_id}/trade-offers", response_model=m.TradeOffersOut)

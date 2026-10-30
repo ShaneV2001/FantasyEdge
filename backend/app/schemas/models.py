@@ -608,6 +608,66 @@ class MatchupOut(BaseModel):
     notes: list[str] = []
 
 
+class RecapPlayerOut(BaseModel):
+    player: PlayerRef
+    actual: float = Field(description="Points the platform scored him that week")
+    projected: float | None = Field(None, description="FantasyEdge's projection before the week")
+    p10: float | None = None
+    p90: float | None = None
+    band: Literal["above", "in_range", "below"] | None = Field(
+        None, description="Where the actual landed vs the projection's p10–p90 band"
+    )
+
+
+class RecapWeekOut(BaseModel):
+    week: int
+    opponent_name: str | None
+    result: Literal["W", "L", "T"] | None
+    points: float = Field(description="Your score as the platform recorded it")
+    opponent_points: float | None
+    lineup_points: float = Field(description="Your starters' points")
+    best_points: float = Field(description="The best lineup you could have set, in hindsight")
+    left_on_bench: float
+    fe_points: float = Field(description="What FantasyEdge's projected-best lineup scored")
+    fe_lineup: list[PlayerRef]
+    starters: list[RecapPlayerOut]
+    should_have_started: list[RecapPlayerOut] = Field(
+        description="Bench players in the best lineup"
+    )
+    instead_of: list[RecapPlayerOut] = Field(description="Starters the best lineup sat")
+
+
+class RecapWeekSummaryOut(BaseModel):
+    week: int
+    result: Literal["W", "L", "T"] | None
+    lineup_points: float
+    best_points: float
+    fe_points: float
+
+
+class RecapSeasonOut(BaseModel):
+    weeks: int
+    lineup_points: float
+    best_points: float
+    fe_points: float
+    left_on_bench: float
+    starters_rated: int = Field(description="Starter-weeks with a FantasyEdge projection")
+    mae: float | None = Field(None, description="Mean absolute error of those projections")
+    in_band: float | None = Field(None, description="Share that landed inside p10–p90 (0–1)")
+
+
+class RecapOut(BaseModel):
+    """Looking back: your lineup vs the best one and vs FantasyEdge's, and projection accuracy."""
+
+    team_id: str
+    week: int | None = Field(None, description="The week shown (None: nothing to recap yet)")
+    weeks: list[int] = Field(description="Weeks that can be recapped")
+    detail: RecapWeekOut | None = None
+    by_week: list[RecapWeekSummaryOut] = []
+    season: RecapSeasonOut | None = None
+    notes: list[str] = []
+
+
 class TradeOfferOut(BaseModel):
     id: str
     direction: Literal["received", "sent"] = Field(

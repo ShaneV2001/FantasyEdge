@@ -41,10 +41,16 @@ def sleeper_matchups(request: httpx.Request) -> httpx.Response:
     for mid, pair in enumerate(PAIRINGS[week % 3], 1):
         for rid in pair:
             starters = rosters[rid]["starters"]
+            bench = [p for p in rosters[rid]["players"] if p not in starters]
             pts = (150.0 if rid == 1 else 100.0 + rid + week) if week < 5 else 0.0
+            points = dict.fromkeys(bench, 0.0) | {
+                p: round(pts / len(starters), 2) for p in starters
+            }
+            if week < 5 and bench:
+                points[bench[0]] = 40.0  # a bench player who outscored every starter
             out.append({
                 "roster_id": rid, "matchup_id": mid, "points": pts, "starters": starters,
-                "players_points": {p: round(pts / len(starters), 2) for p in starters},
+                "players_points": points,
             })  # fmt: skip
     return httpx.Response(200, json=out)
 
@@ -1261,3 +1267,26 @@ def test_matchup_for_a_manual_team_explains_why_there_is_none(client):
     }
     d = tc.get(f"/team/{tc.post('/league/manual', json=body).json()['team_id']}/matchup").json()
     assert not d["has_schedule"] and "Manual teams" in d["notes"][0]
+
+
+def test_recap_compares_your_lineup_with_the_best_and_fantasyedges(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    d = tc.get(f"/team/{team_id}/recap").json()
+    assert d["weeks"] == [1, 2, 3, 4] and d["week"] == 4
+    w = d["detail"]
+    assert w["week"] == 4 and w["result"] in ("W", "L") and w["opponent_name"]
+    # the fixture's Sleeper starters aren't a legal lineup (3 fit no slot), so they can outscore
+    # the best legal one; real lineups can't, and the gap never goes negative
+    assert w["starters"] and w["best_points"] > 0
+    assert w["left_on_bench"] == round(max(w["best_points"] - w["lineup_points"], 0), 2)
+    if w["should_have_started"]:  # the 40-point bench player, when a slot could take him
+        assert w["should_have_started"][0]["actual"] == 40.0 and w["instead_of"]
+    assert len(w["fe_lineup"]) <= len(w["starters"]) and w["fe_points"] >= 0
+    assert all(s["band"] in ("above", "in_range", "below", None) for s in w["starters"])
+    s = d["season"]
+    assert s["weeks"] == 4 and s["left_on_bench"] >= 0
+    assert s["starters_rated"] == 0 or (s["mae"] is not None and 0 <= s["in_band"] <= 1)
+    assert [b["week"] for b in d["by_week"]] == [1, 2, 3, 4]
+    assert tc.get(f"/team/{team_id}/recap", params={"week": 2}).json()["detail"]["week"] == 2
+    assert tc.get(f"/team/{team_id}/recap", params={"week": 9}).status_code == 422  # not played

@@ -1241,6 +1241,69 @@
         }
       }
     },
+    "/team/{team_id}/recap": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Recap",
+        "description": "A played week looked back on: your lineup vs the best you could have set and vs the one\nFantasyEdge's projections would have picked, plus how the projections held up this season.",
+        "operationId": "get_recap",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "week",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 18,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: the last completed week",
+              "title": "Week"
+            },
+            "description": "Default: the last completed week"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecapOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/team/{team_id}/trade-offers": {
       "get": {
         "tags": [
@@ -5125,6 +5188,371 @@
           "positions"
         ],
         "title": "RankingsOut"
+      },
+      "RecapOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Week",
+            "description": "The week shown (None: nothing to recap yet)"
+          },
+          "weeks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Weeks",
+            "description": "Weeks that can be recapped"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecapWeekOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "by_week": {
+            "items": {
+              "$ref": "#/components/schemas/RecapWeekSummaryOut"
+            },
+            "type": "array",
+            "title": "By Week",
+            "default": []
+          },
+          "season": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecapSeasonOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "weeks"
+        ],
+        "title": "RecapOut",
+        "description": "Looking back: your lineup vs the best one and vs FantasyEdge's, and projection accuracy."
+      },
+      "RecapPlayerOut": {
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "actual": {
+            "type": "number",
+            "title": "Actual",
+            "description": "Points the platform scored him that week"
+          },
+          "projected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected",
+            "description": "FantasyEdge's projection before the week"
+          },
+          "p10": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P10"
+          },
+          "p90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P90"
+          },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "above",
+                  "in_range",
+                  "below"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band",
+            "description": "Where the actual landed vs the projection's p10\u2013p90 band"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player",
+          "actual"
+        ],
+        "title": "RecapPlayerOut"
+      },
+      "RecapSeasonOut": {
+        "properties": {
+          "weeks": {
+            "type": "integer",
+            "title": "Weeks"
+          },
+          "lineup_points": {
+            "type": "number",
+            "title": "Lineup Points"
+          },
+          "best_points": {
+            "type": "number",
+            "title": "Best Points"
+          },
+          "fe_points": {
+            "type": "number",
+            "title": "Fe Points"
+          },
+          "left_on_bench": {
+            "type": "number",
+            "title": "Left On Bench"
+          },
+          "starters_rated": {
+            "type": "integer",
+            "title": "Starters Rated",
+            "description": "Starter-weeks with a FantasyEdge projection"
+          },
+          "mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mae",
+            "description": "Mean absolute error of those projections"
+          },
+          "in_band": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Band",
+            "description": "Share that landed inside p10\u2013p90 (0\u20131)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weeks",
+          "lineup_points",
+          "best_points",
+          "fe_points",
+          "left_on_bench",
+          "starters_rated"
+        ],
+        "title": "RecapSeasonOut"
+      },
+      "RecapWeekOut": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "opponent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent Name"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "W",
+                  "L",
+                  "T"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points",
+            "description": "Your score as the platform recorded it"
+          },
+          "opponent_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent Points"
+          },
+          "lineup_points": {
+            "type": "number",
+            "title": "Lineup Points",
+            "description": "Your starters' points"
+          },
+          "best_points": {
+            "type": "number",
+            "title": "Best Points",
+            "description": "The best lineup you could have set, in hindsight"
+          },
+          "left_on_bench": {
+            "type": "number",
+            "title": "Left On Bench"
+          },
+          "fe_points": {
+            "type": "number",
+            "title": "Fe Points",
+            "description": "What FantasyEdge's projected-best lineup scored"
+          },
+          "fe_lineup": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Fe Lineup"
+          },
+          "starters": {
+            "items": {
+              "$ref": "#/components/schemas/RecapPlayerOut"
+            },
+            "type": "array",
+            "title": "Starters"
+          },
+          "should_have_started": {
+            "items": {
+              "$ref": "#/components/schemas/RecapPlayerOut"
+            },
+            "type": "array",
+            "title": "Should Have Started",
+            "description": "Bench players in the best lineup"
+          },
+          "instead_of": {
+            "items": {
+              "$ref": "#/components/schemas/RecapPlayerOut"
+            },
+            "type": "array",
+            "title": "Instead Of",
+            "description": "Starters the best lineup sat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "opponent_name",
+          "result",
+          "points",
+          "opponent_points",
+          "lineup_points",
+          "best_points",
+          "left_on_bench",
+          "fe_points",
+          "fe_lineup",
+          "starters",
+          "should_have_started",
+          "instead_of"
+        ],
+        "title": "RecapWeekOut"
+      },
+      "RecapWeekSummaryOut": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "W",
+                  "L",
+                  "T"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "lineup_points": {
+            "type": "number",
+            "title": "Lineup Points"
+          },
+          "best_points": {
+            "type": "number",
+            "title": "Best Points"
+          },
+          "fe_points": {
+            "type": "number",
+            "title": "Fe Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "result",
+          "lineup_points",
+          "best_points",
+          "fe_points"
+        ],
+        "title": "RecapWeekSummaryOut"
       },
       "RefreshOut": {
         "properties": {

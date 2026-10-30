@@ -1844,6 +1844,213 @@ export type RankingsOut = {
 };
 
 /**
+ * RecapOut
+ *
+ * Looking back: your lineup vs the best one and vs FantasyEdge's, and projection accuracy.
+ */
+export type RecapOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Week
+     *
+     * The week shown (None: nothing to recap yet)
+     */
+    week?: number | null;
+    /**
+     * Weeks
+     *
+     * Weeks that can be recapped
+     */
+    weeks: Array<number>;
+    detail?: RecapWeekOut | null;
+    /**
+     * By Week
+     */
+    by_week?: Array<RecapWeekSummaryOut>;
+    season?: RecapSeasonOut | null;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
+};
+
+/**
+ * RecapPlayerOut
+ */
+export type RecapPlayerOut = {
+    player: PlayerRef;
+    /**
+     * Actual
+     *
+     * Points the platform scored him that week
+     */
+    actual: number;
+    /**
+     * Projected
+     *
+     * FantasyEdge's projection before the week
+     */
+    projected?: number | null;
+    /**
+     * P10
+     */
+    p10?: number | null;
+    /**
+     * P90
+     */
+    p90?: number | null;
+    /**
+     * Band
+     *
+     * Where the actual landed vs the projection's p10–p90 band
+     */
+    band?: 'above' | 'in_range' | 'below' | null;
+};
+
+/**
+ * RecapSeasonOut
+ */
+export type RecapSeasonOut = {
+    /**
+     * Weeks
+     */
+    weeks: number;
+    /**
+     * Lineup Points
+     */
+    lineup_points: number;
+    /**
+     * Best Points
+     */
+    best_points: number;
+    /**
+     * Fe Points
+     */
+    fe_points: number;
+    /**
+     * Left On Bench
+     */
+    left_on_bench: number;
+    /**
+     * Starters Rated
+     *
+     * Starter-weeks with a FantasyEdge projection
+     */
+    starters_rated: number;
+    /**
+     * Mae
+     *
+     * Mean absolute error of those projections
+     */
+    mae?: number | null;
+    /**
+     * In Band
+     *
+     * Share that landed inside p10–p90 (0–1)
+     */
+    in_band?: number | null;
+};
+
+/**
+ * RecapWeekOut
+ */
+export type RecapWeekOut = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Opponent Name
+     */
+    opponent_name: string | null;
+    /**
+     * Result
+     */
+    result: 'W' | 'L' | 'T' | null;
+    /**
+     * Points
+     *
+     * Your score as the platform recorded it
+     */
+    points: number;
+    /**
+     * Opponent Points
+     */
+    opponent_points: number | null;
+    /**
+     * Lineup Points
+     *
+     * Your starters' points
+     */
+    lineup_points: number;
+    /**
+     * Best Points
+     *
+     * The best lineup you could have set, in hindsight
+     */
+    best_points: number;
+    /**
+     * Left On Bench
+     */
+    left_on_bench: number;
+    /**
+     * Fe Points
+     *
+     * What FantasyEdge's projected-best lineup scored
+     */
+    fe_points: number;
+    /**
+     * Fe Lineup
+     */
+    fe_lineup: Array<PlayerRef>;
+    /**
+     * Starters
+     */
+    starters: Array<RecapPlayerOut>;
+    /**
+     * Should Have Started
+     *
+     * Bench players in the best lineup
+     */
+    should_have_started: Array<RecapPlayerOut>;
+    /**
+     * Instead Of
+     *
+     * Starters the best lineup sat
+     */
+    instead_of: Array<RecapPlayerOut>;
+};
+
+/**
+ * RecapWeekSummaryOut
+ */
+export type RecapWeekSummaryOut = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Result
+     */
+    result: 'W' | 'L' | 'T' | null;
+    /**
+     * Lineup Points
+     */
+    lineup_points: number;
+    /**
+     * Best Points
+     */
+    best_points: number;
+    /**
+     * Fe Points
+     */
+    fe_points: number;
+};
+
+/**
  * RefreshOut
  */
 export type RefreshOut = {
@@ -4012,6 +4219,43 @@ export type GetMatchupResponses = {
 };
 
 export type GetMatchupResponse = GetMatchupResponses[keyof GetMatchupResponses];
+
+export type GetRecapData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: {
+        /**
+         * Week
+         *
+         * Default: the last completed week
+         */
+        week?: number | null;
+    };
+    url: '/team/{team_id}/recap';
+};
+
+export type GetRecapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetRecapError = GetRecapErrors[keyof GetRecapErrors];
+
+export type GetRecapResponses = {
+    /**
+     * Successful Response
+     */
+    200: RecapOut;
+};
+
+export type GetRecapResponse = GetRecapResponses[keyof GetRecapResponses];
 
 export type GetTradeOffersData = {
     body?: never;

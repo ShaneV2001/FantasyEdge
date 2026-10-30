@@ -1,15 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
-import { Info, Swords } from 'lucide-react'
+import { useSearch } from '@tanstack/react-router'
+import { History, Info, Swords } from 'lucide-react'
+import { useState } from 'react'
 
 import type { MatchupOut, MatchupPlayerOut, MatchupSideOut, ScheduleWeekOut, StandingOut } from '@/api'
 import { getMatchupOptions } from '@/api/@tanstack/react-query.gen'
 import { EmptyState, ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
+import { Recap } from '@/components/matchup/Recap'
 import { PositionBadge } from '@/components/player/badges'
 import { PlayerLink } from '@/components/player/PlayerLink'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fmtNum } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useTeamStore } from '@/stores/team'
@@ -239,20 +243,37 @@ export function MatchupView({ data }: { data: MatchupOut }) {
 
 export function MatchupPage() {
   const team = useTeamStore((s) => s.team)!
+  const search = useSearch({ strict: false }) as Record<string, unknown>
+  const [tab, setTab] = useState(search.tab === 'recap' ? 'recap' : 'week')
   const q = useQuery({ ...getMatchupOptions({ path: { team_id: team.teamId } }), refetchInterval: 5 * 60_000 })
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Matchup"
-        description="Who you play, your chance to win, and your playoff odds."
+        description="Who you play, your chance to win, your playoff odds, and how past weeks went."
         actions={q.data?.win_prob != null && <Badge variant="outline">{pct(q.data.win_prob)} to win this week</Badge>}
       />
-      {q.isPending && <ListSkeleton rows={4} height="h-40" />}
-      {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
-      {q.data && !q.data.has_schedule && (
-        <EmptyState title="No head-to-head schedule">{q.data.notes?.[0]}</EmptyState>
-      )}
-      {q.data?.has_schedule && <MatchupView data={q.data} />}
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="week">
+            <Swords /> This week
+          </TabsTrigger>
+          <TabsTrigger value="recap">
+            <History /> Recap
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="week" className="mt-4 flex flex-col gap-6">
+          {q.isPending && <ListSkeleton rows={4} height="h-40" />}
+          {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
+          {q.data && !q.data.has_schedule && (
+            <EmptyState title="No head-to-head schedule">{q.data.notes?.[0]}</EmptyState>
+          )}
+          {q.data?.has_schedule && <MatchupView data={q.data} />}
+        </TabsContent>
+        <TabsContent value="recap" className="mt-4">
+          <Recap team={team} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
