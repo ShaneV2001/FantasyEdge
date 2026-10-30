@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.errors import AuthRequired, InvalidInput, NotFound, NotReady
-from app.routes import league, meta, settings, team, trade
+from app.routes import chat, league, meta, settings, team, trade
 from ingest.http import SourceUnavailable
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -27,7 +27,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-for r in (league.router, team.router, trade.router, meta.router, settings.router):
+for r in (league.router, team.router, trade.router, meta.router, settings.router, chat.router):
     app.include_router(r)
 
 

@@ -1071,6 +1071,52 @@ class StatusOut(BaseModel):
     week: int | None
     sources: list[SourceStatus]
     attribution: list[str]
+    ai_enabled: bool = Field(False, description="An ANTHROPIC_API_KEY is set: the Ask page works")
+    ai_model: str | None = None
+
+
+# ───────── advisor chat ─────────
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    conversation_id: str | None = Field(None, description="Continue this conversation")
+
+
+class ChatUsageOut(BaseModel):
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
+    cost_usd: float | None = Field(
+        None, description="Estimate at list prices (None: unknown model)"
+    )
+
+
+class ChatSummaryOut(BaseModel):
+    id: str
+    title: str
+    model: str | None
+    updated_at: datetime
+
+
+class ChatMessageOut(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str
+    tools: list[str] = Field(description="Tools the answer used")
+
+
+class ChatDeletedOut(BaseModel):
+    deleted: str
+
+
+class ChatOut(BaseModel):
+    id: str
+    team_id: str
+    title: str
+    model: str | None
+    messages: list[ChatMessageOut]
+    usage: ChatUsageOut
 
 
 class RefreshRequest(BaseModel):

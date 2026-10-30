@@ -5,7 +5,8 @@ import logging
 import duckdb
 from fastapi import APIRouter, Depends, Query
 
-from app.deps import get_clients, get_con, write_lock
+from app.config import Settings
+from app.deps import get_ai_settings, get_clients, get_con, write_lock
 from app.errors import InvalidInput, NotFound
 from app.schemas import models as m
 from app.services import context, leagues
@@ -87,7 +88,10 @@ def get_saved_teams(con: duckdb.DuckDBPyConnection = Depends(get_con)) -> list[m
 
 
 @router.get("/meta/status", response_model=m.StatusOut)
-def get_status(con: duckdb.DuckDBPyConnection = Depends(get_con)) -> m.StatusOut:
+def get_status(
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+    ai: Settings = Depends(get_ai_settings),
+) -> m.StatusOut:
     rows = con.execute(
         "SELECT source, last_synced_at, status, detail FROM sync_log ORDER BY source"
     ).fetchall()
@@ -99,6 +103,8 @@ def get_status(con: duckdb.DuckDBPyConnection = Depends(get_con)) -> m.StatusOut
             m.SourceStatus(source=r[0], last_synced_at=r[1], status=r[2], detail=r[3]) for r in rows
         ],
         attribution=ATTRIBUTION,
+        ai_enabled=ai.ai_enabled,
+        ai_model=ai.ai_model if ai.ai_enabled else None,
     )
 
 

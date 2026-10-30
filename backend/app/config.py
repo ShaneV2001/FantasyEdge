@@ -25,9 +25,18 @@ class Settings:
     espn_s2: str | None = None
     espn_swid: str | None = None
     espn_league_id: str | None = None
+    # Claude advisor chat (optional): the key stays on this computer and goes only to Anthropic
+    anthropic_api_key: str | None = None
+    ai_model: str = "claude-opus-5-5"
+    ai_effort: str = "medium"
+    ai_max_steps: int = 8  # tool rounds per answer
 
-    def __repr__(self) -> str:  # never print the ESPN cookies
+    def __repr__(self) -> str:  # never print the ESPN cookies or the API key
         return f"Settings(data_dir={self.data_dir!r}, seasons={self.seasons!r})"
+
+    @property
+    def ai_enabled(self) -> bool:
+        return bool(self.anthropic_api_key)
 
     @property
     def db_path(self) -> Path:
@@ -72,4 +81,8 @@ def get_settings() -> Settings:
         espn_s2=os.getenv("ESPN_S2") or None,
         espn_swid=os.getenv("ESPN_SWID") or None,
         espn_league_id=os.getenv("ESPN_LEAGUE_ID") or None,
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY") or None,
+        ai_model=os.getenv("FF_AI_MODEL") or "claude-opus-5-5",
+        ai_effort=os.getenv("FF_AI_EFFORT") or "medium",
+        ai_max_steps=int(os.getenv("FF_AI_MAX_STEPS") or 8),
     )

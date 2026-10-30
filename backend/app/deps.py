@@ -6,10 +6,11 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
+import anthropic
 import duckdb
 
 from app import user_settings
-from app.config import get_settings
+from app.config import Settings, get_settings
 from db.conn import connect
 from ingest.run import Clients, make_clients
 
@@ -36,6 +37,32 @@ def get_con() -> Iterator[duckdb.DuckDBPyConnection]:
         yield cur
     finally:
         cur.close()
+
+
+def new_cursor() -> duckdb.DuckDBPyConnection:
+    """A cursor for work that outlives a request's own (a streamed response); the caller closes it."""
+    if _con is None:
+        init()
+    assert _con is not None
+    return _con.cursor()
+
+
+_ai: anthropic.Anthropic | None = None
+
+
+def get_ai_settings() -> Settings:
+    return get_settings()
+
+
+def get_ai() -> anthropic.Anthropic | None:
+    """The Anthropic client for the advisor chat, or None when no ANTHROPIC_API_KEY is set."""
+    global _ai
+    s = get_settings()
+    if not s.ai_enabled:
+        return None
+    if _ai is None:
+        _ai = anthropic.Anthropic(api_key=s.anthropic_api_key)
+    return _ai
 
 
 def get_clients() -> Clients:

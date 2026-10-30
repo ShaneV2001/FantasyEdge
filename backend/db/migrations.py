@@ -111,6 +111,19 @@ MIGRATIONS: list[tuple[int, str]] = [
         " starters JSON, player_points JSON, PRIMARY KEY (league_id, week, team_id));"
         "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS playoff_teams INTEGER;",
     ),
+    # v12: the Claude advisor chat. Messages are stored exactly as sent and received (content
+    # blocks as JSON, thinking included) and only ever appended, so a conversation replays as-is.
+    (
+        12,
+        "CREATE TABLE IF NOT EXISTS ai_conversations ("
+        " id VARCHAR PRIMARY KEY, team_id VARCHAR, title VARCHAR, model VARCHAR,"
+        " created_at TIMESTAMP, updated_at TIMESTAMP, input_tokens BIGINT DEFAULT 0,"
+        " output_tokens BIGINT DEFAULT 0, cache_read_tokens BIGINT DEFAULT 0,"
+        " cache_write_tokens BIGINT DEFAULT 0);"
+        "CREATE TABLE IF NOT EXISTS ai_messages ("
+        " conversation_id VARCHAR, seq INTEGER, role VARCHAR, content JSON, created_at TIMESTAMP,"
+        " PRIMARY KEY (conversation_id, seq));",
+    ),
 ]
 
 
