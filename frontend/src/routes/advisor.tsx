@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   CalendarClock,
   ChevronDown,
+  Inbox,
   Info,
   ListChecks,
   ShoppingCart,
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils'
 import { useTeamStore } from '@/stores/team'
 
 const TYPE_META: Record<ActionOut['type'], { icon: typeof Info; cls: string }> = {
+  Offer: { icon: Inbox, cls: 'text-primary bg-primary/10' },
   Trade: { icon: ArrowLeftRight, cls: 'text-primary bg-primary/10' },
   Sell: { icon: TrendingDown, cls: 'text-sell bg-sell/10' },
   Buy: { icon: TrendingUp, cls: 'text-buy bg-buy/10' },

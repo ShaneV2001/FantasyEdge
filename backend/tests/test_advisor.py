@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from signals import advisor as adv
 from signals.startsit import plan_week
 from signals.team import RosMath, team_profiles
@@ -164,3 +166,29 @@ def test_bye_streamers_skip_players_who_cant_play_that_week():
     inp.free_agents = ["fa_out", "fa_back", "fa_rb"]
     assert adv._best_fa_for_slots(inp, ["RB"], 6) == ["fa_rb"]
     assert adv._best_fa_for_slots(inp, ["RB"], 9) == ["fa_back"]
+
+
+def test_players_in_an_accepted_trade_are_not_suggested_again():
+    seller = P("Seller", "WR", 15) | {"signal": "sell", "value_gap": -30.0}
+    players = {"wr": seller, "qb": P("QB", "QB", 20)}
+    inp = _inputs(players, list(players), [], schedule(["AAA"], weeks=17))
+    assert [a.player_ids for a in adv.sell_actions(inp)] == [["wr"]]
+    inp.in_trades = frozenset({"wr"})
+    assert adv.sell_actions(inp) == []
+
+
+def _offer(verdict, gain):
+    side = SimpleNamespace(lineup_delta=gain, gives=["wr"], receives=["rb"])
+    return SimpleNamespace(me=side, verdict=verdict, headline="You gain 12 points.", reasons=["r1"])
+
+
+def test_an_offer_gets_a_card_even_when_it_is_bad():
+    players = {"wr": P("WR", "WR", 15), "qb": P("QB", "QB", 20)}
+    inp = _inputs(players, list(players), [], schedule(["AAA"], weeks=17))
+    inp.team_names = {"A": "A", "B": "Rivals"}
+    inp.offers = [("B", _offer("accept", 12.0)), ("B", _offer("decline", -1.0))]
+    good, bad = adv.offer_actions(inp)
+    assert good.headline == "Offer from Rivals: accept it" and good.urgency == "this_week"
+    assert good.reasons == ["You gain 12 points.", "r1"] and good.team_id == "B"
+    assert bad.headline == "Offer from Rivals: decline it" and bad.impact == 1.5
+    assert good.priority > bad.priority

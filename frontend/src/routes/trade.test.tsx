@@ -95,14 +95,31 @@ describe('FindTrade', () => {
   })
 })
 
-describe('TradePage from a link', () => {
+const OFFER = {
+  id: 'o1',
+  direction: 'received',
+  partner_team_id: 'them',
+  partner_name: 'Them',
+  give: [{ player_id: 'w1', name: 'Jaylen Waddle', position: 'WR' }],
+  receive: [{ player_id: 'rb9', name: 'Omarion Hampton', position: 'RB' }],
+  drops: [],
+  proposed_at: '2026-10-29T18:00:00',
+  evaluation: IDEA,
+  note: null,
+}
+
+describe('TradePage', () => {
+  let offers: { team_id: string; supported: boolean; received: unknown[]; sent: unknown[] }
   beforeEach(() => {
+    offers = { team_id: 'me', supported: true, received: [], sent: [] }
     useTeamStore.getState().setTeam({ teamId: 'me', leagueId: 'l', teamName: 'Mine', leagueName: 'L', platform: 'espn' })
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: Request | string) => {
         const req = input instanceof Request ? input : new Request(input)
-        const data = req.url.includes('/team/them')
+        const data = req.url.includes('/trade-offers')
+          ? offers
+          : req.url.includes('/team/them')
           ? { team_id: 'them', team_name: 'Them', roster: [player('rb9', 'Omarion Hampton', 'RB')], league_teams: [] }
           : req.url.includes('/team/me')
             ? { team_id: 'me', team_name: 'Mine', roster: ROSTER, league_teams: [{ team_id: 'them', team_name: 'Them', owner_name: 'o', is_mine: false }] }
@@ -118,5 +135,17 @@ describe('TradePage from a link', () => {
     expect(await screen.findByRole('tab', { name: /Analyzer/, selected: true })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Omarion Hampton/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /Jaylen Waddle/ })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('lists offers waiting on you with the analyzer verdict and a count', async () => {
+    offers.received = [OFFER]
+    const user = userEvent.setup()
+    renderPage(<TradePage />)
+    const tab = await screen.findByRole('tab', { name: /Offers/ })
+    expect(await screen.findByLabelText('1 waiting')).toBeInTheDocument()
+    await user.click(tab)
+    expect(await screen.findByText('Waiting on your answer (1)')).toBeInTheDocument()
+    expect(screen.getByText('Them')).toBeInTheDocument()
+    expect(screen.getByText(IDEA.headline)).toBeInTheDocument()
   })
 })

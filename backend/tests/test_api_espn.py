@@ -213,3 +213,54 @@ def test_trade_outlook_shows_both_lineups(espn):
     assert weeks == [w["week"] for w in d["me"]["before"]] and weeks[0] == d["week"]
     bad = tc.post("/trade/outlook", json={"team_id": f"{LEAGUE}-1", "give": [get], "receive": []})
     assert bad.status_code == 422 and "your roster" in bad.text
+
+
+def test_open_offers_are_graded_for_both_teams(client):  # noqa: F811
+    """An offer team 2 sent team 1: team 1 sees it received with the analyzer's verdict and an
+    Advisor card; team 2 sees it sent; once the players move it is gone."""
+    tc, router = client
+    league = load_json("espn_league.json")
+    t1, t2 = league["teams"][0], league["teams"][1]
+    mine, theirs = _first_skill_player(t1), _first_skill_player(t2)
+    txns = [
+        {"id": "o1", "type": "TRADE_PROPOSAL", "status": "PENDING", "teamId": 2,
+         "proposedDate": 1_790_000_000_000,
+         "items": [{"type": "TRADE", "playerId": mine, "fromTeamId": 1, "toTeamId": 2},
+                   {"type": "TRADE", "playerId": theirs, "fromTeamId": 2, "toTeamId": 1}]},
+    ]  # fmt: skip
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        if "mTransactions2" in request.url.params.get_list("view"):
+            return httpx.Response(200, json={"transactions": txns})
+        return httpx.Response(200, json=league)
+
+    router.get(url__startswith=ESPN).mock(side_effect=answer)
+    assert connect(tc, espn_s2=S2, swid=SWID).status_code == 200
+
+    d = tc.get(f"/team/{LEAGUE}-1/trade-offers").json()
+    assert d["supported"] and d["sent"] == []
+    (offer,) = d["received"]
+    assert offer["direction"] == "received" and offer["partner_team_id"] == f"{LEAGUE}-2"
+    assert len(offer["give"]) == len(offer["receive"]) == 1
+    assert offer["evaluation"]["verdict"] in ("accept", "lean_accept", "neutral", "decline")
+    assert offer["note"] is None
+    (sent,) = tc.get(f"/team/{LEAGUE}-2/trade-offers").json()["sent"]
+    assert sent["id"] == "o1"
+    assert tc.get(f"/team/{LEAGUE}-3/trade-offers").json()["received"] == []
+
+    cards = [
+        a for a in tc.get(f"/team/{LEAGUE}-1/advice").json()["actions"] if a["type"] == "Offer"
+    ]
+    assert (
+        len(cards) == 1 and cards[0]["trade"] and cards[0]["counterparty_team_id"] == f"{LEAGUE}-2"
+    )
+    assert not any(
+        a["type"] == "Offer" for a in tc.get(f"/team/{LEAGUE}-2/advice").json()["actions"]
+    )
+
+    # the players move (or one is traded elsewhere): the offer can't go through any more
+    e1 = next(e for e in t1["roster"]["entries"] if e["playerId"] == mine)
+    t1["roster"]["entries"].remove(e1)
+    t2["roster"]["entries"].append(e1)
+    assert tc.post("/refresh", json={"scope": "league", "league_id": LEAGUE}).status_code == 200
+    assert tc.get(f"/team/{LEAGUE}-1/trade-offers").json()["received"] == []

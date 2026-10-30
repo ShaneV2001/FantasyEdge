@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Lightbulb, Loader2, Plus, RefreshCw, Scale, Search, Shuffle } from 'lucide-react'
+import { Check, Inbox, Lightbulb, Loader2, Plus, RefreshCw, Scale, Search, Shuffle } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import { toast } from 'sonner'
@@ -18,7 +18,9 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { EmptyState, ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { PlayerChip, PositionBadge } from '@/components/player/badges'
 import { TradeCard } from '@/components/team/TradeCard'
+import { TradeOffers, useTradeOffers } from '@/components/trade/TradeOffers'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
@@ -59,8 +61,14 @@ export function TradePage() {
   const qc = useQueryClient()
   const search = useSearch({ strict: false }) as Record<string, unknown>
   const [tab, setTab] = useState(() =>
-    ['ideas', 'find', 'analyzer'].includes(String(search.tab)) ? String(search.tab) : team.platform === 'manual' ? 'analyzer' : 'ideas',
+    ['ideas', 'offers', 'find', 'analyzer'].includes(String(search.tab))
+      ? String(search.tab)
+      : team.platform === 'manual'
+        ? 'analyzer'
+        : 'ideas',
   )
+  const offers = useTradeOffers(team)
+  const waiting = offers.data?.received.length ?? 0
   const [page, setPage] = useState(0)
   const [prefill, setPrefill] = useState<AnalyzerPrefill | null>(() => prefillFromSearch(search))
   const ideas = useQuery({
@@ -110,6 +118,16 @@ export function TradePage() {
           <TabsTrigger value="ideas">
             <Lightbulb /> Trade ideas
           </TabsTrigger>
+          {team.platform === 'espn' && (
+            <TabsTrigger value="offers">
+              <Inbox /> Offers
+              {waiting > 0 && (
+                <Badge className="ml-1 h-4 min-w-4 px-1 font-mono text-[10px]" aria-label={`${waiting} waiting`}>
+                  {waiting}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="find">
             <Search /> Find a trade
           </TabsTrigger>
@@ -153,6 +171,9 @@ export function TradePage() {
           {ideas.data?.ideas.map((t) => (
             <TradeCard key={t.headline + (t.partner?.team_id ?? '')} trade={t} onOpenInAnalyzer={openInAnalyzer} />
           ))}
+        </TabsContent>
+        <TabsContent value="offers" className="mt-4">
+          <TradeOffers team={team} onOpenInAnalyzer={openInAnalyzer} />
         </TabsContent>
         <TabsContent value="find" className="mt-4">
           <FindTrade teamId={team.teamId} manual={team.platform === 'manual'} onOpenInAnalyzer={openInAnalyzer} />

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
@@ -645,8 +645,34 @@ def _sync_espn_transactions(
         if rows:
             upsert(con, "transactions", pl.DataFrame(rows).unique("external_id"))
         _save_pending_trades(con, info, league_id, es.parse_pending_trades(fetched), ids)
+        _save_trade_offers(con, info, league_id, es.parse_trade_offers(fetched), ids)
     except Exception as exc:  # transactions are informational only (no cookie values in the log)
         log.warning("transactions sync failed for %s: %s", league_id, type(exc).__name__)
+
+
+class _TradeIds:
+    """ESPN player/team ids → ours. A player ESPN listed that we never saw on a roster keeps the
+    `espn:<id>` placeholder id, like unmatched roster players."""
+
+    def __init__(self, info: es.EspnLeague, ids: Mapping[int, str]) -> None:
+        self.info, self.ids = info, ids
+
+    def team(self, team: str) -> str:
+        return espn_team_id(self.info.external_id, self.info.season, team)
+
+    def moves(self, moves: Sequence[tuple[int, str, str]]) -> str:
+        return json.dumps(
+            [
+                {"player_id": self._pid(e), "from_team": self.team(f), "to_team": self.team(to)}
+                for e, f, to in moves
+            ]
+        )
+
+    def drops(self, drops: Sequence[tuple[int, str]]) -> str:
+        return json.dumps([{"player_id": self._pid(e), "team_id": self.team(f)} for e, f in drops])
+
+    def _pid(self, eid: int) -> str:
+        return self.ids.get(eid) or f"espn:{eid}"
 
 
 def _save_pending_trades(
@@ -656,27 +682,15 @@ def _save_pending_trades(
     trades: list[es.PendingTrade],
     ids: Mapping[int, str],
 ) -> None:
-    """Replace the league's pending trades. A player ESPN listed that we never saw on a roster
-    keeps the `espn:<id>` placeholder id, like unmatched roster players."""
-
-    def pid(eid: int) -> str:
-        return ids.get(eid) or f"espn:{eid}"
-
-    def tid(team: str) -> str:
-        return espn_team_id(info.external_id, info.season, team)
-
+    """Replace the league's pending trades."""
+    to = _TradeIds(info, ids)
     rows = [
         {
             "league_id": league_id,
             "external_id": t.external_id,
             "accepted_at": t.accepted_at,
-            "moves": json.dumps(
-                [
-                    {"player_id": pid(e), "from_team": tid(f), "to_team": tid(to)}
-                    for e, f, to in t.moves
-                ]
-            ),
-            "drops": json.dumps([{"player_id": pid(e), "team_id": tid(f)} for e, f in t.drops]),
+            "moves": to.moves(t.moves),
+            "drops": to.drops(t.drops),
         }
         for t in trades
     ]
@@ -684,6 +698,35 @@ def _save_pending_trades(
         con,
         "pending_trades",
         pl.DataFrame(rows, schema_overrides={"accepted_at": pl.Datetime("us")}),
+        "league_id = ?",
+        [league_id],
+    )
+
+
+def _save_trade_offers(
+    con: duckdb.DuckDBPyConnection,
+    info: es.EspnLeague,
+    league_id: str,
+    offers: list[es.TradeOffer],
+    ids: Mapping[int, str],
+) -> None:
+    """Replace the league's open trade offers."""
+    to = _TradeIds(info, ids)
+    rows = [
+        {
+            "league_id": league_id,
+            "external_id": o.external_id,
+            "proposed_at": o.proposed_at,
+            "proposer_team": to.team(o.proposer),
+            "moves": to.moves(o.moves),
+            "drops": to.drops(o.drops),
+        }
+        for o in offers
+    ]
+    replace_where(
+        con,
+        "trade_offers",
+        pl.DataFrame(rows, schema_overrides={"proposed_at": pl.Datetime("us")}),
         "league_id = ?",
         [league_id],
     )
@@ -707,19 +750,51 @@ def pending_trades(con: duckdb.DuckDBPyConnection, league_id: str) -> list[Pendi
     ).fetchall()
     if not rows:
         return []
-    on = set(
-        con.execute(
-            "SELECT team_id, player_id FROM roster_spots WHERE team_id IN"
-            " (SELECT team_id FROM teams WHERE league_id = ?)",
-            [league_id],
-        ).fetchall()
-    )
+    on = _rostered(con, league_id)
     out = []
     for ext, accepted, moves, drops in rows:
         mv, dr = json.loads(moves), json.loads(drops or "[]")
         if all((m["from_team"], m["player_id"]) in on for m in mv):
             out.append(PendingTradeRow(ext, accepted, mv, dr))
     return out
+
+
+@dataclass(frozen=True)
+class TradeOfferRow:
+    external_id: str
+    proposed_at: datetime | None
+    proposer_team: str
+    moves: list[dict]
+    drops: list[dict]
+
+
+def trade_offers(con: duckdb.DuckDBPyConnection, league_id: str) -> list[TradeOfferRow]:
+    """Open ESPN trade offers, newest first. One whose players already left the giving team
+    can't go through any more, so it is hidden."""
+    rows = con.execute(
+        "SELECT external_id, proposed_at, proposer_team, moves, drops FROM trade_offers"
+        " WHERE league_id = ? ORDER BY proposed_at DESC",
+        [league_id],
+    ).fetchall()
+    if not rows:
+        return []
+    on = _rostered(con, league_id)
+    out = []
+    for ext, proposed, proposer, moves, drops in rows:
+        mv, dr = json.loads(moves), json.loads(drops or "[]")
+        if all((m["from_team"], m["player_id"]) in on for m in mv):
+            out.append(TradeOfferRow(ext, proposed, proposer, mv, dr))
+    return out
+
+
+def _rostered(con: duckdb.DuckDBPyConnection, league_id: str) -> set[tuple[str, str]]:
+    return set(
+        con.execute(
+            "SELECT team_id, player_id FROM roster_spots WHERE team_id IN"
+            " (SELECT team_id FROM teams WHERE league_id = ?)",
+            [league_id],
+        ).fetchall()
+    )
 
 
 def connect_espn(
@@ -982,6 +1057,7 @@ def forget_league(con: duckdb.DuckDBPyConnection, league_id: str) -> tuple[str, 
             "teams",
             "transactions",
             "pending_trades",
+            "trade_offers",
             "saved_trades",
             "league_credentials",
             "leagues",

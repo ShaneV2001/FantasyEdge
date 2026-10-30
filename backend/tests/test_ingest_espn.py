@@ -225,3 +225,18 @@ def test_trade_review_hours_are_parsed():
     assert es.parse_league(raw).trade_review_hours is None
     raw["settings"]["tradeSettings"]["revisionHours"] = 24
     assert es.parse_league(raw).trade_review_hours == 24
+
+
+def test_trade_offers_are_open_proposals_nobody_accepted():
+    txns = [
+        _proposal("open"),  # team 1 gives first: the proposer
+        _proposal("by-team", teamId=2, proposedDate=3_000_000),  # ESPN says who proposed
+        _proposal("taken"), _linked("TRADE_ACCEPT", "taken"),  # accepted: a pending trade
+        _proposal("declined"), _linked("TRADE_DECLINE", "declined"),
+        _proposal("withdrawn", status="CANCELED"),
+    ]  # fmt: skip
+    newest, oldest = es.parse_trade_offers(txns)
+    assert (newest.external_id, newest.proposer) == ("by-team", "2")
+    assert (oldest.external_id, oldest.proposer) == ("open", "1")
+    assert oldest.moves == [(101, "1", "2"), (202, "2", "1")]
+    assert [t.external_id for t in es.parse_pending_trades(txns)] == ["taken"]

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 Position = Literal["QB", "RB", "WR", "TE", "K", "DEF"]
 Urgency = Literal["this_week", "before_byes", "before_deadline", "rest_of_season"]
 Confidence = Literal["high", "medium", "low"]
-ActionType = Literal["Trade", "Sell", "Buy", "Waiver", "Lineup", "Bye prep"]
+ActionType = Literal["Offer", "Trade", "Sell", "Buy", "Waiver", "Lineup", "Bye prep"]
 
 
 class ErrorOut(BaseModel):
@@ -507,6 +507,34 @@ class PendingTradesOut(BaseModel):
     outlook: TradeOutlookOut | None = Field(
         None, description="Your lineups with every pending trade applied"
     )
+
+
+class TradeOfferOut(BaseModel):
+    id: str
+    direction: Literal["received", "sent"] = Field(
+        description="received: another team proposed it to you; sent: you proposed it"
+    )
+    partner_team_id: str | None
+    partner_name: str | None
+    give: list[PlayerRef]
+    receive: list[PlayerRef]
+    drops: list[PlayerRef] = Field(description="Your players the offer releases")
+    proposed_at: datetime | None
+    evaluation: TradeOut | None = Field(
+        None, description="The trade analyzer's verdict for your side, when it can be graded"
+    )
+    note: str | None = Field(None, description="Why the offer couldn't be graded")
+
+
+class TradeOffersOut(BaseModel):
+    """Open ESPN trade offers nobody has answered yet, graded for your side."""
+
+    team_id: str
+    supported: bool = Field(
+        description="False for Sleeper and manual leagues: their APIs don't share open offers"
+    )
+    received: list[TradeOfferOut]
+    sent: list[TradeOfferOut]
 
 
 # ───────── buy targets ─────────

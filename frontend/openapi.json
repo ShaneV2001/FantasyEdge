@@ -957,7 +957,7 @@
           "team"
         ],
         "summary": "Get Advice",
-        "description": "Ranked advisor feed (Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team grades.",
+        "description": "Ranked advisor feed (Offer / Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team\ngrades.",
         "operationId": "get_advice",
         "parameters": [
           {
@@ -1138,6 +1138,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PendingTradesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/team/{team_id}/trade-offers": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Trade Offers",
+        "description": "Open ESPN trade offers sent to you (or by you), each graded by the trade analyzer.",
+        "operationId": "get_trade_offers",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeOffersOut"
                 }
               }
             }
@@ -1773,6 +1816,7 @@
           "type": {
             "type": "string",
             "enum": [
+              "Offer",
               "Trade",
               "Sell",
               "Buy",
@@ -6011,6 +6055,150 @@
           "give"
         ],
         "title": "TradeFindRequest"
+      },
+      "TradeOfferOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "received",
+              "sent"
+            ],
+            "title": "Direction",
+            "description": "received: another team proposed it to you; sent: you proposed it"
+          },
+          "partner_team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partner Team Id"
+          },
+          "partner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partner Name"
+          },
+          "give": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Give"
+          },
+          "receive": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Receive"
+          },
+          "drops": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Drops",
+            "description": "Your players the offer releases"
+          },
+          "proposed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed At"
+          },
+          "evaluation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The trade analyzer's verdict for your side, when it can be graded"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Why the offer couldn't be graded"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "direction",
+          "partner_team_id",
+          "partner_name",
+          "give",
+          "receive",
+          "drops",
+          "proposed_at"
+        ],
+        "title": "TradeOfferOut"
+      },
+      "TradeOffersOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "supported": {
+            "type": "boolean",
+            "title": "Supported",
+            "description": "False for Sleeper and manual leagues: their APIs don't share open offers"
+          },
+          "received": {
+            "items": {
+              "$ref": "#/components/schemas/TradeOfferOut"
+            },
+            "type": "array",
+            "title": "Received"
+          },
+          "sent": {
+            "items": {
+              "$ref": "#/components/schemas/TradeOfferOut"
+            },
+            "type": "array",
+            "title": "Sent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "supported",
+          "received",
+          "sent"
+        ],
+        "title": "TradeOffersOut",
+        "description": "Open ESPN trade offers nobody has answered yet, graded for your side."
       },
       "TradeOut": {
         "properties": {

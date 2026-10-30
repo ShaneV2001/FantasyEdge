@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityErrors, ClearPlayerAvailabilityResponses, ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, ForgetTeamData, ForgetTeamErrors, ForgetTeamResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPendingTradesData, GetPendingTradesErrors, GetPendingTradesResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayersTableData, GetPlayersTableErrors, GetPlayersTableResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetSavedTeamsData, GetSavedTeamsResponses, GetStartsitData, GetStartsitErrors, GetStartsitResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetUserSettingsData, GetUserSettingsResponses, GetWaiversData, GetWaiversErrors, GetWaiversResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, RenameTeamData, RenameTeamErrors, RenameTeamResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SetPlayerAvailabilityData, SetPlayerAvailabilityErrors, SetPlayerAvailabilityResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, TradeOutlookData, TradeOutlookErrors, TradeOutlookResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
+import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityErrors, ClearPlayerAvailabilityResponses, ConnectEspnData, ConnectEspnErrors, ConnectEspnResponses, ConnectLeagueData, ConnectLeagueErrors, ConnectLeagueResponses, EspnDefaultsData, EspnDefaultsResponses, EvaluateTradeData, EvaluateTradeErrors, EvaluateTradeResponses, FindTradesData, FindTradesErrors, FindTradesResponses, ForgetTeamData, ForgetTeamErrors, ForgetTeamResponses, GetAdviceData, GetAdviceErrors, GetAdviceResponses, GetBuyTargetsData, GetBuyTargetsErrors, GetBuyTargetsResponses, GetByesData, GetByesErrors, GetByesResponses, GetCredentialsData, GetCredentialsErrors, GetCredentialsResponses, GetPendingTradesData, GetPendingTradesErrors, GetPendingTradesResponses, GetPlayerData, GetPlayerErrors, GetPlayerResponses, GetPlayersTableData, GetPlayersTableErrors, GetPlayersTableResponses, GetPlayerTradesData, GetPlayerTradesErrors, GetPlayerTradesResponses, GetRankingsData, GetRankingsErrors, GetRankingsResponses, GetRegressionData, GetRegressionErrors, GetRegressionResponses, GetSavedTeamsData, GetSavedTeamsResponses, GetStartsitData, GetStartsitErrors, GetStartsitResponses, GetStatusData, GetStatusResponses, GetTeamData, GetTeamErrors, GetTeamResponses, GetTradeOffersData, GetTradeOffersErrors, GetTradeOffersResponses, GetUserSettingsData, GetUserSettingsResponses, GetWaiversData, GetWaiversErrors, GetWaiversResponses, HealthData, HealthResponses, ManualLeagueData, ManualLeagueErrors, ManualLeagueResponses, PutCredentialsData, PutCredentialsErrors, PutCredentialsResponses, RefreshData, RefreshErrors, RefreshResponses, RenameTeamData, RenameTeamErrors, RenameTeamResponses, ResetUserSettingsData, ResetUserSettingsResponses, SearchPlayersData, SearchPlayersErrors, SearchPlayersResponses, SelectTeamData, SelectTeamErrors, SelectTeamResponses, SetPlayerAvailabilityData, SetPlayerAvailabilityErrors, SetPlayerAvailabilityResponses, SuggestTradesData, SuggestTradesErrors, SuggestTradesResponses, TradeOutlookData, TradeOutlookErrors, TradeOutlookResponses, UpdateRosterData, UpdateRosterErrors, UpdateRosterResponses, UpdateUserSettingsData, UpdateUserSettingsErrors, UpdateUserSettingsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -191,7 +191,8 @@ export const getWaivers = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Get Advice
  *
- * Ranked advisor feed (Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team grades.
+ * Ranked advisor feed (Offer / Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team
+ * grades.
  */
 export const getAdvice = <ThrowOnError extends boolean = false>(options: Options<GetAdviceData, ThrowOnError>): RequestResult<GetAdviceResponses, GetAdviceErrors, ThrowOnError> => (options.client ?? client).get<GetAdviceResponses, GetAdviceErrors, ThrowOnError>({ url: '/team/{team_id}/advice', ...options });
 
@@ -215,6 +216,13 @@ export const getByes = <ThrowOnError extends boolean = false>(options: Options<G
  * Trades you accepted on ESPN that are waiting to process, and your lineups once they do.
  */
 export const getPendingTrades = <ThrowOnError extends boolean = false>(options: Options<GetPendingTradesData, ThrowOnError>): RequestResult<GetPendingTradesResponses, GetPendingTradesErrors, ThrowOnError> => (options.client ?? client).get<GetPendingTradesResponses, GetPendingTradesErrors, ThrowOnError>({ url: '/team/{team_id}/pending-trades', ...options });
+
+/**
+ * Get Trade Offers
+ *
+ * Open ESPN trade offers sent to you (or by you), each graded by the trade analyzer.
+ */
+export const getTradeOffers = <ThrowOnError extends boolean = false>(options: Options<GetTradeOffersData, ThrowOnError>): RequestResult<GetTradeOffersResponses, GetTradeOffersErrors, ThrowOnError> => (options.client ?? client).get<GetTradeOffersResponses, GetTradeOffersErrors, ThrowOnError>({ url: '/team/{team_id}/trade-offers', ...options });
 
 /**
  * Update Roster

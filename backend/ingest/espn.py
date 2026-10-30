@@ -300,50 +300,86 @@ def _ms(value: Any) -> datetime | None:
     return datetime.fromtimestamp(value / 1000, UTC).replace(tzinfo=None) if value else None
 
 
-def parse_pending_trades(transactions: Sequence[Mapping]) -> list[PendingTrade]:
-    """Accepted-but-unprocessed trades from `mTransactions2`.
+@dataclass(frozen=True)
+class TradeOffer:
+    """A trade one team proposed that the other side hasn't answered yet."""
 
-    ESPN keeps the original `TRADE_PROPOSAL` at status PENDING and adds a separate `TRADE_ACCEPT`
-    that points at it through `relatedTransactionId`. A decline, veto, a CANCELED copy of the
-    proposal or an EXECUTED accept (the trade went through) means it is no longer pending.
-    """
-    by_id = {str(t.get("id")): t for t in transactions}
+    external_id: str
+    proposed_at: datetime | None
+    proposer: str  # ESPN team id
+    moves: list[tuple[int, str, str]]
+    drops: list[tuple[int, str]] = field(default_factory=list)
+
+
+def _open_proposals(
+    transactions: Sequence[Mapping],
+) -> list[tuple[str, Mapping, list[Mapping]]]:
+    """PENDING `TRADE_PROPOSAL`s nothing has ended, each with the transactions that point at it.
+
+    ESPN keeps the original proposal at status PENDING and links later steps to it through
+    `relatedTransactionId`. A decline, veto, a CANCELED copy of the proposal or an EXECUTED
+    accept (the trade went through) ends it."""
     related: dict[str, list[Mapping]] = {}
     for t in transactions:
         if t.get("relatedTransactionId"):
             related.setdefault(str(t["relatedTransactionId"]), []).append(t)
     out = []
-    for tid, t in by_id.items():
+    for t in {str(t.get("id")): t for t in transactions}.values():
         if t.get("type") != "TRADE_PROPOSAL" or t.get("status") != "PENDING":
             continue
-        links = related.get(tid, [])
-        accepts = [r for r in links if r.get("type") == "TRADE_ACCEPT"]
-        if not accepts:
-            continue
+        links = related.get(str(t.get("id")), [])
         ended = any(
             r.get("type") in _ENDS_TRADE
             or (r.get("type") == "TRADE_PROPOSAL" and r.get("status") == "CANCELED")
             or (r.get("type") == "TRADE_ACCEPT" and r.get("status") == "EXECUTED")
             for r in links
         )
-        if ended:
-            continue
-        items = t.get("items") or []
-        moves = [
-            (int(i["playerId"]), str(i["fromTeamId"]), str(i["toTeamId"]))
-            for i in items
-            if i.get("type") == "TRADE" and i.get("playerId") is not None
-        ]
-        drops = [
-            (int(i["playerId"]), str(i["fromTeamId"]))
-            for i in items
-            if i.get("type") == "DROP" and i.get("playerId") is not None
-        ]
-        if not moves:
+        if not ended:
+            out.append((str(t.get("id")), t, links))
+    return out
+
+
+def _trade_items(t: Mapping) -> tuple[list[tuple[int, str, str]], list[tuple[int, str]]]:
+    items = t.get("items") or []
+    moves = [
+        (int(i["playerId"]), str(i["fromTeamId"]), str(i["toTeamId"]))
+        for i in items
+        if i.get("type") == "TRADE" and i.get("playerId") is not None
+    ]
+    drops = [
+        (int(i["playerId"]), str(i["fromTeamId"]))
+        for i in items
+        if i.get("type") == "DROP" and i.get("playerId") is not None
+    ]
+    return moves, drops
+
+
+def parse_pending_trades(transactions: Sequence[Mapping]) -> list[PendingTrade]:
+    """Accepted-but-unprocessed trades from `mTransactions2`: open proposals with a separate
+    `TRADE_ACCEPT` pointing at them."""
+    out = []
+    for tid, t, links in _open_proposals(transactions):
+        accepts = [r for r in links if r.get("type") == "TRADE_ACCEPT"]
+        moves, drops = _trade_items(t)
+        if not accepts or not moves:
             continue
         accepted = max((r.get("proposedDate") or 0 for r in accepts), default=0)
         out.append(PendingTrade(tid, _ms(accepted), moves, drops))
     out.sort(key=lambda p: p.accepted_at or datetime.min)
+    return out
+
+
+def parse_trade_offers(transactions: Sequence[Mapping]) -> list[TradeOffer]:
+    """Open proposals nobody has accepted yet, newest first. The proposer is the proposal's
+    `teamId` when ESPN sends one, else the team giving the first player."""
+    out = []
+    for tid, t, links in _open_proposals(transactions):
+        moves, drops = _trade_items(t)
+        if not moves or any(r.get("type") == "TRADE_ACCEPT" for r in links):
+            continue
+        proposer = str(t["teamId"]) if t.get("teamId") else moves[0][1]
+        out.append(TradeOffer(tid, _ms(t.get("proposedDate")), proposer, moves, drops))
+    out.sort(key=lambda o: o.proposed_at or datetime.min, reverse=True)
     return out
 
 

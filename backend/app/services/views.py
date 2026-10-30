@@ -569,10 +569,16 @@ def _trade_partner(ctx: LeagueContext, team_id: str, give: list[str], receive: l
 def evaluate_trade(
     ctx: LeagueContext, team_id: str, give: list[str], receive: list[str]
 ) -> m.TradeOut:
+    return trade_out(ctx, _evaluate(ctx, team_id, give, receive))
+
+
+def _evaluate(
+    ctx: LeagueContext, team_id: str, give: list[str], receive: list[str]
+) -> tr.TradeEvaluation:
     team = ctx.team(team_id)
     partner = _trade_partner(ctx, team_id, give, receive)
     try:
-        ev = tr.evaluate(
+        return tr.evaluate(
             ros_math(ctx),
             ctx.players,
             (team.team_id, team.player_ids),
@@ -588,7 +594,6 @@ def evaluate_trade(
         )
     except ValueError as exc:  # signals/ stays app-agnostic and raises plain ValueError
         raise InvalidInput(str(exc)) from exc
-    return trade_out(ctx, ev)
 
 
 def _roster_outlook(
@@ -713,6 +718,59 @@ def pending_view(
     )
 
 
+def _offer_sides(row, team_id: str) -> tuple[list[str], list[str], list[str]]:
+    """What this team gives and gets in a trade row, and the teams on the other side."""
+    give = [mv["player_id"] for mv in row.moves if mv["from_team"] == team_id]
+    get = [mv["player_id"] for mv in row.moves if mv["to_team"] == team_id]
+    partners = sorted(
+        {mv["to_team"] for mv in row.moves if mv["from_team"] == team_id}
+        | {mv["from_team"] for mv in row.moves if mv["to_team"] == team_id}
+    )
+    return give, get, partners
+
+
+def _grade_offer(
+    ctx: LeagueContext, team_id: str, row
+) -> tuple[tr.TradeEvaluation | None, str | None]:
+    """The analyzer's evaluation of an offer for this team, or why it can't be graded."""
+    give, get, partners = _offer_sides(row, team_id)
+    if len(partners) > 1:
+        return None, "Trades with more than two teams can't be graded."
+    try:
+        return _evaluate(ctx, team_id, give, get), None
+    except InvalidInput as exc:
+        return None, f"Couldn't grade this offer: {exc}"
+
+
+def offers_view(ctx: LeagueContext, team_id: str, rows: Sequence) -> m.TradeOffersOut:
+    """Open trade offers this team is part of, each run through the trade analyzer."""
+    ctx.team(team_id)
+    received, sent = [], []
+    for r in involves(rows, team_id):
+        give, get, partners = _offer_sides(r, team_id)
+        partner = partners[0] if partners else None
+        ev, note = _grade_offer(ctx, team_id, r)
+        offer = m.TradeOfferOut(
+            id=r.external_id,
+            direction="sent" if r.proposer_team == team_id else "received",
+            partner_team_id=partner,
+            partner_name=next((t.team_name for t in ctx.teams if t.team_id == partner), None),
+            give=[player_ref(ctx, p) for p in give],
+            receive=[player_ref(ctx, p) for p in get],
+            drops=[player_ref(ctx, d["player_id"]) for d in r.drops if d["team_id"] == team_id],
+            proposed_at=r.proposed_at,
+            evaluation=trade_out(ctx, ev) if ev else None,
+            note=note,
+        )
+        (sent if offer.direction == "sent" else received).append(offer)
+    return m.TradeOffersOut(
+        team_id=team_id,
+        supported=ctx.league.platform == "espn",
+        received=received,
+        sent=sent,
+    )
+
+
 def trade_candidates(ctx: LeagueContext, team_id: str) -> list[tr.TradeEvaluation]:
     """Every mutually beneficial idea, best first (computed once per context, then paged)."""
     key = ("trades", team_id)
@@ -792,10 +850,23 @@ def find_view(
 # ───────── advice ─────────
 
 
-def advice_view(ctx: LeagueContext, team_id: str, pending_trades: int = 0) -> m.AdviceOut:
+def advice_view(
+    ctx: LeagueContext,
+    team_id: str,
+    pending_trades: int = 0,
+    accepted: Sequence = (),
+    offers: Sequence = (),
+) -> m.AdviceOut:
     """The advisor feed and grades. `pending_trades` > 0 means `ctx` is `with_trades(...)`: the
-    roster after that many accepted trades go through."""
+    roster after that many accepted trades go through. Otherwise players in the `accepted`
+    trades aren't suggested again. Open `offers` sent to this team get a card each."""
     team = ctx.team(team_id)
+    in_trades = frozenset(mv["player_id"] for r in involves(accepted, team_id) for mv in r.moves)
+    graded = []
+    for r in involves(offers, team_id):
+        ev = _grade_offer(ctx, team_id, r)[0]
+        if r.proposer_team != team_id and ev is not None and ev.partner is not None:
+            graded.append((r.proposer_team, ev))
     profs = profiles(ctx)
     msgs: dict[str, list[str]] = {}
     for f in ctx.regression.flags:
@@ -810,6 +881,8 @@ def advice_view(ctx: LeagueContext, team_id: str, pending_trades: int = 0) -> m.
         byes=_byes_rows(ctx, team_id),
         math=ros_math(ctx),
         week_plan=week_plan(ctx, team_id),
+        in_trades=in_trades,
+        offers=graded,
         week=ctx.week,
         trade_deadline_week=ctx.league.trade_deadline_week,
         trade_ideas=trade_ideas(ctx, team_id),

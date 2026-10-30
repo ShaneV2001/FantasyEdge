@@ -15,11 +15,13 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
 import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
+import { useTradeOffers } from '@/components/trade/TradeOffers'
 import { describeError } from '@/lib/errors'
 import { fmtRelative } from '@/lib/format'
 import { useTeamStore } from '@/stores/team'
@@ -69,6 +71,8 @@ export function AppSidebar() {
     },
   })
   const league = teamQuery.data?.league
+  const offers = useTradeOffers(team)
+  const badges: Partial<Record<(typeof NAV)[number]['to'], number>> = { '/trade': offers.data?.received.length ?? 0 }
 
   return (
     <Sidebar collapsible="icon">
@@ -96,6 +100,9 @@ export function AppSidebar() {
                       <span>{item.label}</span>
                     </Link>
                   </SidebarMenuButton>
+                  {!!badges[item.to] && (
+                    <SidebarMenuBadge aria-label={`${badges[item.to]} trade offers waiting`}>{badges[item.to]}</SidebarMenuBadge>
+                  )}
                 </SidebarMenuItem>
               ))}
               <SidebarMenuItem>

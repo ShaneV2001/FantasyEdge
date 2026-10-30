@@ -176,9 +176,18 @@ def get_advice(
     ctx: LeagueContext = Depends(team_ctx),
     con: duckdb.DuckDBPyConnection = Depends(get_con),
 ) -> m.AdviceOut:
-    """Ranked advisor feed (Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team grades."""
+    """Ranked advisor feed (Offer / Trade / Sell / Buy / Waiver / Lineup / Bye prep) + team
+    grades."""
     view, rows = view_ctx(ctx, con, team_id, roster)
-    return views.advice_view(view, team_id, len(rows))
+    if rows:
+        return views.advice_view(view, team_id, len(rows))
+    league_id = ctx.league.league_id
+    return views.advice_view(
+        ctx,
+        team_id,
+        accepted=leagues.pending_trades(con, league_id),
+        offers=leagues.trade_offers(con, league_id),
+    )
 
 
 @router.get("/{team_id}/regression", response_model=m.RegressionOut)
@@ -212,6 +221,16 @@ def get_pending_trades(
     return views.pending_view(
         ctx, team_id, leagues.pending_trades(con, league_id), row[0] if row else None
     )
+
+
+@router.get("/{team_id}/trade-offers", response_model=m.TradeOffersOut)
+def get_trade_offers(
+    team_id: str,
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.TradeOffersOut:
+    """Open ESPN trade offers sent to you (or by you), each graded by the trade analyzer."""
+    return views.offers_view(ctx, team_id, leagues.trade_offers(con, ctx.league.league_id))
 
 
 @router.delete("/{team_id}", response_model=m.ForgetOut)

@@ -87,6 +87,14 @@ MIGRATIONS: list[tuple[int, str]] = [
         " moves JSON, drops JSON, PRIMARY KEY (league_id, external_id));"
         "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS trade_review_hours INTEGER;",
     ),
+    # v9: ESPN trade offers nobody has answered yet (sent to or by the user's team), so the app
+    # can grade them before the user accepts or declines. Same id scheme as pending_trades.
+    (
+        9,
+        "CREATE TABLE IF NOT EXISTS trade_offers ("
+        " league_id VARCHAR, external_id VARCHAR, proposed_at TIMESTAMP, proposer_team VARCHAR,"
+        " moves JSON, drops JSON, PRIMARY KEY (league_id, external_id));",
+    ),
 ]
 
 

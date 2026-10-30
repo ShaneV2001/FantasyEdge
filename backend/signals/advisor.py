@@ -34,7 +34,7 @@ START_SIT_MIN_GAIN = 1.0
 
 @dataclass
 class Action:
-    type: str  # Trade | Sell | Buy | Waiver | Lineup | Bye prep
+    type: str  # Offer | Trade | Sell | Buy | Waiver | Lineup | Bye prep
     headline: str
     reasons: list[str]
     urgency: str
@@ -68,6 +68,10 @@ class AdvisorInputs:
     regression_messages: Mapping[str, list[str]]
     waivers: Sequence[WaiverPick] = ()  # ranked pickups (signals.waivers), best net gain first
     week_plan: WeekPlan | None = None  # this week's real vs best lineup (signals.startsit)
+    # players in a trade both sides already accepted: no point suggesting them again
+    in_trades: frozenset[str] = frozenset()
+    # open offers other teams sent you: (proposing team id, the analyzer's evaluation)
+    offers: Sequence[tuple[str, TradeEvaluation]] = ()
     market_label: str = "Market"
     playoff_label: str = "weeks 15-17"
     waiver_min_gain: float = WAIVER_MIN_GAIN
@@ -223,7 +227,7 @@ def sell_actions(inp: AdvisorInputs) -> list[Action]:
     actions = []
     for pid in inp.rosters[inp.my_team_id]:
         p = inp.players.get(pid)
-        if not p or p.get("signal") != "sell":
+        if not p or p.get("signal") != "sell" or pid in inp.in_trades:
             continue
         reasons = list(p.get("signal_reasons") or [])
         bye = p.get("bye_week")
@@ -260,7 +264,12 @@ def buy_actions(inp: AdvisorInputs) -> list[Action]:
         prof = inp.profiles.get(tid)
         for pid in roster:
             p = inp.players.get(pid)
-            if not p or p.get("signal") != "buy" or p.get("position") not in needs:
+            if (
+                not p
+                or p.get("signal") != "buy"
+                or p.get("position") not in needs
+                or pid in inp.in_trades
+            ):
                 continue
             reasons = list(p.get("signal_reasons") or [])
             reasons.append(f"Fills your weakest spot: {p['position']}.")
@@ -282,7 +291,8 @@ def trade_actions(inp: AdvisorInputs, top: int = 3) -> list[Action]:
     if deadline_passed(inp):
         return []
     out = []
-    for ev in list(inp.trade_ideas)[:top]:
+    ideas = [ev for ev in inp.trade_ideas if not inp.in_trades & {*ev.me.gives, *ev.me.receives}]
+    for ev in ideas[:top]:
         gain = ev.me.lineup_delta
         conf = (
             "high"
@@ -295,6 +305,29 @@ def trade_actions(inp: AdvisorInputs, top: int = 3) -> list[Action]:
             Action("Trade", f"Trade idea with {inp.team_names.get(ev.partner.team_id, ev.partner.team_id)}: {ev.headline}",
                    ev.reasons, trade_urgency(inp), conf, min(gain / 4, 5.0),
                    [*ev.me.gives, *ev.me.receives], ev.partner.team_id, ev)
+        )  # fmt: skip
+    return out
+
+
+OFFER_HEADLINE = {
+    "accept": "accept it",
+    "lean_accept": "worth accepting",
+    "neutral": "a coin flip",
+    "decline": "decline it",
+}
+
+
+def offer_actions(inp: AdvisorInputs) -> list[Action]:
+    """Offers waiting on your answer, graded like any trade. A bad offer is as worth knowing
+    about as a good one, so impact has a floor."""
+    out = []
+    for proposer, ev in inp.offers:
+        gain = ev.me.lineup_delta
+        team = inp.team_names.get(proposer, proposer)
+        out.append(
+            Action("Offer", f"Offer from {team}: {OFFER_HEADLINE.get(ev.verdict, ev.verdict)}",
+                   [ev.headline, *ev.reasons[:3]], "this_week", "high",
+                   min(max(abs(gain) / 4, 1.5), 5.0), [*ev.me.gives, *ev.me.receives], proposer, ev)
         )  # fmt: skip
     return out
 
@@ -339,7 +372,8 @@ def waiver_actions(inp: AdvisorInputs) -> list[Action]:
 
 def build_feed(inp: AdvisorInputs, limit: int = 10) -> list[Action]:
     actions = (
-        lineup_actions(inp)
+        offer_actions(inp)
+        + lineup_actions(inp)
         + bye_actions(inp)
         + trade_actions(inp)
         + sell_actions(inp)

@@ -11,7 +11,7 @@ export type ActionOut = {
     /**
      * Type
      */
-    type: 'Trade' | 'Sell' | 'Buy' | 'Waiver' | 'Lineup' | 'Bye prep';
+    type: 'Offer' | 'Trade' | 'Sell' | 'Buy' | 'Waiver' | 'Lineup' | 'Bye prep';
     /**
      * Headline
      */
@@ -2462,6 +2462,84 @@ export type TradeFindRequest = {
 };
 
 /**
+ * TradeOfferOut
+ */
+export type TradeOfferOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Direction
+     *
+     * received: another team proposed it to you; sent: you proposed it
+     */
+    direction: 'received' | 'sent';
+    /**
+     * Partner Team Id
+     */
+    partner_team_id: string | null;
+    /**
+     * Partner Name
+     */
+    partner_name: string | null;
+    /**
+     * Give
+     */
+    give: Array<PlayerRef>;
+    /**
+     * Receive
+     */
+    receive: Array<PlayerRef>;
+    /**
+     * Drops
+     *
+     * Your players the offer releases
+     */
+    drops: Array<PlayerRef>;
+    /**
+     * Proposed At
+     */
+    proposed_at: string | null;
+    /**
+     * The trade analyzer's verdict for your side, when it can be graded
+     */
+    evaluation?: TradeOut | null;
+    /**
+     * Note
+     *
+     * Why the offer couldn't be graded
+     */
+    note?: string | null;
+};
+
+/**
+ * TradeOffersOut
+ *
+ * Open ESPN trade offers nobody has answered yet, graded for your side.
+ */
+export type TradeOffersOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Supported
+     *
+     * False for Sleeper and manual leagues: their APIs don't share open offers
+     */
+    supported: boolean;
+    /**
+     * Received
+     */
+    received: Array<TradeOfferOut>;
+    /**
+     * Sent
+     */
+    sent: Array<TradeOfferOut>;
+};
+
+/**
  * TradeOut
  */
 export type TradeOut = {
@@ -3554,6 +3632,36 @@ export type GetPendingTradesResponses = {
 };
 
 export type GetPendingTradesResponse = GetPendingTradesResponses[keyof GetPendingTradesResponses];
+
+export type GetTradeOffersData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/trade-offers';
+};
+
+export type GetTradeOffersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTradeOffersError = GetTradeOffersErrors[keyof GetTradeOffersErrors];
+
+export type GetTradeOffersResponses = {
+    /**
+     * Successful Response
+     */
+    200: TradeOffersOut;
+};
+
+export type GetTradeOffersResponse = GetTradeOffersResponses[keyof GetTradeOffersResponses];
 
 export type UpdateRosterData = {
     body: ManualLeagueRequest;
