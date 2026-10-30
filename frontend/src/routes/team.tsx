@@ -4,6 +4,7 @@ import { CalendarDays, Pencil } from 'lucide-react'
 
 import { getRegressionOptions, getTeamOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
+import { GamedayAlerts } from '@/components/team/GamedayAlerts'
 import { PositionStrengthChart } from '@/components/team/PositionStrengthChart'
 import { BackToTop } from '@/components/common/BackToTop'
 import { LeagueRegressionList, RegressionList } from '@/components/team/RegressionList'
@@ -70,6 +71,7 @@ export function TeamPage() {
       />
       {q.isPending && <ListSkeleton rows={6} height="h-12" />}
       {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
+      {!after && <GamedayAlerts team={team} />}
       {pending.has && pending.data && (
         <PendingTradesBanner
           data={pending.data}

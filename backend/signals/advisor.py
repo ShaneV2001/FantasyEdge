@@ -5,10 +5,11 @@ priority = urgency weight × impact × confidence weight — all constants below
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from signals.byes import ByeWeekRow
+from signals.gameday import Alert
 from signals.lineup import SLOT_ELIGIBILITY, fit_to_slots
 from signals.startsit import WeekPlan, plan_week
 from signals.team import RosMath, TeamProfile
@@ -34,7 +35,7 @@ START_SIT_MIN_GAIN = 1.0
 
 @dataclass
 class Action:
-    type: str  # Offer | Trade | Sell | Buy | Waiver | Lineup | Bye prep
+    type: str  # Injury | Offer | Trade | Sell | Buy | Waiver | Lineup | Bye prep
     headline: str
     reasons: list[str]
     urgency: str
@@ -72,6 +73,7 @@ class AdvisorInputs:
     in_trades: frozenset[str] = frozenset()
     # open offers other teams sent you: (proposing team id, the analyzer's evaluation)
     offers: Sequence[tuple[str, TradeEvaluation]] = ()
+    alerts: Sequence[Alert] = ()  # game-day alerts for this week's starters (signals.gameday)
     market_label: str = "Market"
     playoff_label: str = "weeks 15-17"
     waiver_min_gain: float = WAIVER_MIN_GAIN
@@ -127,6 +129,7 @@ def lineup_actions(inp: AdvisorInputs) -> list[Action]:
         gain = pts[add] - pts[drop]
         if gain < inp.start_sit_min_gain:
             continue
+        # the order matters to build_feed: player_ids[1] is the starter being benched
         a, d = inp.players[add], inp.players[drop]
         reasons = [f"Projected {pts[add]:.1f} vs {pts[drop]:.1f} points this week (+{gain:.1f})."]
         if not inp.math.schedule.has_game(d.get("nfl_team"), inp.week):
@@ -370,10 +373,52 @@ def waiver_actions(inp: AdvisorInputs) -> list[Action]:
     return actions
 
 
+ALERT_HEADLINE = {"out": "won't play", "high": "is Doubtful", "medium": "is Questionable"}
+
+
+def alert_actions(inp: AdvisorInputs, skip: Collection[str] = ()) -> list[Action]:
+    """Game-day alerts worth acting on (missed-practice-only alerts stay on the Start/Sit page).
+    `skip`: starters a Lineup card already benches, so the same move isn't listed twice."""
+    out = []
+    for a in inp.alerts:
+        if a.severity not in ALERT_HEADLINE or a.player_id in skip:
+            continue
+        name = _name(inp.players, a.player_id)
+        reasons = list(a.reasons)
+        pids = [a.player_id]
+        if a.pivot:
+            reasons.append(
+                f"Best bench option: {_name(inp.players, a.pivot.player_id)} "
+                f"({a.pivot.points:.1f} projected)."
+            )
+            pids.append(a.pivot.player_id)
+        if a.late_pivot:
+            reasons.append(
+                f"{_name(inp.players, a.late_pivot.player_id)} plays at the same time or later, "
+                "so you can wait for inactives (out about 90 minutes before kickoff)."
+            )
+            pids.append(a.late_pivot.player_id)
+        if a.free_agent:
+            reasons.append(
+                f"Free agent {_name(inp.players, a.free_agent.player_id)} projects "
+                f"{a.free_agent.points:.1f}."
+            )
+            pids.append(a.free_agent.player_id)
+        out.append(
+            Action("Injury", f"{name} {ALERT_HEADLINE[a.severity]}", reasons, "this_week",
+                   "high" if a.severity != "medium" else "medium",
+                   min(max(a.points, 6.0) / 3, 5.0), pids)
+        )  # fmt: skip
+    return out
+
+
 def build_feed(inp: AdvisorInputs, limit: int = 10) -> list[Action]:
+    lineup = lineup_actions(inp)
+    benched = {a.player_ids[1] for a in lineup if len(a.player_ids) > 1}
     actions = (
-        offer_actions(inp)
-        + lineup_actions(inp)
+        alert_actions(inp, benched)
+        + offer_actions(inp)
+        + lineup
         + bye_actions(inp)
         + trade_actions(inp)
         + sell_actions(inp)

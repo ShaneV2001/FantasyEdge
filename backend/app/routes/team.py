@@ -223,6 +223,18 @@ def get_pending_trades(
     )
 
 
+@router.get("/{team_id}/alerts", response_model=m.GamedayOut)
+def get_gameday_alerts(
+    team_id: str,
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.GamedayOut:
+    """Starters this week who might not play (injury status, practice, bye), each with the bench
+    player or free agent to start instead. Games already kicked off are skipped."""
+    changes = context.status_changes(con, ctx.team(team_id).player_ids)
+    return views.gameday_view(ctx, team_id, changes)
+
+
 @router.get("/{team_id}/trade-offers", response_model=m.TradeOffersOut)
 def get_trade_offers(
     team_id: str,

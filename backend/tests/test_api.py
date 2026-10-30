@@ -1175,3 +1175,32 @@ def test_a_roster_with_room_drops_nobody(client):
     trade = _one_for_two(tc, team_id)
     assert trade["me"]["drops"] == []
     assert not any("to make room" in r for r in trade["reasons"])
+
+
+def test_gameday_alerts_flag_an_injured_starter_with_a_pivot(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    plan = tc.get(f"/team/{team_id}/startsit").json()
+    ctx = context.get_context(deps._con, f"sl-{LEAGUE}")
+    starter = next(
+        p
+        for p in sorted(x for x in plan["current"] if x)
+        if ctx.schedule.has_game(ctx.players[p]["nfl_team"], ctx.week)
+        and ctx.players[p]["position"] in ("RB", "WR")
+    )
+    ctx.players[starter]["injury_status"] = "Out"
+    ctx.memo.clear()
+    d = tc.get(f"/team/{team_id}/alerts").json()
+    assert d["week"] == ctx.week and d["checked"] > 0
+    alert = next(a for a in d["alerts"] if a["player"]["player_id"] == starter)
+    assert (alert["severity"], alert["status"]) == ("out", "Out")
+    assert alert["pivot"] and alert["pivot"]["player"]["player_id"] != starter
+    # the fixture's week ended long ago without final scores: nothing is locked, and it says why
+    assert any("final scores aren't in the local data" in n for n in d["notes"])
+    advice = tc.get(f"/team/{team_id}/advice").json()["actions"]
+    named = ctx.players[starter]["name"]
+    assert any(
+        (a["type"] == "Injury" and a["headline"] == f"{named} won't play")
+        or (a["type"] == "Lineup" and named in a["headline"])
+        for a in advice
+    )

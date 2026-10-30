@@ -100,7 +100,7 @@ describe('StartSitPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Thursday Guy/ }))
     expect(screen.getByRole('button', { name: /^Thursday Guy/ })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByText("IR / taxi (can't start)")).toBeInTheDocument()
-    expect(screen.getByText(/already have a final game this week/)).toBeInTheDocument()
+    expect(screen.getByText(/have kicked off \(or finished\) this week/)).toBeInTheDocument()
   })
 
   it('copies the lineup as text', async () => {

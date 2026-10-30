@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -145,6 +146,8 @@ class LeagueContext:
     stats: pl.DataFrame = field(default_factory=pl.DataFrame)  # league-scored history
     memo: dict = field(default_factory=dict)  # per-context derived results (e.g. trade ideas)
     tuning: UserSettings = field(default_factory=UserSettings)  # user settings it was built with
+    # player_id -> (report status, practice participation) from this week's official injury report
+    practice: dict[str, tuple[str | None, str | None]] = field(default_factory=dict)
 
     @property
     def shape(self) -> LeagueShape:
@@ -489,7 +492,33 @@ def build_context(
         cells=cells,
         stats=scored,
         tuning=tuning,
+        practice=practice_reports(con, league.season, week),
     )
+
+
+def practice_reports(
+    con: duckdb.DuckDBPyConnection, season: int, week: int
+) -> dict[str, tuple[str | None, str | None]]:
+    """This week's official injury report: player id -> (report status, practice participation)."""
+    rows = con.execute(
+        "SELECT player_id, report_status, practice_status FROM injuries WHERE season = ? AND week = ?",
+        [season, week],
+    ).fetchall()
+    return {pid: (rep, prac) for pid, rep, prac in rows}
+
+
+def status_changes(
+    con: duckdb.DuckDBPyConnection, player_ids: Collection[str]
+) -> dict[str, tuple[str | None, datetime]]:
+    """When each player's Sleeper injury status last changed: id -> (new status, seen at UTC)."""
+    if not player_ids:
+        return {}
+    rows = con.execute(
+        "SELECT player_id, status, seen_at FROM injury_status_log WHERE player_id IN"
+        " (SELECT unnest(?)) QUALIFY row_number() OVER (PARTITION BY player_id ORDER BY seen_at DESC) = 1",
+        [list(player_ids)],
+    ).fetchall()
+    return {pid: (status, seen) for pid, status, seen in rows}
 
 
 def _replacement_ppg(proj: pl.DataFrame, shape: LeagueShape) -> dict[str, float]:

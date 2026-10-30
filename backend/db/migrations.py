@@ -95,6 +95,13 @@ MIGRATIONS: list[tuple[int, str]] = [
         " league_id VARCHAR, external_id VARCHAR, proposed_at TIMESTAMP, proposer_team VARCHAR,"
         " moves JSON, drops JSON, PRIMARY KEY (league_id, external_id));",
     ),
+    # v10: when a player's Sleeper injury status changed (written by the player refresh), so
+    # game-day alerts can say "Questionable since Thursday".
+    (
+        10,
+        "CREATE TABLE IF NOT EXISTS injury_status_log ("
+        " player_id VARCHAR, status VARCHAR, seen_at TIMESTAMP, PRIMARY KEY (player_id, seen_at));",
+    ),
 ]
 
 

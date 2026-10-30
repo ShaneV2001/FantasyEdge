@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import dataclasses
 import unicodedata
-from collections.abc import Sequence
-from datetime import datetime
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 
 from app.errors import InvalidInput, NotFound
 from app.schemas import models as m
@@ -13,6 +13,7 @@ from app.services.context import MARKET_LABEL, LeagueContext
 from projections.base import replacement_ranks
 from scoring.rules import PRESETS, normalize
 from signals import advisor as adv
+from signals import gameday as gd
 from signals import startsit as ss
 from signals import trade as tr
 from signals import waivers as wv
@@ -62,18 +63,28 @@ def week_math(ctx: LeagueContext) -> RosMath:
     return ctx.memo["week_math"]
 
 
-def week_plan(ctx: LeagueContext, team_id: str, week: int | None = None) -> ss.WeekPlan:
-    """A team's real and best lineup for a week (this week by default), locks included."""
+def week_plan(
+    ctx: LeagueContext, team_id: str, week: int | None = None, now: datetime | None = None
+) -> ss.WeekPlan:
+    """A team's real and best lineup for a week (this week by default), with the players whose
+    game has kicked off (by `now`, default the current time) locked."""
     week = ctx.week if week is None else week
-    key = ("week_plan", team_id, week)
+    team = ctx.team(team_id)
+    locked = ss.locked_players(
+        team.player_ids, ctx.players, ctx.schedule, week, now or datetime.now(UTC)
+    )
+    key = ("week_plan", team_id, week, locked)  # a kickoff since the last call changes the plan
     if key not in ctx.memo:
-        team = ctx.team(team_id)
         ctx.memo[key] = ss.plan_week(
             week_math(ctx), ctx.players, team.player_ids, team.starters, week,
-            locked=ss.locked_players(team.player_ids, ctx.players, ctx.schedule, week),
-            reserved={p for p, s in team.slots.items() if s in ("ir", "taxi")},
+            locked=locked, reserved=reserved(ctx, team_id),
         )  # fmt: skip
     return ctx.memo[key]
+
+
+def reserved(ctx: LeagueContext, team_id: str) -> set[str]:
+    """Players on IR or taxi, who can't start."""
+    return {p for p, s in ctx.team(team_id).slots.items() if s in ("ir", "taxi")}
 
 
 def profiles(ctx: LeagueContext) -> dict[str, TeamProfile]:
@@ -220,6 +231,86 @@ def free_agents(ctx: LeagueContext) -> list[str] | None:
         if pid not in rostered and p.get("position") in ("QB", "RB", "WR", "TE", "K", "DEF")
         and (p.get("ppg") or 0) > 0 and p.get("nfl_team")
     ]  # fmt: skip
+
+
+# ───────── game day ─────────
+
+
+def gameday_alerts(ctx: LeagueContext, team_id: str, now: datetime | None = None) -> list[gd.Alert]:
+    """This week's starters who might not play (games not yet kicked off), with pivots."""
+    now = now or datetime.now(UTC)
+    plan = week_plan(ctx, team_id, now=now)
+    fas = free_agents(ctx)
+    math = week_math(ctx)
+    fa_points = {p: math.week_points(p).get(ctx.week, 0.0) for p in fas} if fas else None
+    return gd.alerts(
+        plan,
+        ctx.players,
+        ctx.schedule,
+        ctx.week,
+        now,
+        practice=ctx.practice,
+        reserved=reserved(ctx, team_id),
+        free_agents=fa_points,
+    )
+
+
+def _pivot_out(ctx: LeagueContext, p: gd.Pivot | None) -> m.PivotOut | None:
+    if p is None:
+        return None
+    return m.PivotOut(player=player_ref(ctx, p.player_id), points=p.points, kickoff=p.kickoff)
+
+
+def gameday_view(
+    ctx: LeagueContext,
+    team_id: str,
+    changes: Mapping[str, tuple[str | None, datetime]],
+    now: datetime | None = None,
+) -> m.GamedayOut:
+    now = now or datetime.now(UTC)
+    team = ctx.team(team_id)
+    plan = week_plan(ctx, team_id, now=now)
+    notes = []
+    if not team.starters:
+        notes.append(
+            "No starters set: mark your starters on My Team to get game-day alerts."
+            if ctx.league.platform == "manual"
+            else "Your league reported no starters for this week yet."
+        )
+    last = max((k for (_, w), k in ctx.schedule.kickoffs.items() if w == ctx.week), default=None)
+    if last is not None and not ctx.schedule.live(ctx.week, now) and last < now:
+        notes.append(
+            f"Week {ctx.week} ended but its final scores aren't in the local data yet. "
+            "Use Update (all data) so alerts cover the right week."
+        )
+    elif not ctx.practice:
+        notes.append(f"No official injury report for week {ctx.week} yet (it starts Wednesday).")
+    out = []
+    for a in gameday_alerts(ctx, team_id, now):
+        changed = changes.get(a.player_id)
+        out.append(
+            m.GamedayAlertOut(
+                player=player_ref(ctx, a.player_id),
+                slot=slot_label(a.slot),
+                severity=a.severity,  # type: ignore[arg-type]
+                status=a.status,
+                points=a.points,
+                kickoff=a.kickoff,
+                status_since=changed[1] if changed and changed[0] == a.status else None,
+                reasons=a.reasons,
+                pivot=_pivot_out(ctx, a.pivot),
+                late_pivot=_pivot_out(ctx, a.late_pivot),
+                free_agent=_pivot_out(ctx, a.free_agent),
+            )
+        )
+    return m.GamedayOut(
+        team_id=team_id,
+        week=ctx.week,
+        generated_at=now,
+        checked=sum(1 for p in plan.current if p and p not in plan.locked),
+        alerts=out,
+        notes=notes,
+    )
 
 
 # ───────── /team/{id} ─────────
@@ -883,6 +974,7 @@ def advice_view(
         week_plan=week_plan(ctx, team_id),
         in_trades=in_trades,
         offers=graded,
+        alerts=gameday_alerts(ctx, team_id),
         week=ctx.week,
         trade_deadline_week=ctx.league.trade_deadline_week,
         trade_ideas=trade_ideas(ctx, team_id),

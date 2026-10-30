@@ -21,6 +21,7 @@ import { getStartsitOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { InjuryTag, PositionBadge } from '@/components/player/badges'
 import { matchupTone } from '@/components/player/matchups'
+import { GamedayAlerts } from '@/components/team/GamedayAlerts'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -381,8 +382,8 @@ function Planner({ data, platform }: { data: StartSitOut; platform: string }) {
       {anyLocked && (
         <p className="flex items-start gap-2 text-xs text-muted-foreground">
           <Lock className="mt-0.5 size-3.5 shrink-0" />
-          Players marked “played” already have a final game this week, so they’re locked where they are and count 0
-          points still to play.
+          Players marked “played” have kicked off (or finished) this week, so they’re locked where they are, and a
+          finished game counts 0 points still to play.
         </p>
       )}
     </div>
@@ -416,6 +417,7 @@ export function StartSitPage() {
           )
         }
       />
+      {(!q.data || q.data.week === q.data.weeks[0]) && <GamedayAlerts team={team} />}
       <Alert>
         <Info />
         <AlertTitle>Planner — changes here don't change your lineup on {team.platform === 'manual' || team.platform === 'demo' ? 'ESPN/Sleeper' : platform}.</AlertTitle>

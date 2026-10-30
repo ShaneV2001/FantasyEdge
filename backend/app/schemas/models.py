@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 Position = Literal["QB", "RB", "WR", "TE", "K", "DEF"]
 Urgency = Literal["this_week", "before_byes", "before_deadline", "rest_of_season"]
 Confidence = Literal["high", "medium", "low"]
-ActionType = Literal["Offer", "Trade", "Sell", "Buy", "Waiver", "Lineup", "Bye prep"]
+ActionType = Literal["Injury", "Offer", "Trade", "Sell", "Buy", "Waiver", "Lineup", "Bye prep"]
 
 
 class ErrorOut(BaseModel):
@@ -507,6 +507,46 @@ class PendingTradesOut(BaseModel):
     outlook: TradeOutlookOut | None = Field(
         None, description="Your lineups with every pending trade applied"
     )
+
+
+class PivotOut(BaseModel):
+    player: PlayerRef
+    points: float = Field(description="This week's projection")
+    kickoff: datetime | None = Field(None, description="Kickoff (UTC)")
+
+
+class GamedayAlertOut(BaseModel):
+    player: PlayerRef
+    slot: str = Field(description="Lineup slot label, e.g. RB or FLEX")
+    severity: Literal["out", "high", "medium", "low"] = Field(
+        description="out: won't play; high: Doubtful; medium: Questionable; low: missed practice"
+    )
+    status: str
+    points: float = Field(description="This week's projection, already discounted for the status")
+    kickoff: datetime | None = Field(None, description="Kickoff (UTC)")
+    status_since: datetime | None = Field(
+        None, description="When Sleeper's status last changed (UTC), if seen by a refresh"
+    )
+    reasons: list[str]
+    pivot: PivotOut | None = Field(None, description="Best bench player for the slot")
+    late_pivot: PivotOut | None = Field(
+        None,
+        description="Best bench player kicking off no earlier than him, when the pivot plays first",
+    )
+    free_agent: PivotOut | None = Field(
+        None, description="Best free agent for the slot, when he beats the bench"
+    )
+
+
+class GamedayOut(BaseModel):
+    """This week's starters who might not play, with who to start instead."""
+
+    team_id: str
+    week: int
+    generated_at: datetime
+    checked: int = Field(description="Starters checked (games not yet kicked off)")
+    alerts: list[GamedayAlertOut]
+    notes: list[str] = []
 
 
 class TradeOfferOut(BaseModel):

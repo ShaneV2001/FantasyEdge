@@ -1,7 +1,7 @@
 """This week's lineup: your real one, the best one, and what's locked.
 
 Shared by My Team ("Best lineup"), the Advisor's start/sit cards and the Start/Sit planner so all
-three always agree. Players whose game this week is already final are *locked*: a locked starter
+three always agree. Players whose game this week has kicked off are *locked*: a locked starter
 keeps his slot (his points are banked) and a locked bench player can't come in. Players on IR or
 taxi can't start. Everyone else competes for the remaining slots on this week's (matchup-adjusted)
 projection.
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from signals.lineup import LineupPlayer, fit_to_slots, optimal_lineup
 from signals.schedule import Schedule
@@ -42,13 +43,19 @@ class WeekPlan:
 
 
 def locked_players(
-    roster: Sequence[str], players: Mapping[str, Mapping], schedule: Schedule, week: int
+    roster: Sequence[str],
+    players: Mapping[str, Mapping],
+    schedule: Schedule,
+    week: int,
+    now: datetime | None = None,
 ) -> frozenset[str]:
-    """Roster players whose game this week is already final."""
+    """Roster players whose game this week is already final, or (given `now`) has kicked off:
+    platforms lock a player at kickoff."""
     out = set()
     for pid in roster:
         team = players.get(pid, {}).get("nfl_team")
-        if schedule.has_game(team, week) and not schedule.plays(team, week):
+        final = schedule.has_game(team, week) and not schedule.plays(team, week)
+        if final or (now is not None and schedule.started(team, week, now)):
             out.add(pid)
     return frozenset(out)
 

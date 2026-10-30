@@ -77,10 +77,27 @@ def players_sync(con: duckdb.DuckDBPyConnection, c: Clients, force: bool = False
         pl.col("injury_start_date").str.to_date(strict=False),
         pl.lit(_now()).alias("updated_at"),
     )
+    changes = status_changes(query_df(con, "SELECT player_id, injury_status FROM players"), df)
     with transaction(con):  # full replace: all-or-nothing so a failed insert keeps the old table
         n = replace_where(con, "players", df, "TRUE", [])
+        if not changes.is_empty():
+            upsert(con, "injury_status_log", changes)
         log_sync(con, "sleeper_players", "ok", f"{n} players")
     return n
+
+
+def status_changes(old: pl.DataFrame, new: pl.DataFrame) -> pl.DataFrame:
+    """Players whose injury status differs from the last refresh, as injury_status_log rows.
+    The first refresh (no previous players) logs nothing: every status would look new."""
+    if old.is_empty():
+        return pl.DataFrame()
+    joined = new.select("player_id", "injury_status").join(
+        old.select("player_id", pl.col("injury_status").alias("was")), on="player_id", how="inner"
+    )
+    changed = joined.filter(pl.col("injury_status").ne_missing(pl.col("was")))
+    return changed.select(
+        "player_id", pl.col("injury_status").alias("status"), pl.lit(_now()).alias("seen_at")
+    )
 
 
 def stats_sync(con: duckdb.DuckDBPyConnection, c: Clients) -> dict[str, int]:

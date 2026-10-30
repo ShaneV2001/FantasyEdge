@@ -7,6 +7,7 @@ import {
   Info,
   ListChecks,
   ShoppingCart,
+  Siren,
   TrendingDown,
   TrendingUp,
   UserPlus,
@@ -30,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { useTeamStore } from '@/stores/team'
 
 const TYPE_META: Record<ActionOut['type'], { icon: typeof Info; cls: string }> = {
+  Injury: { icon: Siren, cls: 'text-sell bg-sell/10' },
   Offer: { icon: Inbox, cls: 'text-primary bg-primary/10' },
   Trade: { icon: ArrowLeftRight, cls: 'text-primary bg-primary/10' },
   Sell: { icon: TrendingDown, cls: 'text-sell bg-sell/10' },

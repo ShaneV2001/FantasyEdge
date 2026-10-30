@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from functools import cached_property
+from zoneinfo import ZoneInfo
 
 import polars as pl
 
 REG_SEASON_WEEKS = 18
+EASTERN = ZoneInfo("America/New_York")  # nflverse game times
+LIVE_GRACE = timedelta(hours=12)  # after a week's last kickoff, its games should be final
 
 # How far a matchup moves a weekly projection: points × (1 + α × (index − 1)). α = 0 means the
 # schedule is ignored for that position. Chosen per position by `python -m models.run
@@ -27,6 +32,33 @@ class Schedule:
     games: dict[tuple[str, int], str]  # (team, week) -> opponent
     byes: dict[str, int]  # team -> bye week
     completed: frozenset[tuple[str, int]] = frozenset()  # (team, week) games already final
+    # (team, week) -> kickoff (UTC). nflverse times are US/Eastern; missing when unknown.
+    kickoffs: Mapping[tuple[str, int], datetime] = field(default_factory=dict)
+
+    def kickoff(self, team: str | None, week: int) -> datetime | None:
+        return self.kickoffs.get((team, week)) if team else None
+
+    @cached_property
+    def _last_kickoff(self) -> dict[int, datetime]:
+        out: dict[int, datetime] = {}
+        for (_, week), k in self.kickoffs.items():
+            out[week] = max(out.get(week, k), k)
+        return out
+
+    def live(self, week: int, now: datetime) -> bool:
+        """True until `LIVE_GRACE` after the week's last kickoff. Past that, an unfinished game
+        means the local results are out of date, not that the game is still on."""
+        last = self._last_kickoff.get(week)
+        return last is not None and now <= last + LIVE_GRACE
+
+    def started(self, team: str | None, week: int, now: datetime) -> bool:
+        """True once the team's game this week is final, or has kicked off in a live week."""
+        if team is None or (team, week) not in self.games:
+            return False
+        if (team, week) in self.completed:
+            return True
+        k = self.kickoff(team, week)
+        return k is not None and k <= now and self.live(week, now)
 
     def plays(self, team: str | None, week: int) -> bool:
         """True if the team has a game this week that has not been played yet."""
@@ -50,15 +82,21 @@ class Schedule:
 def build_schedule(games: pl.DataFrame, season: int) -> Schedule:
     """A team's bye is the regular-season week in which it has no game row."""
     g = games.filter(pl.col("season") == season)
+    if "kickoff" not in g.columns:
+        g = g.with_columns(pl.lit(None, pl.Datetime).alias("kickoff"))
     matchups: dict[tuple[str, int], str] = {}
     completed: set[tuple[str, int]] = set()
-    for home, away, week, score in g.select(
-        "home_team", "away_team", "week", "home_score"
+    kickoffs: dict[tuple[str, int], datetime] = {}
+    for home, away, week, score, kick in g.select(
+        "home_team", "away_team", "week", "home_score", "kickoff"
     ).iter_rows():
         matchups[(home, week)] = away
         matchups[(away, week)] = home
         if score is not None:
             completed |= {(home, week), (away, week)}
+        if kick is not None:
+            utc = kick.replace(tzinfo=EASTERN).astimezone(UTC)
+            kickoffs[(home, week)] = kickoffs[(away, week)] = utc
     weeks = int(g["week"].max()) if g.height else REG_SEASON_WEEKS
     played: dict[str, set[int]] = defaultdict(set)
     for team, week in matchups:
@@ -68,7 +106,7 @@ def build_schedule(games: pl.DataFrame, season: int) -> Schedule:
         missing = [w for w in range(1, weeks + 1) if w not in ws]
         if missing:
             byes[team] = missing[0]
-    return Schedule(season, weeks, matchups, byes, frozenset(completed))
+    return Schedule(season, weeks, matchups, byes, frozenset(completed), kickoffs)
 
 
 def fp_allowed_index(

@@ -1155,6 +1155,49 @@
         }
       }
     },
+    "/team/{team_id}/alerts": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Gameday Alerts",
+        "description": "Starters this week who might not play (injury status, practice, bye), each with the bench\nplayer or free agent to start instead. Games already kicked off are skipped.",
+        "operationId": "get_gameday_alerts",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamedayOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/team/{team_id}/trade-offers": {
       "get": {
         "tags": [
@@ -1816,6 +1859,7 @@
           "type": {
             "type": "string",
             "enum": [
+              "Injury",
               "Offer",
               "Trade",
               "Sell",
@@ -2847,6 +2891,161 @@
         ],
         "title": "ForgetOut"
       },
+      "GamedayAlertOut": {
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "slot": {
+            "type": "string",
+            "title": "Slot",
+            "description": "Lineup slot label, e.g. RB or FLEX"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "out",
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Severity",
+            "description": "out: won't play; high: Doubtful; medium: Questionable; low: missed practice"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points",
+            "description": "This week's projection, already discounted for the status"
+          },
+          "kickoff": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff",
+            "description": "Kickoff (UTC)"
+          },
+          "status_since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Since",
+            "description": "When Sleeper's status last changed (UTC), if seen by a refresh"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "pivot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PivotOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Best bench player for the slot"
+          },
+          "late_pivot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PivotOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Best bench player kicking off no earlier than him, when the pivot plays first"
+          },
+          "free_agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PivotOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Best free agent for the slot, when he beats the bench"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player",
+          "slot",
+          "severity",
+          "status",
+          "points",
+          "reasons"
+        ],
+        "title": "GamedayAlertOut"
+      },
+      "GamedayOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "checked": {
+            "type": "integer",
+            "title": "Checked",
+            "description": "Starters checked (games not yet kicked off)"
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/GamedayAlertOut"
+            },
+            "type": "array",
+            "title": "Alerts"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "week",
+          "generated_at",
+          "checked",
+          "alerts"
+        ],
+        "title": "GamedayOut",
+        "description": "This week's starters who might not play, with who to start instead."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3352,6 +3551,37 @@
         ],
         "title": "PendingTradesOut",
         "description": "Trades both teams accepted on ESPN that haven't processed yet (league review period)."
+      },
+      "PivotOut": {
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerRef"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points",
+            "description": "This week's projection"
+          },
+          "kickoff": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff",
+            "description": "Kickoff (UTC)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player",
+          "points"
+        ],
+        "title": "PivotOut"
       },
       "PlayerAnalyticsOut": {
         "properties": {

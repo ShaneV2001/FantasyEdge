@@ -11,7 +11,7 @@ export type ActionOut = {
     /**
      * Type
      */
-    type: 'Offer' | 'Trade' | 'Sell' | 'Buy' | 'Waiver' | 'Lineup' | 'Bye prep';
+    type: 'Injury' | 'Offer' | 'Trade' | 'Sell' | 'Buy' | 'Waiver' | 'Lineup' | 'Bye prep';
     /**
      * Headline
      */
@@ -627,6 +627,97 @@ export type ForgetOut = {
 };
 
 /**
+ * GamedayAlertOut
+ */
+export type GamedayAlertOut = {
+    player: PlayerRef;
+    /**
+     * Slot
+     *
+     * Lineup slot label, e.g. RB or FLEX
+     */
+    slot: string;
+    /**
+     * Severity
+     *
+     * out: won't play; high: Doubtful; medium: Questionable; low: missed practice
+     */
+    severity: 'out' | 'high' | 'medium' | 'low';
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Points
+     *
+     * This week's projection, already discounted for the status
+     */
+    points: number;
+    /**
+     * Kickoff
+     *
+     * Kickoff (UTC)
+     */
+    kickoff?: string | null;
+    /**
+     * Status Since
+     *
+     * When Sleeper's status last changed (UTC), if seen by a refresh
+     */
+    status_since?: string | null;
+    /**
+     * Reasons
+     */
+    reasons: Array<string>;
+    /**
+     * Best bench player for the slot
+     */
+    pivot?: PivotOut | null;
+    /**
+     * Best bench player kicking off no earlier than him, when the pivot plays first
+     */
+    late_pivot?: PivotOut | null;
+    /**
+     * Best free agent for the slot, when he beats the bench
+     */
+    free_agent?: PivotOut | null;
+};
+
+/**
+ * GamedayOut
+ *
+ * This week's starters who might not play, with who to start instead.
+ */
+export type GamedayOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Generated At
+     */
+    generated_at: string;
+    /**
+     * Checked
+     *
+     * Starters checked (games not yet kicked off)
+     */
+    checked: number;
+    /**
+     * Alerts
+     */
+    alerts: Array<GamedayAlertOut>;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -912,6 +1003,25 @@ export type PendingTradesOut = {
      * Your lineups with every pending trade applied
      */
     outlook?: TradeOutlookOut | null;
+};
+
+/**
+ * PivotOut
+ */
+export type PivotOut = {
+    player: PlayerRef;
+    /**
+     * Points
+     *
+     * This week's projection
+     */
+    points: number;
+    /**
+     * Kickoff
+     *
+     * Kickoff (UTC)
+     */
+    kickoff?: string | null;
 };
 
 /**
@@ -3632,6 +3742,36 @@ export type GetPendingTradesResponses = {
 };
 
 export type GetPendingTradesResponse = GetPendingTradesResponses[keyof GetPendingTradesResponses];
+
+export type GetGamedayAlertsData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/alerts';
+};
+
+export type GetGamedayAlertsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetGamedayAlertsError = GetGamedayAlertsErrors[keyof GetGamedayAlertsErrors];
+
+export type GetGamedayAlertsResponses = {
+    /**
+     * Successful Response
+     */
+    200: GamedayOut;
+};
+
+export type GetGamedayAlertsResponse = GetGamedayAlertsResponses[keyof GetGamedayAlertsResponses];
 
 export type GetTradeOffersData = {
     body?: never;
