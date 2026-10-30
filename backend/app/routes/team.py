@@ -235,6 +235,17 @@ def get_gameday_alerts(
     return views.gameday_view(ctx, team_id, changes)
 
 
+@router.get("/{team_id}/matchup", response_model=m.MatchupOut)
+def get_matchup(
+    team_id: str,
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.MatchupOut:
+    """This week's head-to-head matchup with your win chance, the standings with playoff odds,
+    and your week-by-week schedule."""
+    return views.matchup_view(ctx, team_id, leagues.matchups(con, ctx.league.league_id))
+
+
 @router.get("/{team_id}/trade-offers", response_model=m.TradeOffersOut)
 def get_trade_offers(
     team_id: str,

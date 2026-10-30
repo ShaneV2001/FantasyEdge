@@ -11,6 +11,7 @@ from typing import Any
 
 import polars as pl
 
+from ingest.h2h import WeekMatchup
 from ingest.http import CachedHttp
 
 FANTASY_POSITIONS = ("QB", "RB", "WR", "TE", "K", "DEF")
@@ -44,6 +45,9 @@ class SleeperClient:
 
     def league_users(self, league_id: str, force: bool = False) -> list[dict]:
         return self._get(f"/league/{league_id}/users", timedelta(minutes=30), force) or []
+
+    def matchups(self, league_id: str, week: int, force: bool = False) -> list[dict]:
+        return self._get(f"/league/{league_id}/matchups/{week}", timedelta(minutes=5), force) or []
 
     def transactions(self, league_id: str, week: int, force: bool = False) -> list[dict]:
         return (
@@ -83,6 +87,7 @@ class LeagueInfo:
     faab_budget: int | None
     playoff_week_start: int | None
     league_type: str = "redraft"
+    playoff_teams: int | None = None
     status: str = ""
     avatar: str | None = None
     extra: dict = field(default_factory=dict)
@@ -109,6 +114,7 @@ def parse_league(raw: dict) -> LeagueInfo:
         if settings.get("playoff_week_start")
         else None,
         league_type=LEAGUE_TYPES.get(int(settings.get("type") or 0), "redraft"),
+        playoff_teams=int(settings["playoff_teams"]) if settings.get("playoff_teams") else None,
         status=raw.get("status") or "",
         avatar=raw.get("avatar"),
     )
@@ -158,6 +164,30 @@ def parse_rosters(
                 faab_remaining=(faab_budget - int(used or 0)) if faab_budget is not None else None,
             )
         )
+    return out
+
+
+def parse_matchups(week: int, raw: list[dict]) -> list[WeekMatchup]:
+    """`/league/{id}/matchups/{week}`: rosters with the same matchup_id play each other. Future
+    weeks are listed too (0 points), so one pass over every week gives the schedule."""
+    by_matchup: dict[Any, list[dict]] = {}
+    for r in raw:
+        by_matchup.setdefault(r.get("matchup_id"), []).append(r)
+    out = []
+    for mid, rows in by_matchup.items():
+        for r in rows:
+            opp = next((o for o in rows if o is not r), None) if mid is not None else None
+            starters = [p for p in (r.get("starters") or []) if p and p != "0"]
+            out.append(
+                WeekMatchup(
+                    week,
+                    str(r["roster_id"]),
+                    str(opp["roster_id"]) if opp else None,
+                    float(r.get("points") or 0),
+                    starters,
+                    {str(k): float(v or 0) for k, v in (r.get("players_points") or {}).items()},
+                )
+            )
     return out
 
 

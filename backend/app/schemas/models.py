@@ -549,6 +549,65 @@ class GamedayOut(BaseModel):
     notes: list[str] = []
 
 
+class MatchupPlayerOut(BaseModel):
+    slot: str
+    player: PlayerRef | None = Field(None, description="None = empty slot")
+    projected: float = Field(
+        description="Points still projected this week (0 once his game is final)"
+    )
+    actual: float | None = Field(None, description="Points scored so far this week")
+    state: Literal["final", "live", "upcoming", "bye", "empty"]
+
+
+class MatchupSideOut(BaseModel):
+    team_id: str
+    team_name: str
+    projected: float = Field(description="Expected final score: banked points + projections")
+    sd: float = Field(description="Spread of that expectation (1 sd)")
+    actual: float = Field(description="Points scored so far")
+    lineup: list[MatchupPlayerOut]
+
+
+class StandingOut(BaseModel):
+    team_id: str
+    team_name: str
+    is_mine: bool
+    wins: int
+    losses: int
+    points_for: float
+    proj_wins: float = Field(description="Expected final wins")
+    proj_losses: float
+    playoff_pct: float = Field(description="Share of simulated seasons in the playoffs (0–1)")
+    top_seed_pct: float = Field(description="Share of simulated seasons as the 1 seed (0–1)")
+
+
+class ScheduleWeekOut(BaseModel):
+    week: int
+    opponent_id: str | None
+    opponent_name: str | None
+    win_prob: float | None = Field(None, description="Your chance to win (unplayed weeks)")
+    result: Literal["W", "L", "T"] | None = Field(None, description="Weeks already played")
+    points: float | None = None
+    opponent_points: float | None = None
+
+
+class MatchupOut(BaseModel):
+    """This week's head-to-head matchup, the standings with playoff odds, and your schedule."""
+
+    team_id: str
+    week: int
+    has_schedule: bool = Field(description="False for manual teams or before the first sync")
+    me: MatchupSideOut | None = None
+    opponent: MatchupSideOut | None = None
+    win_prob: float | None = Field(None, description="Your chance to win this week (0–1)")
+    standings: list[StandingOut] = []
+    schedule: list[ScheduleWeekOut] = []
+    playoff_teams: int | None = None
+    regular_season_weeks: int | None = None
+    sims: int = 0
+    notes: list[str] = []
+
+
 class TradeOfferOut(BaseModel):
     id: str
     direction: Literal["received", "sent"] = Field(

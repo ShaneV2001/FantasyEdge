@@ -29,6 +29,26 @@ FC = "https://api.fantasycalc.com"
 LEAGUE = "999000111"
 
 
+PAIRINGS = [((1, 2), (3, 4)), ((1, 3), (2, 4)), ((1, 4), (2, 3))]
+
+
+def sleeper_matchups(request: httpx.Request) -> httpx.Response:
+    """A round robin for the fixture's 4 rosters; weeks before the current one (5) have scores
+    (roster 1 always wins), later weeks are 0-0 like Sleeper's future weeks."""
+    week = int(request.url.path.rsplit("/", 1)[1])
+    rosters = {r["roster_id"]: r for r in load_json("sleeper_rosters.json")}
+    out = []
+    for mid, pair in enumerate(PAIRINGS[week % 3], 1):
+        for rid in pair:
+            starters = rosters[rid]["starters"]
+            pts = (150.0 if rid == 1 else 100.0 + rid + week) if week < 5 else 0.0
+            out.append({
+                "roster_id": rid, "matchup_id": mid, "points": pts, "starters": starters,
+                "players_points": {p: round(pts / len(starters), 2) for p in starters},
+            })  # fmt: skip
+    return httpx.Response(200, json=out)
+
+
 def mock_sources(router: respx.MockRouter) -> None:
     router.get(f"{SL}/state/nfl").mock(
         return_value=httpx.Response(200, json=load_json("sleeper_state.json"))
@@ -52,6 +72,7 @@ def mock_sources(router: respx.MockRouter) -> None:
     router.get(url__regex=rf"{SL}/league/{LEAGUE}/transactions/\d+").mock(
         return_value=httpx.Response(200, json=[])
     )
+    router.get(url__regex=rf"{SL}/league/{LEAGUE}/matchups/\d+").mock(side_effect=sleeper_matchups)
     router.get(f"{SL}/players/nfl/trending/add").mock(
         return_value=httpx.Response(200, json=load_json("sleeper_trending_add.json"))
     )
@@ -1204,3 +1225,39 @@ def test_gameday_alerts_flag_an_injured_starter_with_a_pivot(client):
         or (a["type"] == "Lineup" and named in a["headline"])
         for a in advice
     )
+
+
+def test_matchup_shows_this_week_the_standings_and_the_schedule(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    d = tc.get(f"/team/{team_id}/matchup").json()
+    assert d["has_schedule"] and d["week"] == 5 and d["regular_season_weeks"] == 14
+    assert d["playoff_teams"] == 4 and any("playoff size" in n for n in d["notes"])
+    me, opp = d["me"], d["opponent"]
+    assert me["team_id"] == team_id and opp["team_id"] != team_id
+    assert len(me["lineup"]) == len(opp["lineup"]) > 0
+    assert me["projected"] > 0 and me["sd"] > 0 and 0 < d["win_prob"] < 1
+    # played weeks are results, the rest are chances
+    played = [w for w in d["schedule"] if w["week"] < 5]
+    assert len(played) == 4 and all(w["result"] in ("W", "L") for w in played)
+    assert all(w["win_prob"] is not None for w in d["schedule"] if w["week"] >= 5)
+    assert [w["week"] for w in d["schedule"]] == list(range(1, 15))
+    st = d["standings"]
+    assert len(st) == 4 and sum(s["is_mine"] for s in st) == 1
+    assert abs(sum(s["playoff_pct"] for s in st) - 4) < 1e-6  # every team makes a 4-team bracket
+    assert all(s["proj_wins"] >= s["wins"] for s in st)
+    # the same inputs always give the same odds
+    assert tc.get(f"/team/{team_id}/matchup").json()["standings"] == st
+
+
+def test_matchup_for_a_manual_team_explains_why_there_is_none(client):
+    tc, _ = client
+    pool = tc.get("/players", params={"limit": 15}).json()
+    body = {
+        "name": "Solo",
+        "num_teams": 10,
+        "scoring": "ppr",
+        "player_ids": [p["player_id"] for p in pool],
+    }
+    d = tc.get(f"/team/{tc.post('/league/manual', json=body).json()['team_id']}/matchup").json()
+    assert not d["has_schedule"] and "Manual teams" in d["notes"][0]

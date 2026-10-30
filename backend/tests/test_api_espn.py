@@ -3,10 +3,15 @@ expired / missing login cookies. ESPN is mocked with a scrubbed recording of a r
 
 from __future__ import annotations
 
+import json
+from types import SimpleNamespace
+
 import httpx
 import pytest
 
-from app.services import context
+from app import deps
+from app.services import context, leagues
+from ingest import espn as es
 from tests.conftest import load_json
 from tests.test_api import client  # noqa: F401  (fixture)
 
@@ -264,3 +269,80 @@ def test_open_offers_are_graded_for_both_teams(client):  # noqa: F811
     t2["roster"]["entries"].append(e1)
     assert tc.post("/refresh", json={"scope": "league", "league_id": LEAGUE}).status_code == 200
     assert tc.get(f"/team/{LEAGUE}-1/trade-offers").json()["received"] == []
+
+
+def test_espn_matchups_sync_schedule_lineups_and_odds(client):  # noqa: F811
+    """One schedule call plus a boxscore per played week; lineups map to our player ids (D/ST
+    included) and are kept when a later sync skips that week's boxscore."""
+    tc, router = client
+    league = load_json("espn_league.json")
+    pairs = [((1, 2), (3, 4)), ((1, 3), (2, 4)), ((1, 4), (2, 3))]
+    sched = [
+        {"matchupPeriodId": w, "playoffTierType": "NONE",
+         "home": {"teamId": a, "totalPoints": 100.0 + a if w < 6 else 0.0},
+         "away": {"teamId": b, "totalPoints": 90.0 + b if w < 6 else 0.0}}
+        for w in range(1, 15) for a, b in pairs[w % 3]
+    ]  # fmt: skip
+    boxes: list[int] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        views = request.url.params.get_list("view")
+        if "mBoxscore" in views:
+            week = int(request.url.params["scoringPeriodId"])
+            boxes.append(week)
+            out = []
+            for g in sched:
+                if g["matchupPeriodId"] != week:
+                    continue
+                g = json.loads(json.dumps(g))
+                for side in ("home", "away"):
+                    team = next(t for t in league["teams"] if t["id"] == g[side]["teamId"])
+                    g[side]["rosterForCurrentScoringPeriod"] = {"entries": [
+                        {"playerId": e["playerId"], "lineupSlotId": e["lineupSlotId"],
+                         "playerPoolEntry": {"appliedStatTotal": 5.0}}
+                        for e in team["roster"]["entries"]
+                    ]}  # fmt: skip
+                out.append(g)
+            return httpx.Response(200, json={"schedule": out})
+        if "mMatchupScore" in views:
+            return httpx.Response(200, json={"schedule": sched})
+        if "mTransactions2" in views:
+            return httpx.Response(200, json={"transactions": []})
+        return httpx.Response(200, json=league)
+
+    router.get(url__startswith=ESPN).mock(side_effect=answer)
+    assert connect(tc, espn_s2=S2, swid=SWID).status_code == 200
+    assert sorted(boxes) == [1, 2, 3, 4, 5, 6]  # every played week once, plus this week
+    team_id = f"{LEAGUE}-1"
+    d = tc.get(f"/team/{team_id}/matchup").json()
+    assert d["has_schedule"] and d["playoff_teams"] == 4
+    assert d["opponent"]["team_id"] in {f"{LEAGUE}-{i}" for i in (2, 3, 4)}
+    assert [w["week"] for w in d["schedule"] if w["result"]] == list(range(1, d["week"]))
+    rows = deps._con.execute(
+        "SELECT starters FROM matchups WHERE league_id = ? AND week = 1 AND team_id = ?",
+        [LEAGUE, team_id],
+    ).fetchone()
+    starters = json.loads(rows[0])
+    roster = {p["player_id"] for p in tc.get(f"/team/{team_id}").json()["roster"]}
+    assert starters and set(starters) <= roster  # same ids as the roster, placeholders included
+
+    # a re-sync only re-reads this week's and last week's lineups (a fake client: the real one
+    # would answer from its 5-minute HTTP cache), and the other weeks keep theirs
+    asked: list[int] = []
+
+    class FakeEspn:
+        def schedule(self, *a, **kw):
+            return {"schedule": sched}
+
+        def boxscore(self, league_id, season, cookies, week, force=False):
+            asked.append(week)
+            return {"schedule": []}
+
+    info = es.parse_league(league)
+    leagues._sync_espn_matchups(deps._con, SimpleNamespace(espn=FakeEspn()), info, LEAGUE, None, {})
+    assert asked == [info.current_week - 1, info.current_week]
+    again = deps._con.execute(
+        "SELECT starters FROM matchups WHERE league_id = ? AND week = 1 AND team_id = ?",
+        [LEAGUE, team_id],
+    ).fetchone()
+    assert json.loads(again[0]) == starters

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import unicodedata
+import zlib
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 
@@ -14,6 +15,7 @@ from projections.base import replacement_ranks
 from scoring.rules import PRESETS, normalize
 from signals import advisor as adv
 from signals import gameday as gd
+from signals import sim
 from signals import startsit as ss
 from signals import trade as tr
 from signals import waivers as wv
@@ -309,6 +311,202 @@ def gameday_view(
         generated_at=now,
         checked=sum(1 for p in plan.current if p and p not in plan.locked),
         alerts=out,
+        notes=notes,
+    )
+
+
+# ───────── head-to-head ─────────
+
+
+def _final(ctx: LeagueContext, pid: str, week: int) -> bool:
+    team = ctx.players.get(pid, {}).get("nfl_team")
+    return ctx.schedule.has_game(team, week) and not ctx.schedule.plays(team, week)
+
+
+def _team_week(ctx: LeagueContext, team_id: str, week: int, row) -> sim.TeamWeek:
+    """One team's expected score in a week. A played week is its actual score. This week: the
+    lineup it has set (or its best one), with points from games already final banked. Later
+    weeks: its best lineup."""
+    if week < ctx.week:
+        return sim.TeamWeek(row.points if row else 0.0, 0.0)
+    math = week_math(ctx)
+    if week == ctx.week:
+        plan = week_plan(ctx, team_id)
+        starters = [p for p in plan.current if p] or [p for p in plan.optimal if p]
+        banked = {
+            p: (row.player_points.get(p, 0.0) if row else 0.0)
+            for p in starters
+            if _final(ctx, p, week)
+        }
+    else:
+        starters = list(math.lineup_for_week(ctx.team(team_id).player_ids, week).starters)
+        banked = {}
+    points = {p: math.week_points(p).get(week, 0.0) for p in starters}
+    return sim.team_week(starters, points, ctx.players, banked)
+
+
+def default_playoff_teams(num_teams: int) -> int:
+    return 6 if num_teams >= 12 else 4
+
+
+def season_sim(ctx: LeagueContext, rows: Sequence) -> tuple[dict, dict[str, sim.Odds], int]:
+    """(team-week expectations, playoff odds per team, first simulated week), memoized per set of
+    stored scores. Weeks the platform's records don't count yet (a week that just ended) are
+    replayed at their actual scores."""
+    key = ("season_sim", hash(tuple((r.week, r.team_id, r.points) for r in rows)))
+    if key in ctx.memo:
+        return ctx.memo[key]
+    by = {(r.week, r.team_id): r for r in rows}
+    last = ctx.league.playoff_start - 1
+    decided = min((t.wins + t.losses for t in ctx.teams), default=0)
+    first = min(ctx.week, decided + 1)
+    weeks = {
+        (w, t.team_id): _team_week(ctx, t.team_id, w, by[(w, t.team_id)])
+        for w in range(first, last + 1)
+        for t in ctx.teams
+        if (w, t.team_id) in by
+    }
+    games = [
+        (r.week, r.team_id, r.opponent_id)
+        for r in rows
+        if first <= r.week <= last and r.opponent_id and r.team_id < r.opponent_id
+    ]
+    records = {t.team_id: sim.Record(t.wins, t.losses, t.points_for) for t in ctx.teams}
+    playoff_teams = ctx.league.playoff_teams or default_playoff_teams(len(ctx.teams))
+    seed = zlib.crc32(f"{ctx.league.league_id}:{ctx.week}".encode())
+    odds = sim.season_odds(records, games, weeks, playoff_teams, seed=seed)
+    ctx.memo[key] = (weeks, odds, first)
+    return ctx.memo[key]
+
+
+def _matchup_side(
+    ctx: LeagueContext, team_id: str, row, expected: sim.TeamWeek, now: datetime
+) -> m.MatchupSideOut:
+    plan = week_plan(ctx, team_id, now=now)
+    lineup = plan.current if any(plan.current) else plan.optimal
+    week = ctx.week
+    out = []
+    for slot, pid in zip(plan.slots, lineup, strict=True):
+        if pid is None:
+            out.append(m.MatchupPlayerOut(slot=slot_label(slot), projected=0, state="empty"))
+            continue
+        team = ctx.players.get(pid, {}).get("nfl_team")
+        state = (
+            "bye"
+            if not ctx.schedule.has_game(team, week)
+            else "final"
+            if _final(ctx, pid, week)
+            else "live"
+            if ctx.schedule.started(team, week, now)
+            else "upcoming"
+        )
+        out.append(
+            m.MatchupPlayerOut(
+                slot=slot_label(slot),
+                player=player_ref(ctx, pid),
+                projected=round(plan.points.get(pid, 0.0), 2),
+                actual=row.player_points.get(pid) if row else None,
+                state=state,  # type: ignore[arg-type]
+            )
+        )
+    return m.MatchupSideOut(
+        team_id=team_id,
+        team_name=ctx.team(team_id).team_name,
+        projected=expected.mean,
+        sd=expected.sd,
+        actual=round(row.points, 2) if row else 0.0,
+        lineup=out,
+    )
+
+
+def matchup_view(
+    ctx: LeagueContext, team_id: str, rows: Sequence, now: datetime | None = None
+) -> m.MatchupOut:
+    now = now or datetime.now(UTC)
+    ctx.team(team_id)
+    last = ctx.league.playoff_start - 1
+    if not rows:
+        note = (
+            "Manual teams have no head-to-head schedule."
+            if ctx.league.platform == "manual"
+            else "No matchups synced yet: use Update in the sidebar."
+        )
+        return m.MatchupOut(team_id=team_id, week=ctx.week, has_schedule=False, notes=[note])
+    weeks, odds, _ = season_sim(ctx, rows)
+    by = {(r.week, r.team_id): r for r in rows}
+    names = {t.team_id: t.team_name for t in ctx.teams}
+    notes = []
+    me_row = by.get((ctx.week, team_id))
+    me = opp = None
+    win = None
+    if ctx.week <= last and me_row and me_row.opponent_id in names:
+        opp_id = me_row.opponent_id
+        mine, theirs = weeks[(ctx.week, team_id)], weeks[(ctx.week, opp_id)]
+        me = _matchup_side(ctx, team_id, me_row, mine, now)
+        opp = _matchup_side(ctx, opp_id, by.get((ctx.week, opp_id)), theirs, now)
+        win = round(sim.win_prob(mine, theirs), 4)
+    elif ctx.week > last:
+        notes.append("The regular season is over: playoff matchups aren't modelled yet.")
+    schedule = []
+    for w in range(1, last + 1):
+        r = by.get((w, team_id))
+        if r is None:
+            continue
+        o = by.get((w, r.opponent_id)) if r.opponent_id else None
+        if w < ctx.week and o is not None:
+            result = "W" if r.points > o.points else "L" if r.points < o.points else "T"
+            schedule.append(
+                m.ScheduleWeekOut(
+                    week=w, opponent_id=r.opponent_id, opponent_name=names.get(r.opponent_id),
+                    result=result, points=r.points, opponent_points=o.points,
+                )
+            )  # fmt: skip
+        else:
+            a, b = weeks.get((w, team_id)), weeks.get((w, r.opponent_id))
+            schedule.append(
+                m.ScheduleWeekOut(
+                    week=w, opponent_id=r.opponent_id, opponent_name=names.get(r.opponent_id),
+                    win_prob=round(sim.win_prob(a, b), 4) if a and b else None,
+                )
+            )  # fmt: skip
+    standings = [
+        m.StandingOut(
+            team_id=t.team_id,
+            team_name=t.team_name,
+            is_mine=t.team_id == team_id,
+            wins=t.wins,
+            losses=t.losses,
+            points_for=round(t.points_for, 2),
+            proj_wins=odds[t.team_id].wins,
+            proj_losses=odds[t.team_id].losses,
+            playoff_pct=odds[t.team_id].playoffs,
+            top_seed_pct=odds[t.team_id].seeds[0] if odds[t.team_id].seeds else 0.0,
+        )
+        for t in ctx.teams
+        if t.team_id in odds
+    ]
+    standings.sort(key=lambda s: (-s.wins, -s.points_for))
+    if not ctx.league.playoff_teams:
+        notes.append(
+            f"The league didn't report its playoff size: assuming the top "
+            f"{default_playoff_teams(len(ctx.teams))} make it."
+        )
+    notes.append(
+        "Odds come from playing out the rest of the regular season "
+        f"{sim.SIMS:,} times with each lineup's projection and spread. Divisions aren't modelled."
+    )
+    return m.MatchupOut(
+        team_id=team_id,
+        week=ctx.week,
+        has_schedule=True,
+        me=me,
+        opponent=opp,
+        win_prob=win,
+        standings=standings,
+        schedule=schedule,
+        playoff_teams=ctx.league.playoff_teams or default_playoff_teams(len(ctx.teams)),
+        regular_season_weeks=last,
+        sims=sim.SIMS,
         notes=notes,
     )
 

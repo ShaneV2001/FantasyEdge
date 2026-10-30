@@ -1198,6 +1198,49 @@
         }
       }
     },
+    "/team/{team_id}/matchup": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Matchup",
+        "description": "This week's head-to-head matchup with your win chance, the standings with playoff odds,\nand your week-by-week schedule.",
+        "operationId": "get_matchup",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchupOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/team/{team_id}/trade-offers": {
       "get": {
         "tags": [
@@ -3432,6 +3475,212 @@
         ],
         "title": "MatchupCell"
       },
+      "MatchupOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "has_schedule": {
+            "type": "boolean",
+            "title": "Has Schedule",
+            "description": "False for manual teams or before the first sync"
+          },
+          "me": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatchupSideOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "opponent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatchupSideOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "win_prob": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Win Prob",
+            "description": "Your chance to win this week (0\u20131)"
+          },
+          "standings": {
+            "items": {
+              "$ref": "#/components/schemas/StandingOut"
+            },
+            "type": "array",
+            "title": "Standings",
+            "default": []
+          },
+          "schedule": {
+            "items": {
+              "$ref": "#/components/schemas/ScheduleWeekOut"
+            },
+            "type": "array",
+            "title": "Schedule",
+            "default": []
+          },
+          "playoff_teams": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playoff Teams"
+          },
+          "regular_season_weeks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regular Season Weeks"
+          },
+          "sims": {
+            "type": "integer",
+            "title": "Sims",
+            "default": 0
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "week",
+          "has_schedule"
+        ],
+        "title": "MatchupOut",
+        "description": "This week's head-to-head matchup, the standings with playoff odds, and your schedule."
+      },
+      "MatchupPlayerOut": {
+        "properties": {
+          "slot": {
+            "type": "string",
+            "title": "Slot"
+          },
+          "player": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlayerRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None = empty slot"
+          },
+          "projected": {
+            "type": "number",
+            "title": "Projected",
+            "description": "Points still projected this week (0 once his game is final)"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual",
+            "description": "Points scored so far this week"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "final",
+              "live",
+              "upcoming",
+              "bye",
+              "empty"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "projected",
+          "state"
+        ],
+        "title": "MatchupPlayerOut"
+      },
+      "MatchupSideOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "projected": {
+            "type": "number",
+            "title": "Projected",
+            "description": "Expected final score: banked points + projections"
+          },
+          "sd": {
+            "type": "number",
+            "title": "Sd",
+            "description": "Spread of that expectation (1 sd)"
+          },
+          "actual": {
+            "type": "number",
+            "title": "Actual",
+            "description": "Points scored so far"
+          },
+          "lineup": {
+            "items": {
+              "$ref": "#/components/schemas/MatchupPlayerOut"
+            },
+            "type": "array",
+            "title": "Lineup"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "team_name",
+          "projected",
+          "sd",
+          "actual",
+          "lineup"
+        ],
+        "title": "MatchupSideOut"
+      },
       "PendingTradeOut": {
         "properties": {
           "id": {
@@ -5459,6 +5708,94 @@
         ],
         "title": "SavedTeamOut"
       },
+      "ScheduleWeekOut": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "opponent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent Id"
+          },
+          "opponent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent Name"
+          },
+          "win_prob": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Win Prob",
+            "description": "Your chance to win (unplayed weeks)"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "W",
+                  "L",
+                  "T"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result",
+            "description": "Weeks already played"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "opponent_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opponent Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "opponent_id",
+          "opponent_name"
+        ],
+        "title": "ScheduleWeekOut"
+      },
       "SelectTeamRequest": {
         "properties": {
           "external_roster_id": {
@@ -5690,6 +6027,67 @@
           "detail"
         ],
         "title": "SourceStatus"
+      },
+      "StandingOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "is_mine": {
+            "type": "boolean",
+            "title": "Is Mine"
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins"
+          },
+          "losses": {
+            "type": "integer",
+            "title": "Losses"
+          },
+          "points_for": {
+            "type": "number",
+            "title": "Points For"
+          },
+          "proj_wins": {
+            "type": "number",
+            "title": "Proj Wins",
+            "description": "Expected final wins"
+          },
+          "proj_losses": {
+            "type": "number",
+            "title": "Proj Losses"
+          },
+          "playoff_pct": {
+            "type": "number",
+            "title": "Playoff Pct",
+            "description": "Share of simulated seasons in the playoffs (0\u20131)"
+          },
+          "top_seed_pct": {
+            "type": "number",
+            "title": "Top Seed Pct",
+            "description": "Share of simulated seasons as the 1 seed (0\u20131)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "team_name",
+          "is_mine",
+          "wins",
+          "losses",
+          "points_for",
+          "proj_wins",
+          "proj_losses",
+          "playoff_pct",
+          "top_seed_pct"
+        ],
+        "title": "StandingOut"
       },
       "StartSitOut": {
         "properties": {

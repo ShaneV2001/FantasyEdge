@@ -102,6 +102,15 @@ MIGRATIONS: list[tuple[int, str]] = [
         "CREATE TABLE IF NOT EXISTS injury_status_log ("
         " player_id VARCHAR, status VARCHAR, seen_at TIMESTAMP, PRIMARY KEY (player_id, seen_at));",
     ),
+    # v11: head-to-head matchups from Sleeper/ESPN, one row per team per week (opponent, score,
+    # who started and what each player scored), and how many teams make the playoffs.
+    (
+        11,
+        "CREATE TABLE IF NOT EXISTS matchups ("
+        " league_id VARCHAR, week INTEGER, team_id VARCHAR, opponent_id VARCHAR, points DOUBLE,"
+        " starters JSON, player_points JSON, PRIMARY KEY (league_id, week, team_id));"
+        "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS playoff_teams INTEGER;",
+    ),
 ]
 
 

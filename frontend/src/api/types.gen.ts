@@ -944,6 +944,126 @@ export type MatchupCell = {
 };
 
 /**
+ * MatchupOut
+ *
+ * This week's head-to-head matchup, the standings with playoff odds, and your schedule.
+ */
+export type MatchupOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Has Schedule
+     *
+     * False for manual teams or before the first sync
+     */
+    has_schedule: boolean;
+    me?: MatchupSideOut | null;
+    opponent?: MatchupSideOut | null;
+    /**
+     * Win Prob
+     *
+     * Your chance to win this week (0–1)
+     */
+    win_prob?: number | null;
+    /**
+     * Standings
+     */
+    standings?: Array<StandingOut>;
+    /**
+     * Schedule
+     */
+    schedule?: Array<ScheduleWeekOut>;
+    /**
+     * Playoff Teams
+     */
+    playoff_teams?: number | null;
+    /**
+     * Regular Season Weeks
+     */
+    regular_season_weeks?: number | null;
+    /**
+     * Sims
+     */
+    sims?: number;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
+};
+
+/**
+ * MatchupPlayerOut
+ */
+export type MatchupPlayerOut = {
+    /**
+     * Slot
+     */
+    slot: string;
+    /**
+     * None = empty slot
+     */
+    player?: PlayerRef | null;
+    /**
+     * Projected
+     *
+     * Points still projected this week (0 once his game is final)
+     */
+    projected: number;
+    /**
+     * Actual
+     *
+     * Points scored so far this week
+     */
+    actual?: number | null;
+    /**
+     * State
+     */
+    state: 'final' | 'live' | 'upcoming' | 'bye' | 'empty';
+};
+
+/**
+ * MatchupSideOut
+ */
+export type MatchupSideOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Team Name
+     */
+    team_name: string;
+    /**
+     * Projected
+     *
+     * Expected final score: banked points + projections
+     */
+    projected: number;
+    /**
+     * Sd
+     *
+     * Spread of that expectation (1 sd)
+     */
+    sd: number;
+    /**
+     * Actual
+     *
+     * Points scored so far
+     */
+    actual: number;
+    /**
+     * Lineup
+     */
+    lineup: Array<MatchupPlayerOut>;
+};
+
+/**
  * PendingTradeOut
  */
 export type PendingTradeOut = {
@@ -2058,6 +2178,44 @@ export type SavedTeamOut = {
 };
 
 /**
+ * ScheduleWeekOut
+ */
+export type ScheduleWeekOut = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Opponent Id
+     */
+    opponent_id: string | null;
+    /**
+     * Opponent Name
+     */
+    opponent_name: string | null;
+    /**
+     * Win Prob
+     *
+     * Your chance to win (unplayed weeks)
+     */
+    win_prob?: number | null;
+    /**
+     * Result
+     *
+     * Weeks already played
+     */
+    result?: 'W' | 'L' | 'T' | null;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Opponent Points
+     */
+    opponent_points?: number | null;
+};
+
+/**
  * SelectTeamRequest
  */
 export type SelectTeamRequest = {
@@ -2198,6 +2356,58 @@ export type SourceStatus = {
      * Detail
      */
     detail: string | null;
+};
+
+/**
+ * StandingOut
+ */
+export type StandingOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Team Name
+     */
+    team_name: string;
+    /**
+     * Is Mine
+     */
+    is_mine: boolean;
+    /**
+     * Wins
+     */
+    wins: number;
+    /**
+     * Losses
+     */
+    losses: number;
+    /**
+     * Points For
+     */
+    points_for: number;
+    /**
+     * Proj Wins
+     *
+     * Expected final wins
+     */
+    proj_wins: number;
+    /**
+     * Proj Losses
+     */
+    proj_losses: number;
+    /**
+     * Playoff Pct
+     *
+     * Share of simulated seasons in the playoffs (0–1)
+     */
+    playoff_pct: number;
+    /**
+     * Top Seed Pct
+     *
+     * Share of simulated seasons as the 1 seed (0–1)
+     */
+    top_seed_pct: number;
 };
 
 /**
@@ -3772,6 +3982,36 @@ export type GetGamedayAlertsResponses = {
 };
 
 export type GetGamedayAlertsResponse = GetGamedayAlertsResponses[keyof GetGamedayAlertsResponses];
+
+export type GetMatchupData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/matchup';
+};
+
+export type GetMatchupErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetMatchupError = GetMatchupErrors[keyof GetMatchupErrors];
+
+export type GetMatchupResponses = {
+    /**
+     * Successful Response
+     */
+    200: MatchupOut;
+};
+
+export type GetMatchupResponse = GetMatchupResponses[keyof GetMatchupResponses];
 
 export type GetTradeOffersData = {
     body?: never;

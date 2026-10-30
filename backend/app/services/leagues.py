@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
@@ -16,6 +16,7 @@ from app.errors import AuthRequired, InvalidInput, NotFound
 from db.conn import log_sync, query_df, replace_where, transaction, upsert
 from ingest import espn as es
 from ingest import sleeper as sl
+from ingest.h2h import WeekMatchup
 from ingest.http import AuthRejected, SourceUnavailable
 from ingest.market_values import market_format_for
 from ingest.run import Clients, market_sync
@@ -146,6 +147,7 @@ def sync_sleeper_league(
     with transaction(con):
         _write_sleeper_league(con, external_id, league_id, info, rules, rosters)
     _sync_transactions(con, c, external_id, league_id, force)
+    _sync_sleeper_matchups(con, c, external_id, league_id, info, force)
     _ensure_market(con, c, rules, info)
     log_sync(con, f"league:{league_id}", "ok", f"{len(rosters)} rosters")
     return rosters
@@ -185,6 +187,7 @@ def _upsert_sleeper_league(
                     "faab_budget": info.faab_budget,
                     "playoff_week_start": info.playoff_week_start,
                     "league_type": info.league_type,
+                    "playoff_teams": info.playoff_teams,
                     "last_synced_at": synced_at,
                 }
             ],
@@ -192,6 +195,7 @@ def _upsert_sleeper_league(
                 "trade_deadline_week": pl.Int32,
                 "faab_budget": pl.Int32,
                 "playoff_week_start": pl.Int32,
+                "playoff_teams": pl.Int32,
                 "last_synced_at": pl.Datetime("us"),
             },
         ),
@@ -292,6 +296,78 @@ def _write_sleeper_league(
     )
     if spot_rows:
         upsert(con, "roster_spots", pl.DataFrame(spot_rows).unique(["team_id", "player_id"]))
+
+
+# ───────── head-to-head matchups ─────────
+
+
+def _matchup_weeks(con: duckdb.DuckDBPyConnection, league_id: str) -> tuple[set[int], set[int]]:
+    """(weeks stored, weeks whose lineups are stored)."""
+    rows = con.execute(
+        "SELECT week, bool_or(json_array_length(starters) > 0) FROM matchups"
+        " WHERE league_id = ? GROUP BY week",
+        [league_id],
+    ).fetchall()
+    return {w for w, _ in rows}, {w for w, has in rows if has}
+
+
+def _save_matchups(
+    con: duckdb.DuckDBPyConnection,
+    league_id: str,
+    matchups: Sequence[WeekMatchup],
+    team_id: Callable[[str], str],
+    player_id: Callable[[str], str],
+) -> None:
+    rows = [
+        {
+            "league_id": league_id,
+            "week": m.week,
+            "team_id": team_id(m.team),
+            "opponent_id": team_id(m.opponent) if m.opponent else None,
+            "points": m.points,
+            "starters": json.dumps([player_id(p) for p in m.starters]),
+            "player_points": json.dumps({player_id(p): v for p, v in m.player_points.items()}),
+        }
+        for m in matchups
+    ]
+    if rows:
+        upsert(
+            con,
+            "matchups",
+            pl.DataFrame(rows, schema_overrides={"week": pl.Int32, "opponent_id": pl.Utf8}),
+        )
+
+
+def _sync_sleeper_matchups(
+    con: duckdb.DuckDBPyConnection,
+    c: Clients,
+    external_id: str,
+    league_id: str,
+    info: sl.LeagueInfo,
+    force: bool,
+) -> None:
+    """Every regular-season week once (future weeks give the schedule), then the current and
+    previous week on each sync, whose scores change."""
+    try:
+        week = int(c.sleeper.state().get("week") or 1)
+        have, _ = _matchup_weeks(con, league_id)
+        last = (info.playoff_week_start or 15) - 1
+        got: list[WeekMatchup] = []
+        for w in range(1, last + 1):
+            if w not in have or w >= week - 1:
+                got += sl.parse_matchups(w, c.sleeper.matchups(external_id, w, force=force))
+        ids = sleeper_to_internal(
+            con, sorted({p for m in got for p in [*m.starters, *m.player_points]})
+        )
+        _save_matchups(
+            con,
+            league_id,
+            got,
+            lambda r: sleeper_team_id(external_id, r),
+            lambda p: ids.get(p, f"sl:{p}"),
+        )
+    except Exception as exc:  # matchups are informational: the rest of the sync still counts
+        log.warning("matchups sync failed for %s: %s", league_id, exc)
 
 
 def _sync_transactions(
@@ -557,6 +633,7 @@ def _sync_espn(
             "final_week": info.final_week,
             "scoring_notes": json.dumps(notes),
             "trade_review_hours": info.trade_review_hours,
+            "playoff_teams": info.playoff_teams,
         }
         upsert(
             con,
@@ -569,6 +646,7 @@ def _sync_espn(
                     "playoff_week_start": pl.Int32,
                     "final_week": pl.Int32,
                     "trade_review_hours": pl.Int32,
+                    "playoff_teams": pl.Int32,
                     "last_synced_at": pl.Datetime("us"),
                 },
             ),
@@ -611,6 +689,7 @@ def _sync_espn(
         if cookies is not None:
             save_credentials(con, league_id, cookies)
     _sync_espn_transactions(con, c, info, league_id, cookies, match.ids)
+    _sync_espn_matchups(con, c, info, league_id, cookies, match.ids)
     _ensure_market(con, c, rules, info)
     log_sync(con, f"league:{league_id}", "ok", f"{len(teams)} teams")
     return EspnSync(league_id, info, rules, teams, match.unmatched, notes)
@@ -648,6 +727,75 @@ def _sync_espn_transactions(
         _save_trade_offers(con, info, league_id, es.parse_trade_offers(fetched), ids)
     except Exception as exc:  # transactions are informational only (no cookie values in the log)
         log.warning("transactions sync failed for %s: %s", league_id, type(exc).__name__)
+
+
+def _sync_espn_matchups(
+    con: duckdb.DuckDBPyConnection,
+    c: Clients,
+    info: es.EspnLeague,
+    league_id: str,
+    cookies: es.Cookies | None,
+    ids: Mapping[int, str],
+) -> None:
+    """The season schedule and scores in one call, then each played week's lineups (once, plus
+    the current and previous week on every sync)."""
+    assert c.espn is not None
+    try:
+        sched = es.parse_schedule(c.espn.schedule(info.external_id, info.season, cookies))
+        _, with_lineups = _matchup_weeks(con, league_id)
+        cur = info.current_week
+        box: dict[tuple[int, str], WeekMatchup] = {}
+        for w in sorted({m.week for m in sched if m.week <= cur}):
+            if w in with_lineups and w < cur - 1:
+                continue
+            raw = c.espn.boxscore(info.external_id, info.season, cookies, w)
+            box |= {(m.week, m.team): m for m in es.parse_boxscore(raw, w)}
+        by_espn = {
+            str(e): p
+            for e, p in con.execute(
+                "SELECT espn_id, player_id FROM players WHERE espn_id IS NOT NULL"
+            ).fetchall()
+        }
+
+        def pid(eid: str) -> str:
+            n = int(eid)
+            if n in ids:
+                return ids[n]
+            if n < 0:  # D/ST: -16000 - proTeamId
+                team = es.PRO_TEAM.get(es.DST_ID_BASE - n)
+                return f"sl:{team}" if team else f"espn:{n}"
+            return by_espn.get(eid) or f"espn:{n}"
+
+        _save_matchups(
+            con,
+            league_id,
+            list(box.values()),
+            lambda t: espn_team_id(info.external_id, info.season, t),
+            pid,
+        )
+        # weeks whose lineups weren't re-fetched keep them; only the schedule and score update
+        _update_scores(con, league_id, [m for m in sched if (m.week, m.team) not in box], info)
+    except Exception as exc:  # informational, like transactions (no cookie values in the log)
+        log.warning("matchups sync failed for %s: %s", league_id, type(exc).__name__)
+
+
+def _update_scores(
+    con: duckdb.DuckDBPyConnection,
+    league_id: str,
+    matchups: Sequence[WeekMatchup],
+    info: es.EspnLeague,
+) -> None:
+    """Schedule rows without a fresh lineup: add new ones, and refresh only the score and
+    opponent of stored ones (their lineups stay)."""
+    for m in matchups:
+        tid = espn_team_id(info.external_id, info.season, m.team)
+        opp = espn_team_id(info.external_id, info.season, m.opponent) if m.opponent else None
+        con.execute(
+            "INSERT INTO matchups VALUES (?, ?, ?, ?, ?, '[]', '{}')"
+            " ON CONFLICT DO UPDATE SET opponent_id = excluded.opponent_id,"
+            " points = excluded.points",
+            [league_id, m.week, tid, opp, m.points],
+        )
 
 
 class _TradeIds:
@@ -757,6 +905,29 @@ def pending_trades(con: duckdb.DuckDBPyConnection, league_id: str) -> list[Pendi
         if all((m["from_team"], m["player_id"]) in on for m in mv):
             out.append(PendingTradeRow(ext, accepted, mv, dr))
     return out
+
+
+@dataclass(frozen=True)
+class MatchupRow:
+    week: int
+    team_id: str
+    opponent_id: str | None
+    points: float
+    starters: list[str]
+    player_points: dict[str, float]
+
+
+def matchups(con: duckdb.DuckDBPyConnection, league_id: str) -> list[MatchupRow]:
+    """The league's head-to-head schedule and scores, by week (empty for manual teams)."""
+    rows = con.execute(
+        "SELECT week, team_id, opponent_id, points, starters, player_points FROM matchups"
+        " WHERE league_id = ? ORDER BY week, team_id",
+        [league_id],
+    ).fetchall()
+    return [
+        MatchupRow(w, t, o, p or 0.0, json.loads(s or "[]"), json.loads(pp or "{}"))
+        for w, t, o, p, s, pp in rows
+    ]
 
 
 @dataclass(frozen=True)
@@ -1058,6 +1229,7 @@ def forget_league(con: duckdb.DuckDBPyConnection, league_id: str) -> tuple[str, 
             "transactions",
             "pending_trades",
             "trade_offers",
+            "matchups",
             "saved_trades",
             "league_credentials",
             "leagues",

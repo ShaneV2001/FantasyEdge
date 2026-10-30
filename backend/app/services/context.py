@@ -79,6 +79,7 @@ class LeagueRow:
     league_type: str = "redraft"
     final_week: int | None = None  # set by platforms whose playoffs don't fit playoff_start + 2
     scoring_notes: list[str] = field(default_factory=list)  # league rules we can't model
+    playoff_teams: int | None = None  # how many teams make the playoffs (None = unknown)
 
     @property
     def market_format(self) -> MarketFormat:
@@ -212,6 +213,7 @@ def load_league(con: duckdb.DuckDBPyConnection, league_id: str) -> LeagueRow:
         league_type=r.get("league_type") or "redraft",
         final_week=r.get("final_week"),
         scoring_notes=json.loads(r["scoring_notes"]) if r.get("scoring_notes") else [],
+        playoff_teams=r.get("playoff_teams"),
     )
 
 

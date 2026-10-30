@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from ingest.h2h import WeekMatchup
 from ingest.http import CachedHttp
 
 SOURCE = "espn"
@@ -105,6 +106,23 @@ class EspnClient:
         )
         return raw.get("players") or []
 
+    def schedule(
+        self, league_id: str, season: int, cookies: Cookies | None, force: bool = False
+    ) -> dict:
+        return self.league(league_id, season, cookies, views=("mMatchupScore",), force=force)
+
+    def boxscore(
+        self, league_id: str, season: int, cookies: Cookies | None, week: int, force: bool = False
+    ) -> dict:
+        return self.league(
+            league_id,
+            season,
+            cookies,
+            views=("mMatchupScore", "mBoxscore"),
+            params={"scoringPeriodId": week},
+            force=force,
+        )
+
     def transactions(
         self, league_id: str, season: int, cookies: Cookies | None, week: int, force: bool = False
     ) -> list[dict]:
@@ -143,6 +161,7 @@ class EspnLeague:
     league_type: str = "redraft"
     # an accepted trade waits this long for league review before ESPN processes it
     trade_review_hours: int | None = None
+    playoff_teams: int | None = None
 
 
 def parse_league(raw: Mapping) -> EspnLeague:
@@ -192,7 +211,74 @@ def parse_league(raw: Mapping) -> EspnLeague:
         current_week=int(raw.get("scoringPeriodId") or 1),
         league_type="keeper" if keepers else "redraft",
         trade_review_hours=int(review) if review is not None and int(review) >= 0 else None,
+        playoff_teams=int(sched["playoffTeamCount"]) if sched.get("playoffTeamCount") else None,
     )
+
+
+def parse_schedule(raw: Mapping) -> list[WeekMatchup]:
+    """`mMatchupScore`: the whole regular season, scores included (no lineups). A matchup period
+    is one NFL week in the regular season; playoff rounds are left out."""
+    out = []
+    for g in raw.get("schedule") or []:
+        if (g.get("playoffTierType") or "NONE") != "NONE":
+            continue
+        week = int(g["matchupPeriodId"])
+        home, away = g.get("home") or {}, g.get("away") or {}
+        sides = [(home, away), (away, home)] if away else [(home, {})]
+        for me, opp in sides:
+            if me.get("teamId") is None:
+                continue
+            out.append(
+                WeekMatchup(
+                    week,
+                    str(me["teamId"]),
+                    str(opp["teamId"]) if opp.get("teamId") is not None else None,
+                    float(me.get("totalPoints") or 0),
+                )
+            )
+    return out
+
+
+def parse_boxscore(raw: Mapping, week: int) -> list[WeekMatchup]:
+    """`mBoxscore` for one scoring period: each team's lineup that week and what every rostered
+    player scored (bench and IR slots aren't starters). The score is the starters' points:
+    during the week ESPN's `totalPoints` lags behind the players' live points."""
+    out = []
+    for g in raw.get("schedule") or []:
+        if int(g.get("matchupPeriodId") or 0) != week:
+            continue
+        if (g.get("playoffTierType") or "NONE") != "NONE":
+            continue
+        home, away = g.get("home") or {}, g.get("away") or {}
+        for me, opp in ((home, away), (away, home)):
+            if me.get("teamId") is None:
+                continue
+            entries = (me.get("rosterForCurrentScoringPeriod") or {}).get("entries") or []
+            points = {
+                str(e["playerId"]): float(
+                    (e.get("playerPoolEntry") or {}).get("appliedStatTotal") or 0
+                )
+                for e in entries
+            }
+            starters = [
+                str(e["playerId"]) for e in entries if e.get("lineupSlotId") not in (BENCH, IR)
+            ]
+            total = (
+                round(sum(points[p] for p in starters), 2)
+                if starters
+                else float(me.get("totalPoints") or 0)
+            )
+            out.append(
+                WeekMatchup(
+                    week,
+                    str(me["teamId"]),
+                    str(opp["teamId"]) if opp.get("teamId") is not None else None,
+                    total,
+                    starters,
+                    points,
+                )
+            )
+    return out
 
 
 def deadline_week(deadline: datetime | None, week_starts: Mapping[int, datetime]) -> int | None:
