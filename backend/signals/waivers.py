@@ -41,16 +41,21 @@ class WaiverPick:
         return round(self.gain / self.weeks, 2) if self.weeks else 0.0
 
 
-def _candidates(free_agents: Iterable[str], players: Mapping[str, Mapping]) -> list[str]:
-    """The top free agents at each position by projected points per game."""
+def _candidates(
+    free_agents: Iterable[str], players: Mapping[str, Mapping], math: RosMath
+) -> list[str]:
+    """The top free agents at each position by rest-of-season points (byes and injuries counted,
+    so a player out for the season doesn't take a shortlist spot)."""
+    free_agents = list(free_agents)
+    ros = {pid: sum(math.week_points(pid).values()) for pid in free_agents}
     by_pos: dict[str, list[str]] = {}
     for pid in free_agents:
         p = players.get(pid)
-        if p and p.get("position") in POSITIONS and (p.get("ppg") or 0) > 0:
+        if p and p.get("position") in POSITIONS and ros[pid] > 0:
             by_pos.setdefault(p["position"], []).append(pid)
     out: list[str] = []
     for pids in by_pos.values():
-        pids.sort(key=lambda q: (-(players[q].get("ppg") or 0), q))
+        pids.sort(key=lambda q: (-ros[q], q))
         out += pids[:CANDIDATES_PER_POS]
     return out
 
@@ -71,7 +76,7 @@ def rank_waivers(
     weeks = math.end - math.start + 1
     # quick screen: gain with nobody dropped (an upper bound on the net gain)
     screened: dict[str, list[tuple[float, str]]] = {}
-    for pid in _candidates(free_agents, players):
+    for pid in _candidates(free_agents, players, math):
         raw = math.ros_lineup_points([*roster, pid]) - base
         if raw > 0.05:
             screened.setdefault(players[pid]["position"], []).append((raw, pid))

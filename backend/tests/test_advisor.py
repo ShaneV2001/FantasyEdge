@@ -148,3 +148,19 @@ def test_bye_streamers_cover_every_short_slot():
     assert adv._best_fa_for_slots(inp, ["WR", "WR"], 5) == ["fa_wr"]  # no second healthy WR
     inp.free_agents = None
     assert adv._best_fa_for_slots(inp, ["WR"], 5) == []
+
+
+def test_bye_streamers_skip_players_who_cant_play_that_week():
+    """A free agent out for the season (or still on IR in that week) is never a streamer, however
+    high his ppg was before the injury."""
+    players = {
+        "fa_out": P("Season Out", "RB", 14.4) | {"injury_status": "IR", "return_week": 99},
+        "fa_back": P("Back Week 8", "RB", 13.0) | {"injury_status": "IR", "return_week": 8},
+        "fa_rb": P("Healthy RB", "RB", 9.0),
+        "qb": P("QB", "QB", 20),
+    }
+    sched = schedule(["AAA"], weeks=17)
+    inp = _inputs(players, ["qb"], [], sched)
+    inp.free_agents = ["fa_out", "fa_back", "fa_rb"]
+    assert adv._best_fa_for_slots(inp, ["RB"], 6) == ["fa_rb"]
+    assert adv._best_fa_for_slots(inp, ["RB"], 9) == ["fa_back"]

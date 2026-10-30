@@ -295,10 +295,10 @@ def team_view(ctx: LeagueContext, team_id: str) -> m.TeamOut:
 # ───────── /team/{id}/byes ─────────
 
 
-def _byes_rows(ctx: LeagueContext, team_id: str):
-    key = ("byes", team_id)
+def _grid_for(ctx: LeagueContext, pids: Sequence[str]):
+    """Week-by-week best lineup for any set of players (today's roster, or one after a trade)."""
+    key = ("grid", tuple(sorted(pids)))
     if key not in ctx.memo:
-        team = ctx.team(team_id)
         entries = [
             RosterEntry(
                 pid,
@@ -310,7 +310,7 @@ def _byes_rows(ctx: LeagueContext, team_id: str):
                 p.get("status"),
                 p.get("return_week"),
             )
-            for pid in team.player_ids
+            for pid in pids
             if (p := ctx.players.get(pid))
         ]
         ctx.memo[key] = bye_grid(
@@ -325,36 +325,41 @@ def _byes_rows(ctx: LeagueContext, team_id: str):
     return ctx.memo[key]
 
 
+def _byes_rows(ctx: LeagueContext, team_id: str):
+    return _grid_for(ctx, ctx.team(team_id).player_ids)
+
+
+def _week_out(ctx: LeagueContext, r) -> m.ByeWeekOut:
+    return m.ByeWeekOut(
+        week=r.week,
+        weeks_away=r.weeks_away,
+        cells=[
+            m.SlotCellOut(
+                slot=c.slot,
+                label=c.label,
+                status=c.status,  # type: ignore[arg-type]
+                player=player_ref(ctx, c.player_id) if c.player_id else None,
+                ppg=c.ppg,
+                replaces=c.replaces,
+                why=c.why,  # type: ignore[arg-type]
+                hole=c.hole,
+            )
+            for c in r.cells
+        ],
+        on_bye=r.on_bye,
+        starters_on_bye=r.starters_on_bye,
+        danger=r.danger,
+        danger_slots=r.danger_slots,
+        lineup_points=r.lineup_points,
+        full_strength_points=r.full_strength_points,
+        points_lost=round(max(r.full_strength_points - r.lineup_points, 0.0), 1),
+    )
+
+
 def byes_view(ctx: LeagueContext, team_id: str) -> m.ByesOut:
     team = ctx.team(team_id)
     rows = _byes_rows(ctx, team_id)
-    weeks = [
-        m.ByeWeekOut(
-            week=r.week,
-            weeks_away=r.weeks_away,
-            cells=[
-                m.SlotCellOut(
-                    slot=c.slot,
-                    label=c.label,
-                    status=c.status,  # type: ignore[arg-type]
-                    player=player_ref(ctx, c.player_id) if c.player_id else None,
-                    ppg=c.ppg,
-                    replaces=c.replaces,
-                    why=c.why,  # type: ignore[arg-type]
-                    hole=c.hole,
-                )
-                for c in r.cells
-            ],
-            on_bye=r.on_bye,
-            starters_on_bye=r.starters_on_bye,
-            danger=r.danger,
-            danger_slots=r.danger_slots,
-            lineup_points=r.lineup_points,
-            full_strength_points=r.full_strength_points,
-            points_lost=round(max(r.full_strength_points - r.lineup_points, 0.0), 1),
-        )
-        for r in rows
-    ]
+    weeks = [_week_out(ctx, r) for r in rows]
     players = []
     for pid in team.player_ids:
         p = ctx.players.get(pid)
@@ -528,10 +533,8 @@ def trade_out(ctx: LeagueContext, ev: tr.TradeEvaluation) -> m.TradeOut:
     )
 
 
-def evaluate_trade(
-    ctx: LeagueContext, team_id: str, give: list[str], receive: list[str]
-) -> m.TradeOut:
-    team = ctx.team(team_id)
+def _trade_partner(ctx: LeagueContext, team_id: str, give: list[str], receive: list[str]):
+    """Validate a proposed trade; the partner team, or None for a hypothetical trade."""
     if not give and not receive:
         raise InvalidInput("pick at least one player to give or receive")
     unknown = [p for p in [*give, *receive] if p not in ctx.players]
@@ -549,7 +552,14 @@ def evaluate_trade(
         )
     # Players on a league team -> two-sided trade; otherwise a hypothetical trade (manual teams,
     # free agents, or players from another league) that only models your side.
-    partner = ctx.team(owners.pop()) if owners else None
+    return ctx.team(owners.pop()) if owners else None
+
+
+def evaluate_trade(
+    ctx: LeagueContext, team_id: str, give: list[str], receive: list[str]
+) -> m.TradeOut:
+    team = ctx.team(team_id)
+    partner = _trade_partner(ctx, team_id, give, receive)
     try:
         ev = tr.evaluate(
             ros_math(ctx),
@@ -568,6 +578,83 @@ def evaluate_trade(
     except ValueError as exc:  # signals/ stays app-agnostic and raises plain ValueError
         raise InvalidInput(str(exc)) from exc
     return trade_out(ctx, ev)
+
+
+def _roster_outlook(
+    ctx: LeagueContext, team_id: str, gives: Sequence[str], receives: Sequence[str]
+) -> m.RosterOutlookOut:
+    """This team's week-by-week lineups before and after it gives/receives these players."""
+    team = ctx.team(team_id)
+    after, drops = tr.roster_after(
+        ros_math(ctx), ctx.players, team_id, team.player_ids, gives, receives, roster_rules(ctx)
+    )
+    return m.RosterOutlookOut(
+        team_id=team_id,
+        team_name=team.team_name,
+        gives=[player_ref(ctx, p) for p in gives],
+        receives=[player_ref(ctx, p) for p in receives],
+        drops=[m.DropOut(player=player_ref(ctx, d.player_id), reason=d.reason) for d in drops],
+        before=[_week_out(ctx, r) for r in _grid_for(ctx, team.player_ids)],
+        after=[_week_out(ctx, r) for r in _grid_for(ctx, after)],
+    )
+
+
+def outlook_view(
+    ctx: LeagueContext, team_id: str, give: list[str], receive: list[str]
+) -> m.TradeOutlookOut:
+    team = ctx.team(team_id)
+    partner = _trade_partner(ctx, team_id, give, receive)
+    if not set(give) <= set(team.player_ids):
+        raise InvalidInput("you can only give players on your roster")
+    return m.TradeOutlookOut(
+        week=ctx.week,
+        slots=starting_slots(ctx.league.roster_positions),
+        me=_roster_outlook(ctx, team_id, give, receive),
+        partner=_roster_outlook(ctx, partner.team_id, receive, give) if partner else None,
+    )
+
+
+def pending_view(
+    ctx: LeagueContext, team_id: str, rows: Sequence, review_hours: int | None
+) -> m.PendingTradesOut:
+    """Accepted trades still waiting on the platform, and the lineups they lead to (all of them
+    applied together, as if they had gone through)."""
+    ctx.team(team_id)
+    trades, gives, receives = [], [], []
+    for r in rows:
+        give = [mv["player_id"] for mv in r.moves if mv["from_team"] == team_id]
+        get = [mv["player_id"] for mv in r.moves if mv["to_team"] == team_id]
+        if not give and not get:
+            continue
+        partners = {mv["to_team"] for mv in r.moves if mv["from_team"] == team_id} | {
+            mv["from_team"] for mv in r.moves if mv["to_team"] == team_id
+        }
+        partner = next(iter(sorted(partners)), None)
+        dropped = [d["player_id"] for d in r.drops if d["team_id"] == team_id]
+        trades.append(
+            m.PendingTradeOut(
+                id=r.external_id,
+                partner_team_id=partner,
+                partner_name=next((t.team_name for t in ctx.teams if t.team_id == partner), None),
+                give=[player_ref(ctx, p) for p in give],
+                receive=[player_ref(ctx, p) for p in get],
+                drops=[player_ref(ctx, p) for p in dropped],
+                accepted_at=r.accepted_at,
+            )
+        )
+        gives += give + dropped
+        receives += get
+    outlook = None
+    if trades:
+        outlook = m.TradeOutlookOut(
+            week=ctx.week,
+            slots=starting_slots(ctx.league.roster_positions),
+            me=_roster_outlook(ctx, team_id, gives, receives),
+            partner=None,
+        )
+    return m.PendingTradesOut(
+        team_id=team_id, review_hours=review_hours, trades=trades, outlook=outlook
+    )
 
 
 def trade_candidates(ctx: LeagueContext, team_id: str) -> list[tr.TradeEvaluation]:

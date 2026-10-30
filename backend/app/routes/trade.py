@@ -23,6 +23,18 @@ def evaluate_trade(
     return views.evaluate_trade(ctx, body.team_id, body.give, body.receive)
 
 
+@router.post("/outlook", response_model=m.TradeOutlookOut)
+def trade_outlook(
+    body: m.TradeEvaluateRequest,
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+    tuning: UserSettings = Depends(get_tuning),
+) -> m.TradeOutlookOut:
+    """Each remaining week's best lineup for both teams, before and after the trade: who fills
+    in for players on bye or hurt, and the slots left empty."""
+    ctx = get_context(con, leagues.league_id_for_team(con, body.team_id), tuning)
+    return views.outlook_view(ctx, body.team_id, body.give, body.receive)
+
+
 @router.get("/suggest", response_model=m.TradeSuggestOut)
 def suggest_trades(
     team_id: str = Query(...),

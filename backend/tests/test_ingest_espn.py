@@ -169,3 +169,59 @@ def test_private_without_access():
     assert es.is_private_without_access({"id": 1})
     assert es.is_private_without_access(None)
     assert not es.is_private_without_access({"settings": {}, "teams": [{}]})
+
+
+# ───────── pending trades (mTransactions2) ─────────
+
+
+def _proposal(tid, status="PENDING", items=((101, 1, 2), (202, 2, 1)), **kw):
+    return {
+        "id": tid,
+        "type": "TRADE_PROPOSAL",
+        "status": status,
+        "proposedDate": 1_000_000,
+        "items": [
+            {"type": "TRADE", "playerId": p, "fromTeamId": f, "toTeamId": t} for p, f, t in items
+        ],
+        **kw,
+    }
+
+
+def _linked(kind, rel, status=None, when=2_000_000):
+    return {"id": f"{kind}-{rel}", "type": kind, "status": status, "relatedTransactionId": rel,
+            "proposedDate": when}  # fmt: skip
+
+
+def test_pending_trade_is_an_accepted_proposal():
+    (t,) = es.parse_pending_trades([_proposal("p1"), _linked("TRADE_ACCEPT", "p1")])
+    assert t.external_id == "p1"
+    assert t.moves == [(101, "1", "2"), (202, "2", "1")]
+    assert t.accepted_at == datetime(1970, 1, 1, 0, 33, 20)  # the accept's time, not the offer's
+
+
+def test_offers_not_yet_accepted_or_ended_are_not_pending():
+    txns = [
+        _proposal("open"),  # nobody accepted
+        _proposal("declined"), _linked("TRADE_ACCEPT", "declined"), _linked("TRADE_DECLINE", "declined"),
+        _proposal("vetoed"), _linked("TRADE_ACCEPT", "vetoed"), _linked("TRADE_VETO", "vetoed"),
+        _proposal("done"), _linked("TRADE_ACCEPT", "done", status="EXECUTED"),
+        _proposal("countered"), _linked("TRADE_ACCEPT", "countered"),
+        _proposal("copy", status="CANCELED", relatedTransactionId="countered"),
+        _proposal("old", status="CANCELED"), _linked("TRADE_ACCEPT", "old"),
+    ]  # fmt: skip
+    assert es.parse_pending_trades(txns) == []
+
+
+def test_pending_trade_keeps_its_drops():
+    p = _proposal("p1")
+    p["items"].append({"type": "DROP", "playerId": 303, "fromTeamId": 2, "toTeamId": 0})
+    (t,) = es.parse_pending_trades([p, _linked("TRADE_ACCEPT", "p1")])
+    assert t.drops == [(303, "2")]
+    assert (303, "2", "0") not in t.moves
+
+
+def test_trade_review_hours_are_parsed():
+    raw = load_json("espn_league.json")
+    assert es.parse_league(raw).trade_review_hours is None
+    raw["settings"]["tradeSettings"]["revisionHours"] = 24
+    assert es.parse_league(raw).trade_review_hours == 24

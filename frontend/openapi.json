@@ -1064,6 +1064,49 @@
         }
       }
     },
+    "/team/{team_id}/pending-trades": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Get Pending Trades",
+        "description": "Trades you accepted on ESPN that are waiting to process, and your lineups once they do.",
+        "operationId": "get_pending_trades",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingTradesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/team/{team_id}/roster": {
       "put": {
         "tags": [
@@ -1142,6 +1185,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TradeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trade/outlook": {
+      "post": {
+        "tags": [
+          "trade"
+        ],
+        "summary": "Trade Outlook",
+        "description": "Each remaining week's best lineup for both teams, before and after the trade: who fills\nin for players on bye or hurt, and the slots left empty.",
+        "operationId": "trade_outlook",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeEvaluateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeOutlookOut"
                 }
               }
             }
@@ -3040,6 +3125,126 @@
         ],
         "title": "MatchupCell"
       },
+      "PendingTradeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "partner_team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partner Team Id"
+          },
+          "partner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partner Name"
+          },
+          "give": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Give"
+          },
+          "receive": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Receive"
+          },
+          "drops": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Drops",
+            "description": "Players released as part of the trade"
+          },
+          "accepted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "partner_team_id",
+          "partner_name",
+          "give",
+          "receive",
+          "drops",
+          "accepted_at"
+        ],
+        "title": "PendingTradeOut"
+      },
+      "PendingTradesOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "review_hours": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Hours",
+            "description": "League review period before processing"
+          },
+          "trades": {
+            "items": {
+              "$ref": "#/components/schemas/PendingTradeOut"
+            },
+            "type": "array",
+            "title": "Trades"
+          },
+          "outlook": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeOutlookOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Your lineups with every pending trade applied"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "trades"
+        ],
+        "title": "PendingTradesOut",
+        "description": "Trades both teams accepted on ESPN that haven't processed yet (league review period)."
+      },
       "PlayerAnalyticsOut": {
         "properties": {
           "groups": {
@@ -4456,6 +4661,66 @@
         ],
         "title": "RenameTeamRequest"
       },
+      "RosterOutlookOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "gives": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Gives"
+          },
+          "receives": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerRef"
+            },
+            "type": "array",
+            "title": "Receives"
+          },
+          "drops": {
+            "items": {
+              "$ref": "#/components/schemas/DropOut"
+            },
+            "type": "array",
+            "title": "Drops",
+            "description": "Forced cuts to stay under the roster limit"
+          },
+          "before": {
+            "items": {
+              "$ref": "#/components/schemas/ByeWeekOut"
+            },
+            "type": "array",
+            "title": "Before"
+          },
+          "after": {
+            "items": {
+              "$ref": "#/components/schemas/ByeWeekOut"
+            },
+            "type": "array",
+            "title": "After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "team_name",
+          "gives",
+          "receives",
+          "drops",
+          "before",
+          "after"
+        ],
+        "title": "RosterOutlookOut",
+        "description": "One team's week-by-week best lineups before and after a trade (same cells as the bye grid)."
+      },
       "RosterPlayer": {
         "properties": {
           "player_id": {
@@ -5779,6 +6044,41 @@
           "me"
         ],
         "title": "TradeOut"
+      },
+      "TradeOutlookOut": {
+        "properties": {
+          "week": {
+            "type": "integer",
+            "title": "Week"
+          },
+          "slots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Slots"
+          },
+          "me": {
+            "$ref": "#/components/schemas/RosterOutlookOut"
+          },
+          "partner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RosterOutlookOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "slots",
+          "me"
+        ],
+        "title": "TradeOutlookOut"
       },
       "TradeSideOut": {
         "properties": {

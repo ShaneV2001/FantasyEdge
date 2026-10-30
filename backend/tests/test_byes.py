@@ -110,8 +110,29 @@ def test_a_hole_is_only_a_slot_empty_this_week():
     rows = {r.week: r for r in bye_grid(_roster(), SLOTS, sched, 5, 10, VIABLE)}
     qb = next(c for c in rows[7].cells if c.slot == "QB")
     assert qb.status == "empty" and qb.hole  # QB One on bye, nobody else
+    assert (qb.replaces, qb.why) == ("QB One", "bye")  # the hole says who it is missing
     # no TE on the roster at all: empty every week, but that's not a bye hole
     no_te = [e for e in _roster() if e.position != "TE"]
     rows = {r.week: r for r in bye_grid(no_te, SLOTS, sched, 5, 10, VIABLE)}
     te = next(c for c in rows[5].cells if c.slot == "TE")
     assert te.status == "empty" and not te.hole
+
+
+def test_an_empty_slot_names_its_own_starter():
+    """TE and two RBs out: the empty TE slot is the TE's, even though a WR filling the flex would
+    otherwise be paired with the highest scorer still unaccounted for (the TE)."""
+    roster = [
+        RosterEntry("qb", "QB", "QB", "AAA", 20),
+        RosterEntry("rb1", "RB One", "RB", "DDD", 15),
+        RosterEntry("rb2", "RB Two", "RB", "DDD", 9),
+        RosterEntry("rb3", "RB Three", "RB", "AAA", 6),
+        RosterEntry("wr1", "WR One", "WR", "AAA", 14),
+        RosterEntry("wr2", "WR Two", "WR", "AAA", 5),
+        RosterEntry("te1", "TE One", "TE", "DDD", 10),
+    ]
+    sched = schedule(["AAA", "DDD"], weeks=10, byes={"DDD": 7})
+    wk7 = next(r for r in bye_grid(roster, SLOTS, sched, 5, 10, VIABLE) if r.week == 7)
+    cells = {c.slot: c for c in wk7.cells}
+    assert cells["TE"].hole and cells["TE"].replaces == "TE One"
+    assert (cells["RB"].name, cells["RB"].replaces) == ("RB Three", "RB One")
+    assert (cells["FLEX"].name, cells["FLEX"].replaces) == ("WR Two", "RB Two")

@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ByesOut, ByeWeekOut, SlotCellOut } from '@/api'
+import type { ByesOut, ByeWeekOut, PendingTradesOut, SlotCellOut } from '@/api'
 import { useTeamStore } from '@/stores/team'
 import { renderPage } from '@/test/render'
 
@@ -116,5 +116,86 @@ describe('ByesPage', () => {
     expect(within(grid).getByText('Wk 6')).toBeInTheDocument()
     expect(screen.getByText('No lineup holes')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('ByesPage with accepted trades waiting on ESPN', () => {
+  const ja = ref("Ja'Marr Chase", 'WR')
+  const after7 = week(
+    7,
+    [
+      cell('RB', 'Woody Marks', { status: 'thin' }),
+      cell('WR', "Ja'Marr Chase"),
+      cell('TE', null, { status: 'empty', hole: true, ppg: null, replaces: 'Sam LaPorta', why: 'bye' }),
+    ],
+    { danger: true, danger_slots: ['TE'], lineup_points: 104.2, points_lost: 18.1 },
+  )
+  const PENDING: PendingTradesOut = {
+    team_id: 't',
+    review_hours: 24,
+    trades: [
+      {
+        id: 'p1',
+        partner_team_id: 't2',
+        partner_name: 'Rival',
+        give: [ref('Amon-Ra St. Brown', 'WR')],
+        receive: [ja],
+        drops: [],
+        accepted_at: '2026-10-28T20:00:00',
+      },
+    ],
+    outlook: {
+      week: 6,
+      slots: DATA.slots,
+      me: {
+        team_id: 't',
+        team_name: 'Team',
+        gives: [ref('Amon-Ra St. Brown', 'WR')],
+        receives: [ja],
+        drops: [],
+        before: DATA.weeks,
+        after: [normal(6), after7, normal(8), normal(9)],
+      },
+      partner: null,
+    },
+  }
+
+  beforeEach(() => {
+    useTeamStore.getState().setTeam({ teamId: 't', leagueId: 'l', teamName: 'Team', leagueName: 'League', platform: 'espn' })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (req: Request) => Response.json(new URL(req.url).pathname.endsWith('/pending-trades') ? PENDING : DATA)),
+    )
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('lists the pending trade and switches to the lineups after it', async () => {
+    renderPage(<ByesPage />)
+    const banner = await screen.findByTestId('pending-trades')
+    expect(within(banner).getByText('1 accepted trade waiting on ESPN')).toBeInTheDocument()
+    expect(within(banner).getByText("Give Amon-Ra St. Brown → get Ja'Marr Chase")).toBeInTheDocument()
+    expect(within(banner).getByText(/reviews trades for 24 hours/)).toBeInTheDocument()
+
+    await userEvent.click(within(banner).getByRole('radio', { name: 'After accepted trades' }))
+    const weakest = await screen.findByRole('list', { name: 'Weakest weeks' })
+    expect(within(weakest).getByText(/Week 7/)).toBeInTheDocument()
+    expect(within(weakest).getByText('Out: Sam LaPorta (bye)')).toBeInTheDocument()
+    expect(within(weakest).getByText('Nobody to start at TE')).toBeInTheDocument()
+    expect(within(weakest).getByText(/\+5\.6 vs now/)).toBeInTheDocument() // 104.2 after vs 98.6 today
+    const grid = screen.getByTestId('bye-grid')
+    expect(within(grid).getByText('Chase')).toBeInTheDocument()
+    expect(within(grid).getByText(/for LaPorta · bye/)).toBeInTheDocument() // the hole says who's missing
+  })
+
+  it('shows nothing extra without pending trades', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (req: Request) =>
+        Response.json(new URL(req.url).pathname.endsWith('/pending-trades') ? { ...PENDING, trades: [], outlook: null } : DATA),
+      ),
+    )
+    renderPage(<ByesPage />)
+    await screen.findByTestId('bye-grid')
+    expect(screen.queryByTestId('pending-trades')).not.toBeInTheDocument()
   })
 })

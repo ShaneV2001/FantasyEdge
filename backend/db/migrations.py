@@ -78,6 +78,15 @@ MIGRATIONS: list[tuple[int, str]] = [
         " player_id VARCHAR PRIMARY KEY, out_for_season BOOLEAN, return_week INTEGER,"
         " updated_at TIMESTAMP);",
     ),
+    # v8: trades both sides accepted on ESPN that haven't processed yet (league review), so the
+    # app can show the lineup they lead to. moves/drops use our player and team ids.
+    (
+        8,
+        "CREATE TABLE IF NOT EXISTS pending_trades ("
+        " league_id VARCHAR, external_id VARCHAR, accepted_at TIMESTAMP,"
+        " moves JSON, drops JSON, PRIMARY KEY (league_id, external_id));"
+        "ALTER TABLE leagues ADD COLUMN IF NOT EXISTS trade_review_hours INTEGER;",
+    ),
 ]
 
 

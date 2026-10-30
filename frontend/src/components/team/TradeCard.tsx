@@ -1,14 +1,18 @@
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Scale, UserMinus } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarDays, Scale, UserMinus } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
 
-import type { TradeOut, TradeSideOut } from '@/api'
+import { type TradeOut, type TradeSideOut, tradeOutlook } from '@/api'
+import { ErrorState, ListSkeleton } from '@/components/common/states'
 import { PlayerChip } from '@/components/player/badges'
+import { TradeOutlook } from '@/components/trade/TradeOutlook'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { fmtInt, fmtNum, fmtSigned } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useTeamStore } from '@/stores/team'
 
 const VERDICT: Record<TradeOut['verdict'], { label: string; cls: string }> = {
   accept: { label: 'Accept', cls: 'bg-buy/15 text-buy ring-buy/30' },
@@ -186,6 +190,23 @@ export function TradeDetail({ trade }: { trade: TradeOut }) {
   )
 }
 
+/** Each remaining week's lineup for both teams after this trade, fetched when opened. */
+function LineupsByWeek({ trade, open }: { trade: TradeOut; open: boolean }) {
+  const teamId = useTeamStore((s) => s.team?.teamId)
+  const give = trade.me.gives.map((p) => p.player_id)
+  const receive = trade.me.receives.map((p) => p.player_id)
+  const q = useQuery({
+    queryKey: ['tradeOutlook', teamId, give, receive],
+    queryFn: async () => (await tradeOutlook({ body: { team_id: teamId!, give, receive }, throwOnError: true })).data,
+    enabled: open && teamId != null,
+    staleTime: 5 * 60_000,
+  })
+  if (!open) return null
+  if (q.isPending) return <ListSkeleton rows={2} height="h-24" />
+  if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />
+  return <TradeOutlook data={q.data} />
+}
+
 export function TradeCard({
   trade,
   onOpenInAnalyzer,
@@ -196,6 +217,8 @@ export function TradeCard({
   onOpenInAnalyzer?: (trade: TradeOut) => void
   actions?: ReactNode
 }) {
+  const [weeks, setWeeks] = useState(false)
+  const canOutlook = useTeamStore((s) => s.team != null)
   return (
     <Card className={cn(trade.partner_accepts === false && 'border-dashed')}>
       <CardHeader>
@@ -215,8 +238,13 @@ export function TradeCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <TradeDetail trade={trade} />
-        {(onOpenInAnalyzer || actions) && (
+        {(onOpenInAnalyzer || actions || canOutlook) && (
           <div className="flex flex-wrap justify-end gap-2">
+            {canOutlook && (
+              <Button size="sm" variant="ghost" aria-expanded={weeks} onClick={() => setWeeks((v) => !v)}>
+                <CalendarDays /> {weeks ? 'Hide week-by-week lineups' : 'Week-by-week lineups'}
+              </Button>
+            )}
             {actions}
             {onOpenInAnalyzer && (
               <Button size="sm" variant="outline" onClick={() => onOpenInAnalyzer(trade)}>
@@ -225,6 +253,7 @@ export function TradeCard({
             )}
           </div>
         )}
+        <LineupsByWeek trade={trade} open={weeks} />
       </CardContent>
     </Card>
   )

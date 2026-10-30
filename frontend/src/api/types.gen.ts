@@ -841,6 +841,68 @@ export type MatchupCell = {
 };
 
 /**
+ * PendingTradeOut
+ */
+export type PendingTradeOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Partner Team Id
+     */
+    partner_team_id: string | null;
+    /**
+     * Partner Name
+     */
+    partner_name: string | null;
+    /**
+     * Give
+     */
+    give: Array<PlayerRef>;
+    /**
+     * Receive
+     */
+    receive: Array<PlayerRef>;
+    /**
+     * Drops
+     *
+     * Players released as part of the trade
+     */
+    drops: Array<PlayerRef>;
+    /**
+     * Accepted At
+     */
+    accepted_at: string | null;
+};
+
+/**
+ * PendingTradesOut
+ *
+ * Trades both teams accepted on ESPN that haven't processed yet (league review period).
+ */
+export type PendingTradesOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Review Hours
+     *
+     * League review period before processing
+     */
+    review_hours?: number | null;
+    /**
+     * Trades
+     */
+    trades: Array<PendingTradeOut>;
+    /**
+     * Your lineups with every pending trade applied
+     */
+    outlook?: TradeOutlookOut | null;
+};
+
+/**
  * PlayerAnalyticsOut
  */
 export type PlayerAnalyticsOut = {
@@ -1611,6 +1673,44 @@ export type RenameTeamRequest = {
      * Name
      */
     name: string;
+};
+
+/**
+ * RosterOutlookOut
+ *
+ * One team's week-by-week best lineups before and after a trade (same cells as the bye grid).
+ */
+export type RosterOutlookOut = {
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Team Name
+     */
+    team_name: string;
+    /**
+     * Gives
+     */
+    gives: Array<PlayerRef>;
+    /**
+     * Receives
+     */
+    receives: Array<PlayerRef>;
+    /**
+     * Drops
+     *
+     * Forced cuts to stay under the roster limit
+     */
+    drops: Array<DropOut>;
+    /**
+     * Before
+     */
+    before: Array<ByeWeekOut>;
+    /**
+     * After
+     */
+    after: Array<ByeWeekOut>;
 };
 
 /**
@@ -2388,6 +2488,22 @@ export type TradeOut = {
      * How far the worse-off side falls short of even by value (0.1 = 10%)
      */
     market_gap?: number | null;
+};
+
+/**
+ * TradeOutlookOut
+ */
+export type TradeOutlookOut = {
+    /**
+     * Week
+     */
+    week: number;
+    /**
+     * Slots
+     */
+    slots: Array<string>;
+    me: RosterOutlookOut;
+    partner?: RosterOutlookOut | null;
 };
 
 /**
@@ -3358,6 +3474,36 @@ export type GetByesResponses = {
 
 export type GetByesResponse = GetByesResponses[keyof GetByesResponses];
 
+export type GetPendingTradesData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/pending-trades';
+};
+
+export type GetPendingTradesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPendingTradesError = GetPendingTradesErrors[keyof GetPendingTradesErrors];
+
+export type GetPendingTradesResponses = {
+    /**
+     * Successful Response
+     */
+    200: PendingTradesOut;
+};
+
+export type GetPendingTradesResponse = GetPendingTradesResponses[keyof GetPendingTradesResponses];
+
 export type UpdateRosterData = {
     body: ManualLeagueRequest;
     path: {
@@ -3412,6 +3558,31 @@ export type EvaluateTradeResponses = {
 };
 
 export type EvaluateTradeResponse = EvaluateTradeResponses[keyof EvaluateTradeResponses];
+
+export type TradeOutlookData = {
+    body: TradeEvaluateRequest;
+    path?: never;
+    query?: never;
+    url: '/trade/outlook';
+};
+
+export type TradeOutlookErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TradeOutlookError = TradeOutlookErrors[keyof TradeOutlookErrors];
+
+export type TradeOutlookResponses = {
+    /**
+     * Successful Response
+     */
+    200: TradeOutlookOut;
+};
+
+export type TradeOutlookResponse = TradeOutlookResponses[keyof TradeOutlookResponses];
 
 export type SuggestTradesData = {
     body?: never;

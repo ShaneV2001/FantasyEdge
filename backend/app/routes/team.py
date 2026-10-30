@@ -163,6 +163,22 @@ def get_byes(team_id: str, ctx: LeagueContext = Depends(team_ctx)) -> m.ByesOut:
     return views.byes_view(ctx, team_id)
 
 
+@router.get("/{team_id}/pending-trades", response_model=m.PendingTradesOut)
+def get_pending_trades(
+    team_id: str,
+    ctx: LeagueContext = Depends(team_ctx),
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+) -> m.PendingTradesOut:
+    """Trades you accepted on ESPN that are waiting to process, and your lineups once they do."""
+    league_id = ctx.league.league_id
+    row = con.execute(
+        "SELECT trade_review_hours FROM leagues WHERE league_id = ?", [league_id]
+    ).fetchone()
+    return views.pending_view(
+        ctx, team_id, leagues.pending_trades(con, league_id), row[0] if row else None
+    )
+
+
 @router.delete("/{team_id}", response_model=m.ForgetOut)
 def forget_team(team_id: str, con: duckdb.DuckDBPyConnection = Depends(get_con)) -> m.ForgetOut:
     """Delete a manual team, or forget a Sleeper/ESPN league (with its saved ESPN login) from

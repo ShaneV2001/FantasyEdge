@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
@@ -555,6 +556,7 @@ def _sync_espn(
             "last_synced_at": now,
             "final_week": info.final_week,
             "scoring_notes": json.dumps(notes),
+            "trade_review_hours": info.trade_review_hours,
         }
         upsert(
             con,
@@ -566,6 +568,7 @@ def _sync_espn(
                     "faab_budget": pl.Int32,
                     "playoff_week_start": pl.Int32,
                     "final_week": pl.Int32,
+                    "trade_review_hours": pl.Int32,
                     "last_synced_at": pl.Datetime("us"),
                 },
             ),
@@ -607,7 +610,7 @@ def _sync_espn(
             upsert(con, "roster_spots", pl.DataFrame(spot_rows).unique(["team_id", "player_id"]))
         if cookies is not None:
             save_credentials(con, league_id, cookies)
-    _sync_espn_transactions(con, c, info, league_id, cookies)
+    _sync_espn_transactions(con, c, info, league_id, cookies, match.ids)
     _ensure_market(con, c, rules, info)
     log_sync(con, f"league:{league_id}", "ok", f"{len(teams)} teams")
     return EspnSync(league_id, info, rules, teams, match.unmatched, notes)
@@ -619,12 +622,15 @@ def _sync_espn_transactions(
     info: es.EspnLeague,
     league_id: str,
     cookies: es.Cookies | None,
+    ids: Mapping[int, str],
 ) -> None:
     assert c.espn is not None
     try:
-        rows = []
+        rows, fetched = [], []
         for w in range(max(1, info.current_week - 1), info.current_week + 1):
-            for t in c.espn.transactions(info.external_id, info.season, cookies, w):
+            week_txns = c.espn.transactions(info.external_id, info.season, cookies, w)
+            fetched += week_txns
+            for t in week_txns:
                 created = t.get("proposedDate") or t.get("processDate") or 0
                 rows.append(
                     {
@@ -638,8 +644,82 @@ def _sync_espn_transactions(
                 )
         if rows:
             upsert(con, "transactions", pl.DataFrame(rows).unique("external_id"))
+        _save_pending_trades(con, info, league_id, es.parse_pending_trades(fetched), ids)
     except Exception as exc:  # transactions are informational only (no cookie values in the log)
         log.warning("transactions sync failed for %s: %s", league_id, type(exc).__name__)
+
+
+def _save_pending_trades(
+    con: duckdb.DuckDBPyConnection,
+    info: es.EspnLeague,
+    league_id: str,
+    trades: list[es.PendingTrade],
+    ids: Mapping[int, str],
+) -> None:
+    """Replace the league's pending trades. A player ESPN listed that we never saw on a roster
+    keeps the `espn:<id>` placeholder id, like unmatched roster players."""
+
+    def pid(eid: int) -> str:
+        return ids.get(eid) or f"espn:{eid}"
+
+    def tid(team: str) -> str:
+        return espn_team_id(info.external_id, info.season, team)
+
+    rows = [
+        {
+            "league_id": league_id,
+            "external_id": t.external_id,
+            "accepted_at": t.accepted_at,
+            "moves": json.dumps(
+                [
+                    {"player_id": pid(e), "from_team": tid(f), "to_team": tid(to)}
+                    for e, f, to in t.moves
+                ]
+            ),
+            "drops": json.dumps([{"player_id": pid(e), "team_id": tid(f)} for e, f in t.drops]),
+        }
+        for t in trades
+    ]
+    replace_where(
+        con,
+        "pending_trades",
+        pl.DataFrame(rows, schema_overrides={"accepted_at": pl.Datetime("us")}),
+        "league_id = ?",
+        [league_id],
+    )
+
+
+@dataclass(frozen=True)
+class PendingTradeRow:
+    external_id: str
+    accepted_at: datetime | None
+    moves: list[dict]
+    drops: list[dict]
+
+
+def pending_trades(con: duckdb.DuckDBPyConnection, league_id: str) -> list[PendingTradeRow]:
+    """Accepted ESPN trades still waiting to process, oldest first. One whose players already
+    left the giving team has gone through (rosters are fresher than the transaction feed)."""
+    rows = con.execute(
+        "SELECT external_id, accepted_at, moves, drops FROM pending_trades WHERE league_id = ?"
+        " ORDER BY accepted_at",
+        [league_id],
+    ).fetchall()
+    if not rows:
+        return []
+    on = set(
+        con.execute(
+            "SELECT team_id, player_id FROM roster_spots WHERE team_id IN"
+            " (SELECT team_id FROM teams WHERE league_id = ?)",
+            [league_id],
+        ).fetchall()
+    )
+    out = []
+    for ext, accepted, moves, drops in rows:
+        mv, dr = json.loads(moves), json.loads(drops or "[]")
+        if all((m["from_team"], m["player_id"]) in on for m in mv):
+            out.append(PendingTradeRow(ext, accepted, mv, dr))
+    return out
 
 
 def connect_espn(
@@ -898,7 +978,14 @@ def forget_league(con: duckdb.DuckDBPyConnection, league_id: str) -> tuple[str, 
             "DELETE FROM roster_spots WHERE team_id IN (SELECT team_id FROM teams WHERE league_id = ?)",
             [league_id],
         )
-        for table in ("teams", "transactions", "saved_trades", "league_credentials", "leagues"):
+        for table in (
+            "teams",
+            "transactions",
+            "pending_trades",
+            "saved_trades",
+            "league_credentials",
+            "leagues",
+        ):
             con.execute(f"DELETE FROM {table} WHERE league_id = ?", [league_id])
         con.execute("DELETE FROM sync_log WHERE source = ?", [f"league:{league_id}"])
     return row[0], n

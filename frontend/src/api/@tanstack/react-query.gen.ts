@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { clearPlayerAvailability, connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, forgetTeam, getAdvice, getBuyTargets, getByes, getCredentials, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRegression, getSavedTeams, getStartsit, getStatus, getTeam, getUserSettings, getWaivers, health, manualLeague, type Options, putCredentials, refresh, renameTeam, resetUserSettings, searchPlayers, selectTeam, setPlayerAvailability, suggestTrades, updateRoster, updateUserSettings } from '../sdk.gen';
-import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityError, ClearPlayerAvailabilityResponse, ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, ForgetTeamData, ForgetTeamError, ForgetTeamResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetSavedTeamsData, GetSavedTeamsResponse, GetStartsitData, GetStartsitError, GetStartsitResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, GetWaiversData, GetWaiversError, GetWaiversResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, RenameTeamData, RenameTeamError, RenameTeamResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SetPlayerAvailabilityData, SetPlayerAvailabilityError, SetPlayerAvailabilityResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
+import { clearPlayerAvailability, connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, forgetTeam, getAdvice, getBuyTargets, getByes, getCredentials, getPendingTrades, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRegression, getSavedTeams, getStartsit, getStatus, getTeam, getUserSettings, getWaivers, health, manualLeague, type Options, putCredentials, refresh, renameTeam, resetUserSettings, searchPlayers, selectTeam, setPlayerAvailability, suggestTrades, tradeOutlook, updateRoster, updateUserSettings } from '../sdk.gen';
+import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityError, ClearPlayerAvailabilityResponse, ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, ForgetTeamData, ForgetTeamError, ForgetTeamResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetPendingTradesData, GetPendingTradesError, GetPendingTradesResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetSavedTeamsData, GetSavedTeamsResponse, GetStartsitData, GetStartsitError, GetStartsitResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetUserSettingsData, GetUserSettingsResponse, GetWaiversData, GetWaiversError, GetWaiversResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, RenameTeamData, RenameTeamError, RenameTeamResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SetPlayerAvailabilityData, SetPlayerAvailabilityError, SetPlayerAvailabilityResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, TradeOutlookData, TradeOutlookError, TradeOutlookResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -503,6 +503,26 @@ export const getByesOptions = (options: Options<GetByesData>) => queryOptions<Ge
     queryKey: getByesQueryKey(options)
 });
 
+export const getPendingTradesQueryKey = (options: Options<GetPendingTradesData>) => createQueryKey('getPendingTrades', options);
+
+/**
+ * Get Pending Trades
+ *
+ * Trades you accepted on ESPN that are waiting to process, and your lineups once they do.
+ */
+export const getPendingTradesOptions = (options: Options<GetPendingTradesData>) => queryOptions<GetPendingTradesResponse, GetPendingTradesError, GetPendingTradesResponse, ReturnType<typeof getPendingTradesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getPendingTrades({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getPendingTradesQueryKey(options)
+});
+
 /**
  * Update Roster
  *
@@ -531,6 +551,26 @@ export const evaluateTradeMutation = (options?: Partial<Options<EvaluateTradeDat
     const mutationOptions: UseMutationOptions<EvaluateTradeResponse, EvaluateTradeError, Options<EvaluateTradeData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await evaluateTrade({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Trade Outlook
+ *
+ * Each remaining week's best lineup for both teams, before and after the trade: who fills
+ * in for players on bye or hurt, and the slots left empty.
+ */
+export const tradeOutlookMutation = (options?: Partial<Options<TradeOutlookData>>): UseMutationOptions<TradeOutlookResponse, TradeOutlookError, Options<TradeOutlookData>> => {
+    const mutationOptions: UseMutationOptions<TradeOutlookResponse, TradeOutlookError, Options<TradeOutlookData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await tradeOutlook({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

@@ -42,10 +42,14 @@ export function fmtInt(n: number | null | undefined): string {
   return Math.round(n).toLocaleString()
 }
 
+/** API timestamps are naive UTC. */
+export function apiDate(iso: string): Date {
+  return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`)
+}
+
 export function fmtRelative(iso: string | null | undefined, now: Date = new Date()): string {
   if (!iso) return 'never'
-  // API timestamps are naive UTC
-  const t = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`)
+  const t = apiDate(iso)
   const s = Math.round((now.getTime() - t.getTime()) / 1000)
   if (s < 45) return 'just now'
   const m = Math.round(s / 60)

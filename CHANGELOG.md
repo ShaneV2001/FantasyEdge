@@ -2,6 +2,24 @@
 
 All notable changes to FantasyEdge. Dates are when the work was pushed.
 
+## [Unreleased]
+
+### Added
+- **Accepted ESPN trades waiting to process.** ESPN holds an accepted trade for league review
+  before the players move. My Team and the Bye-week planner now list those trades, and the
+  planner's **After accepted trades** view shows each remaining week's lineup once they go
+  through: the weakest weeks first, who's out and why, and the slots nobody can fill.
+- **Week-by-week lineups on every trade card.** Opens both teams' lineups before and after the
+  deal, with the same week grid as the Bye-week planner.
+- An empty slot in the week grid names the starter it's missing ("for Kraft · bye").
+
+### Fixed
+- The sidebar shows a team's new name after it is renamed on ESPN or Sleeper. It used to keep
+  the name from when the team was first connected.
+- Bye-week streaming suggestions and the waiver shortlist skip players who can't play that week
+  (out for the season, or still on IR). A season-ending injury no longer gets a player
+  recommended because of his old points per game.
+
 ## [0.3.0] — 2026-10-20
 
 ### Changed

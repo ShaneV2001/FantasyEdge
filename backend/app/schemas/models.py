@@ -460,6 +460,46 @@ class ByesOut(BaseModel):
     danger_weeks: list[int]
 
 
+class RosterOutlookOut(BaseModel):
+    """One team's week-by-week best lineups before and after a trade (same cells as the bye grid)."""
+
+    team_id: str
+    team_name: str
+    gives: list[PlayerRef]
+    receives: list[PlayerRef]
+    drops: list[DropOut] = Field(description="Forced cuts to stay under the roster limit")
+    before: list[ByeWeekOut]
+    after: list[ByeWeekOut]
+
+
+class TradeOutlookOut(BaseModel):
+    week: int
+    slots: list[str]
+    me: RosterOutlookOut
+    partner: RosterOutlookOut | None = None
+
+
+class PendingTradeOut(BaseModel):
+    id: str
+    partner_team_id: str | None
+    partner_name: str | None
+    give: list[PlayerRef]
+    receive: list[PlayerRef]
+    drops: list[PlayerRef] = Field(description="Players released as part of the trade")
+    accepted_at: datetime | None
+
+
+class PendingTradesOut(BaseModel):
+    """Trades both teams accepted on ESPN that haven't processed yet (league review period)."""
+
+    team_id: str
+    review_hours: int | None = Field(None, description="League review period before processing")
+    trades: list[PendingTradeOut]
+    outlook: TradeOutlookOut | None = Field(
+        None, description="Your lineups with every pending trade applied"
+    )
+
+
 # ───────── buy targets ─────────
 
 

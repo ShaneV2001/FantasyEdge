@@ -1,14 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Pencil } from 'lucide-react'
+import { CalendarDays, Pencil } from 'lucide-react'
 
-import { getRegressionOptions, getTeamOptions } from '@/api/@tanstack/react-query.gen'
+import { getPendingTradesOptions, getRegressionOptions, getTeamOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { PositionStrengthChart } from '@/components/team/PositionStrengthChart'
 import { BackToTop } from '@/components/common/BackToTop'
 import { LeagueRegressionList, RegressionList } from '@/components/team/RegressionList'
 import { RosterTable } from '@/components/team/RosterTable'
 import { TeamGrades } from '@/components/team/TeamGrades'
+import { PendingTradesBanner } from '@/components/trade/PendingTrades'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { platformName } from '@/lib/format'
@@ -21,6 +22,7 @@ export function TeamPage() {
   const team = useTeamStore((s) => s.team)!
   const q = useQuery(getTeamOptions({ path: { team_id: team.teamId } }))
   const reg = useQuery(getRegressionOptions({ path: { team_id: team.teamId } }))
+  const pending = useQuery({ ...getPendingTradesOptions({ path: { team_id: team.teamId } }), enabled: team.platform === 'espn' })
   const data = q.data
 
   return (
@@ -61,6 +63,18 @@ export function TeamPage() {
       />
       {q.isPending && <ListSkeleton rows={6} height="h-12" />}
       {q.isError && <ErrorState error={q.error} onRetry={() => void q.refetch()} />}
+      {pending.data && (
+        <PendingTradesBanner
+          data={pending.data}
+          action={
+            <Button asChild size="sm" variant="outline" className="mt-1 self-start">
+              <Link to="/byes" search={{ view: 'after' }}>
+                <CalendarDays /> See your lineups after the trades
+              </Link>
+            </Button>
+          }
+        />
+      )}
       {data && (
         <>
           <TeamGrades grades={data.grades} overall={data.overall_grade} basis={data.grade_basis} needs={data.needs} />

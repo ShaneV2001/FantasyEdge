@@ -150,15 +150,22 @@ def _mark_changes(
     starting = {c.player_id for c in cells if c.player_id}
     out = [roster[p] for p in base_starters if p not in starting]
     out.sort(key=lambda e: -e.ppg)
+
+    def why(e: RosterEntry) -> str:
+        return "bye" if not schedule.has_game(e.nfl_team, week) else "injury"
+
+    # an empty slot names the starter it normally has, so a week's summary lists everyone out
     for c, b in zip(cells, base_cells, strict=True):
         c.hole = c.player_id is None and b.player_id is not None
+        if c.hole and (starter := roster.get(b.player_id)) in out:
+            out.remove(starter)
+            c.replaces, c.why = starter.name, why(starter)
     for c in cells:
         if not c.player_id or c.player_id in base_starters or not out:
             continue
         starter = next((e for e in out if e.position == c.position), out[0])
         out.remove(starter)
-        c.replaces = starter.name
-        c.why = "bye" if not schedule.has_game(starter.nfl_team, week) else "injury"
+        c.replaces, c.why = starter.name, why(starter)
 
 
 def bye_overlap(team_byes: list[int | None], candidate_bye: int | None, start_week: int) -> int:

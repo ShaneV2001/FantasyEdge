@@ -5,10 +5,12 @@ import { getStatusOptions } from '@/api/@tanstack/react-query.gen'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { useSyncTeamName } from '@/hooks/useSyncTeamName'
 import { AppSidebar } from './AppSidebar'
 
 export function AppLayout() {
   const status = useQuery({ ...getStatusOptions(), staleTime: 5 * 60_000, retry: false })
+  useSyncTeamName()
   return (
     <SidebarProvider>
       <AppSidebar />

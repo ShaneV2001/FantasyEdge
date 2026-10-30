@@ -141,6 +141,8 @@ class EspnLeague:
     final_week: int | None
     current_week: int
     league_type: str = "redraft"
+    # an accepted trade waits this long for league review before ESPN processes it
+    trade_review_hours: int | None = None
 
 
 def parse_league(raw: Mapping) -> EspnLeague:
@@ -165,7 +167,9 @@ def parse_league(raw: Mapping) -> EspnLeague:
         length = int(sched.get("playoffMatchupPeriodLength") or 1)
         final_week = min(int(regular) + rounds * length, 18)
 
-    deadline_ms = (s.get("tradeSettings") or {}).get("deadlineDate")
+    trade = s.get("tradeSettings") or {}
+    deadline_ms = trade.get("deadlineDate")
+    review = trade.get("revisionHours")
     acq = s.get("acquisitionSettings") or {}
     uses_faab = bool(acq.get("isUsingAcquisitionBudget"))
     keepers = int((s.get("draftSettings") or {}).get("keeperCount") or 0)
@@ -187,6 +191,7 @@ def parse_league(raw: Mapping) -> EspnLeague:
         final_week=final_week,
         current_week=int(raw.get("scoringPeriodId") or 1),
         league_type="keeper" if keepers else "redraft",
+        trade_review_hours=int(review) if review is not None and int(review) >= 0 else None,
     )
 
 
@@ -273,6 +278,73 @@ def parse_teams(raw: Mapping, league: EspnLeague) -> tuple[list[EspnTeam], dict[
             )
         )
     return teams, players
+
+
+@dataclass(frozen=True)
+class PendingTrade:
+    """A trade both sides accepted that ESPN hasn't processed yet (league review period)."""
+
+    external_id: str
+    accepted_at: datetime | None
+    # (espn player id, from ESPN team id, to ESPN team id)
+    moves: list[tuple[int, str, str]]
+    # (espn player id, ESPN team id) released to make room
+    drops: list[tuple[int, str]] = field(default_factory=list)
+
+
+# Transactions that end a proposal before it is processed
+_ENDS_TRADE = {"TRADE_DECLINE", "TRADE_VETO", "TRADE_ERROR"}
+
+
+def _ms(value: Any) -> datetime | None:
+    return datetime.fromtimestamp(value / 1000, UTC).replace(tzinfo=None) if value else None
+
+
+def parse_pending_trades(transactions: Sequence[Mapping]) -> list[PendingTrade]:
+    """Accepted-but-unprocessed trades from `mTransactions2`.
+
+    ESPN keeps the original `TRADE_PROPOSAL` at status PENDING and adds a separate `TRADE_ACCEPT`
+    that points at it through `relatedTransactionId`. A decline, veto, a CANCELED copy of the
+    proposal or an EXECUTED accept (the trade went through) means it is no longer pending.
+    """
+    by_id = {str(t.get("id")): t for t in transactions}
+    related: dict[str, list[Mapping]] = {}
+    for t in transactions:
+        if t.get("relatedTransactionId"):
+            related.setdefault(str(t["relatedTransactionId"]), []).append(t)
+    out = []
+    for tid, t in by_id.items():
+        if t.get("type") != "TRADE_PROPOSAL" or t.get("status") != "PENDING":
+            continue
+        links = related.get(tid, [])
+        accepts = [r for r in links if r.get("type") == "TRADE_ACCEPT"]
+        if not accepts:
+            continue
+        ended = any(
+            r.get("type") in _ENDS_TRADE
+            or (r.get("type") == "TRADE_PROPOSAL" and r.get("status") == "CANCELED")
+            or (r.get("type") == "TRADE_ACCEPT" and r.get("status") == "EXECUTED")
+            for r in links
+        )
+        if ended:
+            continue
+        items = t.get("items") or []
+        moves = [
+            (int(i["playerId"]), str(i["fromTeamId"]), str(i["toTeamId"]))
+            for i in items
+            if i.get("type") == "TRADE" and i.get("playerId") is not None
+        ]
+        drops = [
+            (int(i["playerId"]), str(i["fromTeamId"]))
+            for i in items
+            if i.get("type") == "DROP" and i.get("playerId") is not None
+        ]
+        if not moves:
+            continue
+        accepted = max((r.get("proposedDate") or 0 for r in accepts), default=0)
+        out.append(PendingTrade(tid, _ms(accepted), moves, drops))
+    out.sort(key=lambda p: p.accepted_at or datetime.min)
+    return out
 
 
 def is_private_without_access(raw: Any) -> bool:

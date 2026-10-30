@@ -181,7 +181,8 @@ def _slot_positions(labels: Sequence[str]) -> set[str]:
 
 def _best_fa_for_slots(inp: AdvisorInputs, labels: Sequence[str], week: int) -> list[str]:
     """The best free agent playing that week for each short slot (a WR *and* a DEF, not just
-    whichever scores more)."""
+    whichever scores more). Week points already count byes and injuries, so a player out for the
+    season (or still on IR that week) is never suggested."""
     if not inp.free_agents:
         return []
     picks: list[str] = []
@@ -191,9 +192,9 @@ def _best_fa_for_slots(inp: AdvisorInputs, labels: Sequence[str], week: int) -> 
             p for p in inp.free_agents
             if p not in picks
             and inp.players.get(p, {}).get("position") in positions
-            and inp.math.schedule.has_game(inp.players[p].get("nfl_team"), week)
+            and inp.math.week_points(p).get(week, 0.0) > 0
         ]  # fmt: skip
-        best = max(cands, key=lambda p: inp.players[p].get("ppg") or 0, default=None)
+        best = max(cands, key=lambda p: inp.math.week_points(p).get(week, 0.0), default=None)
         if best:
             picks.append(best)
     return picks

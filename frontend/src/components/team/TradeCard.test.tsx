@@ -1,7 +1,9 @@
-import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { TradeOut } from '@/api'
+import type { ByeWeekOut, TradeOut, TradeOutlookOut } from '@/api'
+import { useTeamStore } from '@/stores/team'
 import { renderPage } from '@/test/render'
 
 import { TradeCard } from './TradeCard'
@@ -87,5 +89,72 @@ describe('TradeCard', () => {
     renderPage(<TradeCard trade={noDrop} />)
     await screen.findAllByText('Give Waddle for Hampton + Pacheco')
     expect(screen.queryByText(/Market values unavailable/)).not.toBeInTheDocument()
+  })
+})
+
+describe('TradeCard week-by-week lineups', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    useTeamStore.getState().clear()
+  })
+
+  const wk = (n: number, lineup: number, lost: number, out?: string): ByeWeekOut => ({
+    week: n,
+    weeks_away: n - 8,
+    cells: [
+      {
+        slot: 'RB',
+        label: 'RB',
+        status: 'ok',
+        player: { player_id: 'h', name: 'Hampton', position: 'RB' },
+        ppg: 12,
+        ...(out ? { replaces: out, why: 'bye' as const } : {}),
+      },
+    ],
+    on_bye: [],
+    starters_on_bye: [],
+    danger: false,
+    danger_slots: [],
+    lineup_points: lineup,
+    full_strength_points: lineup + lost,
+    points_lost: lost,
+  })
+  const roster = (name: string) => ({
+    team_id: name,
+    team_name: name,
+    gives: [],
+    receives: [],
+    drops: [],
+    before: [wk(8, 110, 0), wk(11, 90, 20, 'Bijan Robinson')],
+    after: [wk(8, 112, 0), wk(11, 70, 40, 'Bijan Robinson')],
+  })
+  const OUTLOOK: TradeOutlookOut = { week: 8, slots: ['RB'], me: roster('Mine'), partner: roster('Theirs') }
+
+  it("opens both teams' lineups after the trade, worst week first", async () => {
+    useTeamStore.getState().setTeam({ teamId: 'me', leagueId: 'l', teamName: 'Mine', leagueName: 'L', platform: 'espn' })
+    const calls: Request[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (req: Request) => {
+        calls.push(req.clone())
+        return Response.json(OUTLOOK)
+      }),
+    )
+    renderPage(<TradeCard trade={TRADE} />)
+    await userEvent.click(await screen.findByRole('button', { name: /Week-by-week lineups/ }))
+    const outlook = await screen.findByTestId('trade-outlook')
+    expect(await calls[0].json()).toEqual({ team_id: 'me', give: ['Waddle'], receive: ['Hampton', 'Pacheco'] })
+    const lists = within(outlook).getAllByRole('list', { name: 'Weakest weeks' })
+    expect(lists).toHaveLength(2) // you and the partner
+    expect(within(lists[0]).getByText(/Week 11/)).toBeInTheDocument()
+    expect(within(lists[0]).getByText(/−20\.0 vs now/)).toBeInTheDocument()
+    expect(within(lists[0]).getByText('Out: Bijan Robinson (bye)')).toBeInTheDocument()
+    expect(within(outlook).getByText('Theirs: lineup by week')).toBeInTheDocument()
+  })
+
+  it('has no lineups button without a selected team', async () => {
+    renderPage(<TradeCard trade={TRADE} />)
+    await screen.findByText('Give Waddle for Hampton + Pacheco')
+    expect(screen.queryByRole('button', { name: /Week-by-week lineups/ })).not.toBeInTheDocument()
   })
 })
