@@ -108,3 +108,14 @@ def test_refuses_when_a_private_id_survives(store):
     with pytest.raises(SystemExit, match="players.status"):
         demo.build(src, dest, needles=["987654321"])
     assert not dest.exists()
+
+
+def test_the_draft_isnt_by_hindsight_values(store):
+    """Today's best players don't all go in the first rounds: some slip, some reaches happen."""
+    src, _ = store
+    con = connect(src)
+    rosters = demo.draft(con, "redraft_1qb_10_ppr1", 10)
+    con.close()
+    top = {f"{pos}{i:02d}" for pos in ("RB", "WR") for i in range(8)}  # the 16 best RB/WR values
+    late = [p for roster in rosters for p in roster[3:] if p in top]  # taken in round 4 or later
+    assert late, "every top player went in the first three rounds: drafted with hindsight"

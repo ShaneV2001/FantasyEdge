@@ -90,7 +90,13 @@ def market_format(con: duckdb.DuckDBPyConnection) -> tuple[str, int, float]:
     return best[1], best[2], best[3]
 
 
+DRAFT_NOISE = 0.45  # sd of the log draft-day value around today's market value
+
+
 def draft(con: duckdb.DuckDBPyConnection, fmt: str, n_teams: int) -> list[list[str]]:
+    """A snake draft by a noisy "draft-day" value, not today's: drafting by current market value
+    is drafting with hindsight, which hands every team this season's hits (unrealistically
+    stacked rosters). The noise gives each team a real mix of hits and misses."""
     rng = random.Random(SEED)
     pool = con.execute(
         """SELECT p.player_id, p.position, max(m.value) AS v
@@ -99,7 +105,8 @@ def draft(con: duckdb.DuckDBPyConnection, fmt: str, n_teams: int) -> list[list[s
            GROUP BY ALL ORDER BY v DESC, p.player_id""",
         [fmt],
     ).fetchall()
-    available = [(pid, pos) for pid, pos, _ in pool]
+    noisy = [(v * rng.lognormvariate(0, DRAFT_NOISE), pid, pos) for pid, pos, v in pool]
+    available = [(pid, pos) for _, pid, pos in sorted(noisy, reverse=True)]
     teams: list[list[tuple[str, str]]] = [[] for _ in range(n_teams)]
     for rnd in range(SKILL_ROUNDS):
         order = range(n_teams) if rnd % 2 == 0 else reversed(range(n_teams))
