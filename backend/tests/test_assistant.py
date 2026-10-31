@@ -229,6 +229,9 @@ def test_every_tool_runs_and_fits(client):  # noqa: F811
         "find_trade": {"give": [name(skill(mine))], "want_position": "WR"},
     }
     env = at.ToolEnv(ctx, deps._con.cursor(), team_id)
+    week = json.loads(at.run_tool(env, "rankings", {"position": "RB", "week": ctx.week})[0])
+    assert list(week["positions"]) == ["RB"] and f"week_{ctx.week}" in week["positions"]["RB"]
+    assert at.run_tool(env, "rankings", {"week": 1})[1]  # a played week has no rankings
     for tool in at.TOOLS:
         out, is_error = at.run_tool(env, tool.name, args.get(tool.name, {}))
         assert not is_error, (tool.name, out)
@@ -271,6 +274,17 @@ def test_render_trims_lists_and_drops_noise():
     assert len(out["rows"]) == 16 and out["rows"][-1] == {"_more": 25}
     huge = {"rows": [{"t": "x" * 2000} for _ in range(40)]}
     assert len(at.render(huge)) <= at.MAX_CHARS
+
+
+def test_render_always_returns_valid_json_that_fits():
+    deep = {
+        f"pos{i}": {"weeks": [{"rows": [{"cells": ["y" * 300] * 20}] * 20}] * 20} for i in range(8)
+    }
+    text = at.render(deep)
+    assert len(text) <= at.MAX_CHARS and set(json.loads(text)) == set(deep)
+    wide = {f"k{i}": "z" * 5000 for i in range(10)}  # no list or nesting to trim
+    out = json.loads(at.render(wide))
+    assert out["truncated"] is True
 
 
 def test_to_api_merges_user_turns_and_folds_facts_when_needed():

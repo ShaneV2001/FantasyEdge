@@ -80,20 +80,23 @@ def _ids(env: ToolEnv, names: list[str]) -> list[str]:
 # ───────── output trimming ─────────
 
 
-def compact(obj: Any, max_items: int = 15) -> Any:
-    """JSON-ready, without empty values, image urls or owner names, floats to 2 decimals and
-    long lists cut (with a count of what was cut)."""
+def compact(obj: Any, max_items: int = 15, max_depth: int = 99) -> Any:
+    """JSON-ready, without empty values, image urls or owner names, floats to 2 decimals, long
+    lists cut (with a count of what was cut) and anything nested deeper than `max_depth`
+    replaced by a short note."""
     if isinstance(obj, BaseModel):
         obj = obj.model_dump(mode="json", exclude_none=True)
+    if isinstance(obj, dict | list) and max_depth <= 0:
+        return f"({len(obj)} {'fields' if isinstance(obj, dict) else 'items'} omitted)"
     if isinstance(obj, dict):
         out = {}
         for k, v in obj.items():
             if k in DROP_KEYS or v is None or v == [] or v == {}:
                 continue
-            out[k] = compact(v, max_items)
+            out[k] = compact(v, max_items, max_depth - 1)
         return out
     if isinstance(obj, list):
-        items = [compact(v, max_items) for v in obj[:max_items]]
+        items = [compact(v, max_items, max_depth - 1) for v in obj[:max_items]]
         if len(obj) > max_items:
             items.append({"_more": len(obj) - max_items})
         return items
@@ -102,13 +105,21 @@ def compact(obj: Any, max_items: int = 15) -> Any:
     return obj
 
 
-def render(obj: Any, max_items: int = 15) -> str:
-    """The tool result text: compact JSON, cut down until it fits `MAX_CHARS`."""
-    while True:
-        text = json.dumps(compact(obj, max_items), separators=(",", ":"), ensure_ascii=False)
-        if len(text) <= MAX_CHARS or max_items <= 3:
-            return text[:MAX_CHARS]
-        max_items = max(3, max_items // 2)
+# Trimming steps, gentlest first: shorter lists, then less nesting
+STEPS = [(15, 99), (8, 99), (4, 99), (2, 99), (2, 6), (2, 4), (2, 3), (2, 2)]
+
+
+def render(obj: Any) -> str:
+    """The tool result as compact JSON that fits `MAX_CHARS`, trimmed step by step; always valid
+    JSON (never cut mid-way), so the model can read whatever is left."""
+    for items, depth in STEPS:
+        text = json.dumps(compact(obj, items, depth), separators=(",", ":"), ensure_ascii=False)
+        if len(text) <= MAX_CHARS:
+            return text
+    top = compact(obj, 2, 1)
+    summary = top if isinstance(top, dict) else {"items": top}
+    text = json.dumps({"truncated": True, **summary}, separators=(",", ":"), ensure_ascii=False)
+    return text if len(text) <= MAX_CHARS else json.dumps({"truncated": True})
 
 
 # ───────── tools ─────────
@@ -153,6 +164,29 @@ class SearchArgs(BaseModel):
 
 class RankingsArgs(BaseModel):
     top: int = Field(10, ge=5, le=30, description="Players per position")
+    position: Literal["QB", "RB", "WR", "TE", "K", "DEF"] | None = Field(
+        None, description="One position; omit for all"
+    )
+    week: int | None = Field(
+        None, ge=1, le=18, description="One upcoming week; omit for rest of season"
+    )
+
+
+def _rankings(env: ToolEnv, a: RankingsArgs) -> Any:
+    """Rest-of-season lists by default, or one week's: the full grid is too big for a chat."""
+    out = views.rankings_view(env.ctx, env.team_id, a.top).model_dump(mode="json")
+    positions = {}
+    for pos, r in out["positions"].items():
+        if a.position and pos != a.position:
+            continue
+        if a.week is None:
+            positions[pos] = {"rest_of_season": r["ros"]}
+        else:
+            week = next((w for w in r["weekly"] if w.get("week") == a.week), None)
+            if week is None:
+                raise ToolError(f"No rankings for week {a.week}; weeks: {out['weeks']}")
+            positions[pos] = {f"week_{a.week}": week}
+    return {"week": out["week"], "weeks": out["weeks"], "positions": positions}
 
 
 @dataclass(frozen=True)
@@ -343,11 +377,11 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         "rankings",
-        "Schedule-adjusted positional rankings for each upcoming week and rest of season, with "
-        "who owns each player.",
+        "Schedule-adjusted positional rankings, rest of season by default or for one upcoming "
+        "week, with who owns each player.",
         RankingsArgs,
         "Pulling rankings",
-        lambda env, a: views.rankings_view(env.ctx, env.team_id, a.top),
+        _rankings,
     ),
     Tool(
         "buy_targets",
