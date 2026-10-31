@@ -28,15 +28,28 @@ class PlayerRef(BaseModel):
     nfl_team: str | None = None
 
 
-class PlayerValue(PlayerRef):
+class PlayerTrend(BaseModel):
+    """This season's production and how last week's game moved his projection."""
+
+    season_ppg: float | None = Field(None, description="Actual points per game this season")
+    games_played: int | None = Field(None, description="Games played this season")
+    season_rank: int | None = Field(
+        None, description="Rank at his position by season points per game (3+ games)"
+    )
+    stock: Literal["up", "down", "flat"] | None = Field(
+        None, description="Last week's game moved his projection up, down, or not much"
+    )
+    stock_delta: float | None = Field(None, description="Change in projected points per game")
+    stock_reason: str | None = Field(None, description="e.g. 'Scored 28.4 vs 14.2 projected'")
+
+
+class PlayerValue(PlayerRef, PlayerTrend):
     sleeper_id: str | None = None
     ppg: float = Field(description="Projected fantasy points per game (league scoring)")
     p10: float | None = None
     p90: float | None = None
     l3_ppg: float | None = None
-    season_ppg: float | None = None
     usage_ppg: float | None = None
-    games_played: int | None = None
     proj_ros_points: float
     next4_points: float
     games_remaining: float
@@ -251,9 +264,16 @@ class PositionGradeOut(BaseModel):
     league_avg: float
     rank: int
     teams: int
-    grade: Literal["A", "B", "C", "D", "F"]
-    delta_pct: float
+    grade: Literal["A", "B", "C", "D", "F"] = Field(
+        description="vs a typical team in a league this size: A ≥ +10%, B ≥ 0, C ≥ −10%, D ≥ −20%"
+    )
+    delta_pct: float = Field(description="vs the league average (share)")
     z: float = Field(0.0, description="Standard deviations above the comparison-league average")
+    benchmark: float = Field(
+        0.0,
+        description="A typical team's points here in a league this size (the grade's yardstick)",
+    )
+    vs_benchmark: float = Field(0.0, description="points / benchmark − 1 (0.06 = 6% above)")
 
 
 class MarketInfo(BaseModel):
@@ -708,7 +728,7 @@ class MatchupCell(BaseModel):
     points: float = Field(description="Matchup-adjusted projected points")
 
 
-class RankingRow(BaseModel):
+class RankingRow(PlayerTrend):
     rank: int
     player_id: str
     name: str
@@ -820,7 +840,7 @@ class PlayerAnalyticsOut(BaseModel):
     windows: list[AnalyticsWindowOut] = Field(description="Shortest window first; Season is last")
 
 
-class PlayerDetailOut(BaseModel):
+class PlayerDetailOut(PlayerTrend):
     player_id: str
     name: str
     position: str

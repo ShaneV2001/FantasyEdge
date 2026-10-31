@@ -9,7 +9,7 @@ import { getPlayerOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton } from '@/components/common/states'
 import { Analytics } from '@/components/player/analytics'
 import { AvailabilityControl } from '@/components/player/AvailabilityControl'
-import { InjuryTag, PositionBadge, SignalBadge } from '@/components/player/badges'
+import { InjuryTag, PositionBadge, SignalBadge, StockBadge, seasonRankText } from '@/components/player/badges'
 import { Matchups, injuryStatus } from '@/components/player/matchups'
 import { PlayerTrades } from '@/components/player/PlayerTrades'
 import { Button } from '@/components/ui/button'
@@ -148,6 +148,7 @@ export function PlayerView({ d, trades, availability }: { d: PlayerDetailOut; tr
               <PositionBadge position={d.position} />
               <InjuryTag status={injuryStatus(d.availability_note)} returnWeek={d.return_week} />
               <SignalBadge signal={d.signal} reasons={d.signal_reasons} showHold />
+              <StockBadge t={d} />
             </div>
             <p className="text-sm text-muted-foreground">
               {[d.nfl_team, d.age != null && `${d.age} yrs`, d.years_exp != null && (d.years_exp === 0 ? 'rookie' : `${d.years_exp} yrs exp`), d.depth_chart_order && `depth #${d.depth_chart_order}`, d.bye_week && `bye W${d.bye_week}`]
@@ -156,8 +157,12 @@ export function PlayerView({ d, trades, availability }: { d: PlayerDetailOut; tr
               {' · '}
               {d.mine ? 'Your team' : d.owner ?? 'Not rostered'}
             </p>
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-7">
               <Fact label="Proj ppg" value={fmtNum(d.ppg)} />
+              <Fact
+                label="This season"
+                value={d.season_ppg != null ? `${fmtNum(d.season_ppg)} (${seasonRankText(d.position, d)})` : '—'}
+              />
               <Fact label="p10–p90" value={`${fmtNum(d.p10)}–${fmtNum(d.p90)}`} />
               <Fact label="ROS pts" value={fmtNum(d.model_ros_points, 0)} />
               <Fact label={`Our ${d.position} rank`} value={d.model_rank ?? '—'} />

@@ -4392,6 +4392,83 @@
       },
       "PlayerDetailOut": {
         "properties": {
+          "season_ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Ppg",
+            "description": "Actual points per game this season"
+          },
+          "games_played": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Games Played",
+            "description": "Games played this season"
+          },
+          "season_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Rank",
+            "description": "Rank at his position by season points per game (3+ games)"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "down",
+                  "flat"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock",
+            "description": "Last week's game moved his projection up, down, or not much"
+          },
+          "stock_delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock Delta",
+            "description": "Change in projected points per game"
+          },
+          "stock_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock Reason",
+            "description": "e.g. 'Scored 28.4 vs 14.2 projected'"
+          },
           "player_id": {
             "type": "string",
             "title": "Player Id"
@@ -5315,16 +5392,30 @@
               "D",
               "F"
             ],
-            "title": "Grade"
+            "title": "Grade",
+            "description": "vs a typical team in a league this size: A \u2265 +10%, B \u2265 0, C \u2265 \u221210%, D \u2265 \u221220%"
           },
           "delta_pct": {
             "type": "number",
-            "title": "Delta Pct"
+            "title": "Delta Pct",
+            "description": "vs the league average (share)"
           },
           "z": {
             "type": "number",
             "title": "Z",
             "description": "Standard deviations above the comparison-league average",
+            "default": 0.0
+          },
+          "benchmark": {
+            "type": "number",
+            "title": "Benchmark",
+            "description": "A typical team's points here in a league this size (the grade's yardstick)",
+            "default": 0.0
+          },
+          "vs_benchmark": {
+            "type": "number",
+            "title": "Vs Benchmark",
+            "description": "points / benchmark \u2212 1 (0.06 = 6% above)",
             "default": 0.0
           }
         },
@@ -5372,6 +5463,83 @@
       },
       "RankingRow": {
         "properties": {
+          "season_ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Ppg",
+            "description": "Actual points per game this season"
+          },
+          "games_played": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Games Played",
+            "description": "Games played this season"
+          },
+          "season_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Rank",
+            "description": "Rank at his position by season points per game (3+ games)"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "down",
+                  "flat"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock",
+            "description": "Last week's game moved his projection up, down, or not much"
+          },
+          "stock_delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock Delta",
+            "description": "Change in projected points per game"
+          },
+          "stock_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock Reason",
+            "description": "e.g. 'Scored 28.4 vs 14.2 projected'"
+          },
           "rank": {
             "type": "integer",
             "title": "Rank"
@@ -6112,6 +6280,83 @@
       },
       "RosterPlayer": {
         "properties": {
+          "season_ppg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Ppg",
+            "description": "Actual points per game this season"
+          },
+          "games_played": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Games Played",
+            "description": "Games played this season"
+          },
+          "season_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Rank",
+            "description": "Rank at his position by season points per game (3+ games)"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "down",
+                  "flat"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock",
+            "description": "Last week's game moved his projection up, down, or not much"
+          },
+          "stock_delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock Delta",
+            "description": "Change in projected points per game"
+          },
+          "stock_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock Reason",
+            "description": "e.g. 'Scored 28.4 vs 14.2 projected'"
+          },
           "player_id": {
             "type": "string",
             "title": "Player Id"
@@ -6184,17 +6429,6 @@
             ],
             "title": "L3 Ppg"
           },
-          "season_ppg": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Season Ppg"
-          },
           "usage_ppg": {
             "anyOf": [
               {
@@ -6205,17 +6439,6 @@
               }
             ],
             "title": "Usage Ppg"
-          },
-          "games_played": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Games Played"
           },
           "proj_ros_points": {
             "type": "number",

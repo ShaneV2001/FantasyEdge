@@ -218,6 +218,7 @@ def _player(env: ToolEnv, a: PlayerArg) -> Any:
         "SELECT out_for_season, return_week FROM player_availability WHERE player_id = ?", [pid]
     ).fetchone()
     detail = ps.player_detail(env.ctx, env.team_id, pid, flags, override)
+    detail = detail.model_copy(update=views.player_trend(env.ctx, pid))
     out = detail.model_dump(mode="json", exclude_none=True)
     out["weeks"] = out.get("weeks", [])[-5:]  # the last few games are enough for a chat answer
     return out

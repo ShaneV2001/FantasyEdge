@@ -107,7 +107,8 @@ def get_player(
         "SELECT out_for_season, return_week FROM player_availability WHERE player_id = ?",
         [player_id],
     ).fetchone()
-    return player.player_detail(ctx, team_id, player_id, flags, override)
+    detail = player.player_detail(ctx, team_id, player_id, flags, override)
+    return detail.model_copy(update=views.player_trend(ctx, player_id))
 
 
 @router.get("/{team_id}/players/{player_id}/trades", response_model=m.PlayerTradesOut)

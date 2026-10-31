@@ -8,8 +8,10 @@ import { FLEX_GRADES, fmtNum, GRADE_CLASS, GRADE_ORDER } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 
-function zText(z: number) {
-  return `${z >= 0 ? '+' : '−'}${Math.abs(z).toFixed(1)}σ`
+/** "+6% vs typical": how this spot compares with a typical team's in a league this size. */
+function vsText(g: PositionGradeOut) {
+  const pct = Math.round((g.vs_benchmark ?? 0) * 100)
+  return `${pct >= 0 ? '+' : '−'}${Math.abs(pct)}% vs typical`
 }
 
 /** A grade or league rank that differs from `was` (the grade before the trades). */
@@ -42,7 +44,7 @@ function GradeCard({
             <div className="flex flex-col gap-1.5">
               {label}
               <span className="text-xs text-muted-foreground">
-                #{g.rank} of {g.teams} · {zText(g.z ?? 0)}
+                #{g.rank} of {g.teams} · {vsText(g)}
               </span>
               {moved && (
                 <span data-testid="grade-was" className={cn('text-xs font-medium', dir > 0 ? 'text-buy' : dir < 0 ? 'text-sell' : 'text-muted-foreground')}>
@@ -63,7 +65,7 @@ function GradeCard({
 }
 
 function gradeDetail(pos: string, g: PositionGradeOut, need: boolean) {
-  const vs = `${fmtNum(g.points)} vs ${fmtNum(g.league_avg)} average`
+  const vs = `${fmtNum(g.points)} ppg vs ${fmtNum(g.benchmark)} for a typical team (league average ${fmtNum(g.league_avg)})`
   if ((FLEX_GRADES as readonly string[]).includes(pos)) {
     return `${pos} slot: ${vs} — the players your best lineup puts in your ${pos} spot(s).`
   }
@@ -95,7 +97,7 @@ export function TeamGrades({
             label={<span className="text-xs font-semibold tracking-wide uppercase">Overall</span>}
             g={overall}
             was={compare ? compareOverall : undefined}
-            detail={`Full-strength starting lineup projects ${fmtNum(overall.points)} ppg vs ${fmtNum(overall.league_avg)} average (${zText(overall.z ?? 0)}).`}
+            detail={`Full-strength starting lineup: ${fmtNum(overall.points)} ppg vs ${fmtNum(overall.benchmark)} for a typical team (${vsText(overall)}; league average ${fmtNum(overall.league_avg)}).`}
           />
         )}
         {GRADE_ORDER.filter((p) => grades[p]).map((pos) => {
@@ -115,7 +117,7 @@ export function TeamGrades({
       {basis && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Info className="size-3" />
-          Graded against {basis}. A ≥ +1σ · B ≥ +0.35σ · C within ±0.35σ · D ≥ −1σ · F below.
+          Graded against {basis}. A ≥ 10% above typical · B ≥ typical · C ≥ 10% below · D ≥ 20% below · F lower.
         </p>
       )}
     </div>

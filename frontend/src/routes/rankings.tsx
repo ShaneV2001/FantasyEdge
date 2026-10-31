@@ -5,7 +5,7 @@ import { useState } from 'react'
 import type { RankingRow, RankingsOut } from '@/api'
 import { getRankingsOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
-import { InjuryTag, SignalBadge } from '@/components/player/badges'
+import { InjuryTag, SignalBadge, StockBadge, seasonRankText } from '@/components/player/badges'
 import { Matchups, OwnerLabel, injuryStatus } from '@/components/player/matchups'
 import { PlayerLink } from '@/components/player/PlayerLink'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,11 +49,17 @@ function RankingsTable({ rows, position, view }: { rows: RankingRow[]; position:
               <div className="flex flex-col gap-0.5">
                 <span className="flex items-center gap-2 font-medium">
                   <PlayerLink playerId={r.player_id}>{r.name}</PlayerLink>
+                  <StockBadge t={r} />
                   <InjuryTag status={injuryStatus(r.availability_note)} />
                   <SignalBadge signal={r.signal} />
                 </span>
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
                   {r.nfl_team} · {fmtNum(r.ppg)} ppg
+                  {r.season_ppg != null && (
+                    <span title="Actual points per game this season, and his rank at the position by it">
+                      · season {fmtNum(r.season_ppg)} ({seasonRankText(position, r)})
+                    </span>
+                  )}
                   <OwnerLabel owner={r.owner} mine={r.mine} />
                 </span>
                 <Matchups cells={r.cells} position={position} className="mt-1 md:hidden" />

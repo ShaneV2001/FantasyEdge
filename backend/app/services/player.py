@@ -72,6 +72,27 @@ def past_projections(ctx: LeagueContext) -> dict[int, dict[str, tuple[float, flo
     return out
 
 
+def neutral_projection(ctx: LeagueContext, week: int) -> dict[str, float]:
+    """Points per game the app's engine projects from the games before `week` (no schedule
+    adjustment, so a change between weeks is the player's own play), memoized per week."""
+    key = ("neutral_projection", week)
+    if key not in ctx.memo:
+        s = ctx.season
+        hist = ctx.stats.filter(
+            (pl.col("season") == s - 1) | ((pl.col("season") == s) & (pl.col("week") < week))
+        )
+        out: dict[str, float] = {}
+        if not hist.is_empty():
+            inp = ProjectionInputs(
+                hist, _players_frame(ctx), ctx.schedule, ctx.league.rules, s, week, ctx.shape
+            )
+            df = engine_for(ctx.tuning).per_game(inp)
+            df = df.filter(~pl.col("method").is_in(["default", "no_data"]))
+            out = dict(df.select("player_id", "ppg").rows())
+        ctx.memo[key] = out
+    return ctx.memo[key]
+
+
 def _age(birth: object) -> int | None:
     if not isinstance(birth, date):
         return None

@@ -103,6 +103,12 @@ class UserSettings(BaseModel):
         "Weeks a player on IR, PUP or NFI is assumed to miss when there's no return date.",
     )  # fmt: skip
 
+    grade_prod_games: int = _f(
+        6, 0, 17, ADV, "Team grades: games until production counts half",
+        "Team grades blend each player's projection with this season's points per game. After this "
+        "many games played, production and projection count equally; more games tilt it further "
+        "toward production. 0 = grade on production only.",
+    )  # fmt: skip
     waiver_min_gain: float = _f(
         advisor.WAIVER_MIN_GAIN, 0, 10, ADV, "Waiver pickup: minimum gain (pts/week)",
         "The Advisor suggests a free agent only if adding him (after the drop) raises your starting "

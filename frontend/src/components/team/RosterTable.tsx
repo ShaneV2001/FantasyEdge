@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { Fragment, useMemo, useState } from 'react'
 
 import type { RosterPlayer } from '@/api'
-import { InjuryTag, PositionBadge, SignalBadge } from '@/components/player/badges'
+import { InjuryTag, PositionBadge, SignalBadge, StockBadge, seasonRankText } from '@/components/player/badges'
 import { PlayerLink } from '@/components/player/PlayerLink'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -39,17 +39,6 @@ function ProjectionBand({ p }: { p: RosterPlayer }) {
         </div>
       </TooltipContent>
     </Tooltip>
-  )
-}
-
-function Trend({ p }: { p: RosterPlayer }) {
-  if (p.l3_ppg == null || p.season_ppg == null) return null
-  const d = p.l3_ppg - p.season_ppg
-  if (Math.abs(d) < 1.5) return null
-  return d > 0 ? (
-    <ArrowUp className="size-3 text-buy" aria-label="Trending up" />
-  ) : (
-    <ArrowDown className="size-3 text-sell" aria-label="Trending down" />
   )
 }
 
@@ -130,7 +119,7 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
                       NEW
                     </span>
                   )}
-                  <Trend p={p} />
+                  <StockBadge t={p} />
                   <InjuryTag status={p.injury_status} returnWeek={p.return_week} />
                   {p.on_bye && (
                     <span
@@ -161,6 +150,12 @@ export function RosterTable({ roster, week }: { roster: RosterPlayer[]; week: nu
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {p.nfl_team ?? 'FA'}
+                  {p.season_ppg != null && (
+                    <span title="Actual points per game this season, and his rank at the position">
+                      {' '}
+                      · {fmtNum(p.season_ppg)} this season ({seasonRankText(p.position, p)})
+                    </span>
+                  )}
                   {p.availability_note && <> · {p.availability_note}</>}
                 </div>
               </TableCell>

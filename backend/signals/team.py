@@ -100,8 +100,11 @@ class RosMath:
 # position fills: dedicated slots count fully, plus the position's typical share of FLEX /
 # SUPER_FLEX slots (e.g. RB with 2 RB slots + 1 FLEX = top-2 RBs + 0.45 x the 3rd RB). This avoids
 # crediting a position for whoever happens to win the FLEX spot, and rewards real depth.
-# Letters come from z-scores against the comparison teams so every position is graded on its own
-# spread: A >= +1.0 sd, B >= +0.35 sd, C within +/-0.35 sd, D >= -1.0 sd, F below.
+# Letters compare a position group with what a typical team in a league this size starts there:
+# in a 10-team league the benchmark RB1 is the average of the 10 best RBs, the RB2 the average of
+# the next 10, and so on (weighted like the group itself). A >= 10% above it, B >= even, C >= 10%
+# below, D >= 20% below, F lower. Rank and z-score against the league are kept for context. A
+# z-score curve (the old letters) stretched a balanced league's small gaps into D's and F's.
 
 FLEX_SHARES: dict[str, dict[str, float]] = {
     "FLEX": {"RB": 0.45, "WR": 0.45, "TE": 0.10},
@@ -114,16 +117,38 @@ OVERALL = "ALL"
 GRADED_POSITIONS = (*SKILL_POSITIONS, "K", "DEF")
 
 
-def grade_from_z(z: float) -> str:
-    if z >= 1.0:
-        return "A"
-    if z >= 0.35:
-        return "B"
-    if z > -0.35:
-        return "C"
-    if z >= -1.0:
-        return "D"
+GRADE_CUTS = ((1.10, "A"), (1.00, "B"), (0.90, "C"), (0.80, "D"))
+
+
+def grade_from_ratio(ratio: float) -> str:
+    """Letter for a group's points / the typical team's points at that spot."""
+    for cut, letter in GRADE_CUTS:
+        if ratio >= cut - 1e-9:
+            return letter
     return "F"
+
+
+def tier_averages(
+    players: Mapping[str, Mapping], num_teams: int, depth: Mapping[str, int]
+) -> dict[str, list[float]]:
+    """Per position, the average ppg of each tier of `num_teams` players, best tier first: what a
+    typical team's 1st, 2nd, ... best player there scores when talent is split evenly."""
+    out: dict[str, list[float]] = {}
+    for pos, n in depth.items():
+        vals = sorted(
+            (
+                p.get("ppg") or 0.0
+                for p in players.values()
+                if p.get("position") == pos and (p.get("ppg") or 0) > 0
+            ),
+            reverse=True,
+        )
+        tiers = []
+        for k in range(n):
+            chunk = vals[num_teams * k : num_teams * (k + 1)]
+            tiers.append(sum(chunk) / len(chunk) if chunk else 0.0)
+        out[pos] = tiers
+    return out
 
 
 def position_weights(slots: Sequence[str]) -> dict[str, list[float]]:
@@ -175,6 +200,8 @@ class PositionGrade:
     grade: str
     delta_pct: float
     z: float = 0.0
+    benchmark: float = 0.0  # a typical team's points here in a league this size
+    vs_benchmark: float = 0.0  # points / benchmark - 1
 
 
 @dataclass
@@ -199,8 +226,11 @@ def full_strength_lineup(
     return optimal_lineup(pool, slots)
 
 
-def grade_value(label: str, value: float, field_values: list[float]) -> PositionGrade:
-    """Grade one value against the whole field (the field includes the team itself)."""
+def grade_value(
+    label: str, value: float, field_values: list[float], benchmark: float
+) -> PositionGrade:
+    """Grade one value against the typical team (`benchmark`); rank and z against the whole
+    field (which includes the team itself)."""
     n = len(field_values)
     mean = sum(field_values) / n if n else 0.0
     var = sum((v - mean) ** 2 for v in field_values) / (n - 1) if n > 1 else 0.0
@@ -208,16 +238,47 @@ def grade_value(label: str, value: float, field_values: list[float]) -> Position
     z = (value - mean) / sd if sd > 1e-9 else 0.0
     rank = 1 + sum(1 for v in field_values if v > value + 1e-9)
     delta = (value - mean) / mean if mean else 0.0
+    ratio = value / benchmark if benchmark > 0 else 1.0
     return PositionGrade(
         label,
         round(value, 2),
         round(mean, 2),
         rank,
         n,
-        grade_from_z(z),
+        grade_from_ratio(ratio),
         round(delta, 3),
         round(z, 2),
+        round(benchmark, 2),
+        round(ratio - 1, 3),
     )
+
+
+def benchmarks(
+    slots: Sequence[str], tiers: Mapping[str, list[float]], weights: Mapping[str, list[float]]
+) -> tuple[dict[str, float], dict[str, float]]:
+    """(per position, per flex slot label) points a typical team gets there. A flex slot's
+    typical filler is each position's next tier after its dedicated slots, by `FLEX_SHARES`."""
+    pos_bench = {
+        pos: sum(wk * (tiers.get(pos, [])[k] if k < len(tiers.get(pos, [])) else 0.0)
+                 for k, wk in enumerate(w))
+        for pos, w in weights.items()
+    }  # fmt: skip
+    dedicated = {pos: sum(1 for s in slots if s == pos) for pos in GRADED_POSITIONS}
+    used = dict.fromkeys(GRADED_POSITIONS, 0)  # flex tiers already taken by earlier flex slots
+    flex: dict[str, float] = {}
+    for slot in slots:
+        shares = FLEX_SHARES.get(slot)
+        if not shares:
+            continue
+        pts = 0.0
+        for pos, share in shares.items():
+            k = dedicated[pos] + used[pos]
+            t = tiers.get(pos, [])
+            pts += share * (t[k] if k < len(t) else 0.0)
+            used[pos] += 1
+        label = slot_label(slot)
+        flex[label] = flex.get(label, 0.0) + pts
+    return pos_bench, flex
 
 
 def slot_strength(lineup: Lineup) -> dict[str, float]:
@@ -236,10 +297,18 @@ def team_profiles(
     players: Mapping[str, Mapping],
     slots: Sequence[str],
     grade_only: Iterable[str] | None = None,
+    num_teams: int | None = None,
 ) -> dict[str, TeamProfile]:
-    """Grade every team (or only `grade_only`) by position and overall against all `rosters`,
-    plus needs (weak positions) and surplus (bench players who would start for a typical team)."""
+    """Grade every team (or only `grade_only`) by position and overall against a typical team in
+    a `num_teams` league (default: as many as `rosters`), drawn from every player in `players`,
+    and rank it against all `rosters`. Plus needs (weak positions) and surplus (bench players who
+    would start for a typical team)."""
     weights = position_weights(slots)
+    flex_count = sum(1 for s in slots if s in FLEX_SHARES)
+    depth = {pos: len(w) + flex_count for pos, w in weights.items()}
+    tiers = tier_averages(players, num_teams or len(rosters), depth)
+    pos_bench, flex_bench = benchmarks(slots, tiers, weights)
+    total_bench = sum(pos_bench.values())
     strength = {t: position_strength(p, players, weights) for t, p in rosters.items()}
     lineups = {t: full_strength_lineup(p, players, slots) for t, p in rosters.items()}
     totals = {t: lu.points for t, lu in lineups.items()}
@@ -256,14 +325,18 @@ def team_profiles(
     out: dict[str, TeamProfile] = {}
     for t in rosters if grade_only is None else grade_only:
         grades = {
-            pos: grade_value(pos, strength[t][pos], [strength[x][pos] for x in rosters])
+            pos: grade_value(
+                pos, strength[t][pos], [strength[x][pos] for x in rosters], pos_bench[pos]
+            )
             for pos in weights
         }
         grades |= {
-            label: grade_value(label, pts, [flex[x].get(label, 0.0) for x in rosters])
+            label: grade_value(
+                label, pts, [flex[x].get(label, 0.0) for x in rosters], flex_bench.get(label, 0.0)
+            )
             for label, pts in flex[t].items()
         }
-        overall = grade_value(OVERALL, totals[t], list(totals.values()))
+        overall = grade_value(OVERALL, totals[t], list(totals.values()), total_bench)
         lu = lineups[t]
         starters = [lp.player_id for _, lp in lu.slots if lp]
         bench = [p for p in rosters[t] if p not in starters and p in players]

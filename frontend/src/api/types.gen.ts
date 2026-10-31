@@ -1341,6 +1341,42 @@ export type PlayerByeOut = {
  */
 export type PlayerDetailOut = {
     /**
+     * Season Ppg
+     *
+     * Actual points per game this season
+     */
+    season_ppg?: number | null;
+    /**
+     * Games Played
+     *
+     * Games played this season
+     */
+    games_played?: number | null;
+    /**
+     * Season Rank
+     *
+     * Rank at his position by season points per game (3+ games)
+     */
+    season_rank?: number | null;
+    /**
+     * Stock
+     *
+     * Last week's game moved his projection up, down, or not much
+     */
+    stock?: 'up' | 'down' | 'flat' | null;
+    /**
+     * Stock Delta
+     *
+     * Change in projected points per game
+     */
+    stock_delta?: number | null;
+    /**
+     * Stock Reason
+     *
+     * e.g. 'Scored 28.4 vs 14.2 projected'
+     */
+    stock_reason?: string | null;
+    /**
      * Player Id
      */
     player_id: string;
@@ -1804,10 +1840,14 @@ export type PositionGradeOut = {
     teams: number;
     /**
      * Grade
+     *
+     * vs a typical team in a league this size: A ≥ +10%, B ≥ 0, C ≥ −10%, D ≥ −20%
      */
     grade: 'A' | 'B' | 'C' | 'D' | 'F';
     /**
      * Delta Pct
+     *
+     * vs the league average (share)
      */
     delta_pct: number;
     /**
@@ -1816,6 +1856,18 @@ export type PositionGradeOut = {
      * Standard deviations above the comparison-league average
      */
     z?: number;
+    /**
+     * Benchmark
+     *
+     * A typical team's points here in a league this size (the grade's yardstick)
+     */
+    benchmark?: number;
+    /**
+     * Vs Benchmark
+     *
+     * points / benchmark − 1 (0.06 = 6% above)
+     */
+    vs_benchmark?: number;
 };
 
 /**
@@ -1842,6 +1894,42 @@ export type RankingPosition = {
  * RankingRow
  */
 export type RankingRow = {
+    /**
+     * Season Ppg
+     *
+     * Actual points per game this season
+     */
+    season_ppg?: number | null;
+    /**
+     * Games Played
+     *
+     * Games played this season
+     */
+    games_played?: number | null;
+    /**
+     * Season Rank
+     *
+     * Rank at his position by season points per game (3+ games)
+     */
+    season_rank?: number | null;
+    /**
+     * Stock
+     *
+     * Last week's game moved his projection up, down, or not much
+     */
+    stock?: 'up' | 'down' | 'flat' | null;
+    /**
+     * Stock Delta
+     *
+     * Change in projected points per game
+     */
+    stock_delta?: number | null;
+    /**
+     * Stock Reason
+     *
+     * e.g. 'Scored 28.4 vs 14.2 projected'
+     */
+    stock_reason?: string | null;
     /**
      * Rank
      */
@@ -2290,6 +2378,42 @@ export type RosterOutlookOut = {
  */
 export type RosterPlayer = {
     /**
+     * Season Ppg
+     *
+     * Actual points per game this season
+     */
+    season_ppg?: number | null;
+    /**
+     * Games Played
+     *
+     * Games played this season
+     */
+    games_played?: number | null;
+    /**
+     * Season Rank
+     *
+     * Rank at his position by season points per game (3+ games)
+     */
+    season_rank?: number | null;
+    /**
+     * Stock
+     *
+     * Last week's game moved his projection up, down, or not much
+     */
+    stock?: 'up' | 'down' | 'flat' | null;
+    /**
+     * Stock Delta
+     *
+     * Change in projected points per game
+     */
+    stock_delta?: number | null;
+    /**
+     * Stock Reason
+     *
+     * e.g. 'Scored 28.4 vs 14.2 projected'
+     */
+    stock_reason?: string | null;
+    /**
      * Player Id
      */
     player_id: string;
@@ -2328,17 +2452,9 @@ export type RosterPlayer = {
      */
     l3_ppg?: number | null;
     /**
-     * Season Ppg
-     */
-    season_ppg?: number | null;
-    /**
      * Usage Ppg
      */
     usage_ppg?: number | null;
-    /**
-     * Games Played
-     */
-    games_played?: number | null;
     /**
      * Proj Ros Points
      */

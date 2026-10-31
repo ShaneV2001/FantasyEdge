@@ -8,10 +8,13 @@ import zlib
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 
+import polars as pl
+
 from app.errors import InvalidInput, NotFound
 from app.schemas import models as m
+from app.services import player as ps
 from app.services.context import MARKET_LABEL, LeagueContext
-from projections.base import replacement_ranks
+from projections.base import SEASON_OUT, replacement_ranks
 from scoring.rules import PRESETS, normalize
 from signals import advisor as adv
 from signals import gameday as gd
@@ -89,28 +92,140 @@ def reserved(ctx: LeagueContext, team_id: str) -> set[str]:
     return {p for p, s in ctx.team(team_id).slots.items() if s in ("ir", "taxi")}
 
 
+def season_production(ctx: LeagueContext) -> dict[str, tuple[int, float]]:
+    """This season so far: player id -> (games played, fantasy points per game)."""
+    if "season_production" not in ctx.memo:
+        cur = ctx.stats.filter(pl.col("season") == ctx.season) if ctx.stats.height else ctx.stats
+        out: dict[str, tuple[int, float]] = {}
+        if cur.height:
+            agg = cur.group_by("player_id").agg(
+                pl.len().alias("g"), pl.col("fp").mean().alias("ppg")
+            )
+            out = {pid: (int(g), float(ppg or 0.0)) for pid, g, ppg in agg.iter_rows()}
+        ctx.memo["season_production"] = out
+    return ctx.memo["season_production"]
+
+
+MIN_RANK_GAMES = 3  # games played before a season rank means something
+
+
+def season_ranks(ctx: LeagueContext) -> dict[str, int]:
+    """Rank at his position by this season's points per game (min `MIN_RANK_GAMES` games)."""
+    if "season_ranks" not in ctx.memo:
+        prod = season_production(ctx)
+        by_pos: dict[str, list[tuple[float, str]]] = {}
+        for pid, (g, ppg) in prod.items():
+            pos = ctx.players.get(pid, {}).get("position")
+            if pos and g >= MIN_RANK_GAMES:
+                by_pos.setdefault(pos, []).append((-ppg, pid))
+        ranks = {}
+        for rows in by_pos.values():
+            for i, (_, pid) in enumerate(sorted(rows), 1):
+                ranks[pid] = i
+        ctx.memo["season_ranks"] = ranks
+    return ctx.memo["season_ranks"]
+
+
+STOCK_MIN_PPG, STOCK_MIN_SHARE = 0.5, 0.05
+
+
+def last_played_week(ctx: LeagueContext) -> int | None:
+    weeks = [w for w in ps.played_weeks(ctx) if w < ctx.week]
+    return max(weeks) if weeks else None
+
+
+def stock_moves(ctx: LeagueContext) -> dict[str, tuple[str, float, str | None]]:
+    """How last week's game moved each player's projection: id -> (up | down | flat, change in
+    points per game, reason). Up or down once it moves by max(0.5 ppg, 5%)."""
+    if "stock_moves" not in ctx.memo:
+        out: dict[str, tuple[str, float, str | None]] = {}
+        last = last_played_week(ctx)
+        if last is not None:
+            before = ps.neutral_projection(ctx, last)
+            after = ps.neutral_projection(ctx, last + 1)
+            week = ctx.stats.filter((pl.col("season") == ctx.season) & (pl.col("week") == last))
+            scored = dict(week.select("player_id", "fp").rows()) if week.height else {}
+            for pid, now in after.items():
+                was = before.get(pid)
+                if was is None:
+                    continue
+                delta = round(now - was, 2)
+                moved = abs(delta) >= max(STOCK_MIN_PPG, STOCK_MIN_SHARE * was)
+                direction = ("up" if delta > 0 else "down") if moved else "flat"
+                reason = (
+                    f"Scored {scored[pid]:.1f} vs {was:.1f} projected in week {last}"
+                    if pid in scored
+                    else None
+                )
+                out[pid] = (direction, delta, reason)
+        ctx.memo["stock_moves"] = out
+    return ctx.memo["stock_moves"]
+
+
+def player_trend(ctx: LeagueContext, pid: str) -> dict:
+    """This season's production and last week's stock move, for any player row."""
+    g, ppg = season_production(ctx).get(pid, (0, None))
+    stock = stock_moves(ctx).get(pid)
+    return {
+        "season_ppg": round(ppg, 2) if ppg is not None else None,
+        "games_played": g,
+        "season_rank": season_ranks(ctx).get(pid),
+        "stock": stock[0] if stock else None,
+        "stock_delta": stock[1] if stock else None,
+        "stock_reason": stock[2] if stock else None,
+    }
+
+
+def graded_players(ctx: LeagueContext) -> dict[str, dict]:
+    """`ctx.players` with `ppg` replaced by what grades use: the projection blended with this
+    season's points per game, production counting more as games pile up (half after
+    `grade_prod_games`). A player out for the season counts 0."""
+    if "graded_players" not in ctx.memo:
+        prod = season_production(ctx)
+        k = ctx.tuning.grade_prod_games
+        out = {}
+        for pid, p in ctx.players.items():
+            proj = p.get("ppg") or 0.0
+            g, season = prod.get(pid, (0, 0.0))
+            w = g / (g + k) if g and k else (1.0 if g else 0.0)
+            ppg = 0.0 if p.get("return_week") == SEASON_OUT else (1 - w) * proj + w * season
+            out[pid] = {**p, "ppg": round(ppg, 3)}
+        ctx.memo["graded_players"] = out
+    return ctx.memo["graded_players"]
+
+
 def profiles(ctx: LeagueContext) -> dict[str, TeamProfile]:
-    """Grades vs the real league; a manual team (no league) is graded vs a simulated league."""
+    """Grades vs a typical team in a league this size, ranked against the real league; a manual
+    team (no league) is ranked against a simulated league."""
     if "profiles" not in ctx.memo:
         slots = starting_slots(ctx.league.roster_positions)
         rosters = {t.team_id: t.player_ids for t in ctx.teams}
+        players = graded_players(ctx)
+        n = max(ctx.league.num_teams, len(rosters))
         if ctx.league.platform == "manual" or len(rosters) < 2:
             mine = [p for t in ctx.teams for p in t.player_ids]
             sim = simulate_league(
                 ctx.players, mine, max(ctx.league.num_teams - 1, 1), ctx.league.roster_positions
             )
             ctx.memo["profiles"] = team_profiles(
-                rosters | sim, ctx.players, slots, grade_only=rosters
+                rosters | sim, players, slots, grade_only=rosters, num_teams=n
             )
         else:
-            ctx.memo["profiles"] = team_profiles(rosters, ctx.players, slots)
+            ctx.memo["profiles"] = team_profiles(rosters, players, slots, num_teams=n)
     return ctx.memo["profiles"]
 
 
 def grade_basis(ctx: LeagueContext) -> str:
-    if ctx.league.platform == "manual" or len(ctx.teams) < 2:
-        return f"a simulated {ctx.league.num_teams}-team league with your lineup settings"
-    return f"the other {len(ctx.teams) - 1} teams in {ctx.league.name}"
+    n = max(ctx.league.num_teams, len(ctx.teams))
+    rank = (
+        f"a simulated {ctx.league.num_teams}-team league with your lineup settings"
+        if ctx.league.platform == "manual" or len(ctx.teams) < 2
+        else f"the other {len(ctx.teams) - 1} teams in {ctx.league.name}"
+    )
+    return (
+        f"a typical team in a {n}-team league (projections blended with this season's "
+        f"production); ranked against {rank}"
+    )
 
 
 def market_label(ctx: LeagueContext) -> str:
@@ -138,9 +253,7 @@ def player_value(ctx: LeagueContext, pid: str) -> dict:
         p10=p.get("p10"),
         p90=p.get("p90"),
         l3_ppg=p.get("l3_ppg"),
-        season_ppg=p.get("season_ppg"),
         usage_ppg=p.get("usage_ppg"),
-        games_played=p.get("games_played"),
         proj_ros_points=p.get("proj_ros_points") or 0.0,
         next4_points=p.get("next4_points") or 0.0,
         games_remaining=p.get("games_remaining") or 0.0,
@@ -161,6 +274,7 @@ def player_value(ctx: LeagueContext, pid: str) -> dict:
         value_gap=p.get("value_gap"),
         market_implied_points=p.get("market_implied_points"),
         model_ros_points=p.get("model_ros_points"),
+        **player_trend(ctx, pid),
     )
 
 
@@ -1285,6 +1399,7 @@ def _ranking_row(ctx: LeagueContext, team_id: str, rank: int, r: TargetRow) -> m
         availability_note=p.get("availability_note"),
         cells=_cells_out(r.cells),
         signal=p.get("signal") or "hold",
+        **player_trend(ctx, r.player_id),
     )
 
 

@@ -1,12 +1,18 @@
+from types import SimpleNamespace
+
+import polars as pl
 import pytest
 
+from app.services import views
 from signals.team import (
-    grade_from_z,
+    benchmarks,
+    grade_from_ratio,
     grade_value,
     position_strength,
     position_weights,
     simulate_league,
     team_profiles,
+    tier_averages,
 )
 
 STD = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "K", "DEF"]
@@ -50,44 +56,63 @@ def test_position_strength_not_skewed_by_who_plays_flex():
 
 
 @pytest.mark.parametrize(
-    "z, letter",
-    [
-        (1.2, "A"),
-        (1.0, "A"),
-        (0.5, "B"),
-        (0.0, "C"),
-        (-0.34, "C"),
-        (-0.5, "D"),
-        (-1.0, "D"),
-        (-1.5, "F"),
-    ],
-)
-def test_grade_cutoffs(z, letter):
-    assert grade_from_z(z) == letter
+    "ratio, letter",
+    [(1.25, "A"), (1.10, "A"), (1.05, "B"), (1.00, "B"), (0.95, "C"), (0.90, "C"),
+     (0.85, "D"), (0.80, "D"), (0.79, "F")],
+)  # fmt: skip
+def test_grade_cutoffs(ratio, letter):
+    assert grade_from_ratio(ratio) == letter
 
 
-def test_grade_value_rank_z_and_single_team():
-    g = grade_value("RB", 30, [10, 20, 30])
-    assert g.rank == 1 and g.teams == 3 and g.z == pytest.approx(1.0) and g.grade == "A"
-    solo = grade_value("RB", 30, [30])
-    assert solo.grade == "C" and solo.z == 0.0  # nothing to compare against
+def test_grade_value_is_vs_the_typical_team_with_league_rank_kept():
+    g = grade_value("RB", 30, [10, 20, 30], benchmark=29)
+    assert g.grade == "B" and g.benchmark == 29
+    g = grade_value("RB", 30, [10, 20, 30], benchmark=26)
+    assert g.grade == "A" and g.vs_benchmark == pytest.approx(30 / 26 - 1, abs=1e-3)
+    assert g.rank == 1 and g.teams == 3 and g.z == pytest.approx(1.0)  # still ranked vs the league
+    assert grade_value("RB", 30, [30], benchmark=0).grade == "B"  # nothing to compare: even
 
 
-def test_grades_spread_evenly_in_a_realistic_league():
-    # 12 teams with linearly spaced strength → z-score letters give a sensible spread (no 1/3 F's)
+def test_tiers_are_the_league_sized_slices_of_the_player_pool():
+    players = {f"rb{i}": P("RB", 30 - i) for i in range(25)}  # 30, 29, ... 6
+    tiers = tier_averages(players, num_teams=10, depth={"RB": 3})
+    assert tiers["RB"] == [pytest.approx(25.5), pytest.approx(15.5), pytest.approx(8.0)]
+
+
+def _league(n_teams, spread):
+    """`n_teams` teams whose players differ by `spread` ppg per team step."""
     players, rosters = {}, {}
-    for t in range(12):
+    for t in range(n_teams):
         ids = []
         for pos, base in (("QB", 18), ("RB", 12), ("RB", 10), ("WR", 12), ("WR", 10), ("TE", 8)):
             pid = f"t{t}_{pos}_{len(ids)}"
-            players[pid] = P(pos, base + t * 0.5)
+            players[pid] = P(pos, base + (t - n_teams / 2) * spread)
             ids.append(pid)
         rosters[f"T{t}"] = ids
+    return players, rosters
+
+
+def test_a_balanced_league_grades_b_and_c_not_a_to_f():
+    """The old z-score curve gave a league of near-equal teams the full A-F spread."""
+    players, rosters = _league(10, spread=0.05)
     profs = team_profiles(rosters, players, ["QB", "RB", "RB", "WR", "WR", "TE"])
-    letters = [p.grades["RB"].grade for p in profs.values()]
-    assert letters.count("F") <= 2 and letters.count("A") <= 2
-    assert profs["T11"].overall.grade == "A" and profs["T0"].overall.grade == "F"
-    assert profs["T11"].overall.rank == 1
+    for p in profs.values():
+        assert p.overall.grade in ("B", "C") and p.grades["RB"].grade in ("B", "C")
+    assert profs["T9"].overall.rank == 1 and profs["T0"].overall.rank == 10
+
+
+def test_a_spread_out_league_still_separates_strong_and_weak():
+    players, rosters = _league(12, spread=0.5)
+    profs = team_profiles(rosters, players, ["QB", "RB", "RB", "WR", "WR", "TE"])
+    assert profs["T11"].overall.grade == "A" and profs["T0"].overall.grade in ("D", "F")
+
+
+def test_flex_benchmark_uses_the_next_tier_after_dedicated_slots():
+    slots = ["RB", "WR", "FLEX"]
+    tiers = {"RB": [20, 12, 8], "WR": [18, 11, 7], "TE": [9, 5, 3]}
+    pos, flex = benchmarks(slots, tiers, position_weights(slots))
+    assert flex["FLEX"] == pytest.approx(0.45 * 12 + 0.45 * 11 + 0.10 * 9)
+    assert pos["RB"] == pytest.approx(20 + 0.45 * 12)
 
 
 def test_simulated_league_respects_size_and_caps():
@@ -117,3 +142,30 @@ def test_grade_only_limits_output():
     players = {"a": P("QB", 20), "b": P("QB", 10)}
     profs = team_profiles({"me": ["a"], "sim": ["b"]}, players, ["QB"], grade_only=["me"])
     assert list(profs) == ["me"] and profs["me"].grades["QB"].rank == 1
+
+
+def _ctx(players, rows, k=6):
+    stats = pl.DataFrame(
+        rows, schema={"player_id": pl.Utf8, "season": pl.Int64, "fp": pl.Float64}, orient="row"
+    )
+    return SimpleNamespace(
+        players=players,
+        stats=stats,
+        season=2026,
+        memo={},
+        tuning=SimpleNamespace(grade_prod_games=k),
+    )
+
+
+def test_grades_blend_the_projection_with_this_seasons_production():
+    players = {
+        "hot": P("RB", 10.0),  # producing 16 a game
+        "new": P("RB", 12.0),  # no games yet: projection only
+        "gone": P("RB", 20.0) | {"return_week": 99},  # out for the season
+    }
+    rows = [("hot", 2026, 16.0)] * 6 + [("hot", 2025, 2.0), ("gone", 2026, 20.0)]
+    g = views.graded_players(_ctx(players, rows))
+    assert g["hot"]["ppg"] == pytest.approx(13.0)  # 6 games, k=6: half and half (2025 ignored)
+    assert g["new"]["ppg"] == 12.0 and g["gone"]["ppg"] == 0.0
+    assert players["hot"]["ppg"] == 10.0  # the projection itself is untouched
+    assert views.graded_players(_ctx(players, rows, k=0))["hot"]["ppg"] == 16.0  # production only

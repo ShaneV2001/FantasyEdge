@@ -63,6 +63,43 @@ export function SignalBadge({
   )
 }
 
+type Trend = {
+  stock?: 'up' | 'down' | 'flat' | null
+  stock_delta?: number | null
+  stock_reason?: string | null
+  season_rank?: number | null
+  season_ppg?: number | null
+}
+
+/** ▲ / ▼ when last week's game moved his projection; nothing when it barely moved. */
+export function StockBadge({ t }: { t: Trend }) {
+  if (t.stock !== 'up' && t.stock !== 'down') return null
+  const up = t.stock === 'up'
+  const d = Math.abs(t.stock_delta ?? 0).toFixed(1)
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn('inline-flex items-center font-mono text-[11px] font-semibold', up ? 'text-buy' : 'text-sell')}
+          aria-label={`Stock ${t.stock} ${d} points per game`}
+        >
+          {up ? '▲' : '▼'}
+          {d}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">
+        Stock {t.stock}: projection {up ? 'up' : 'down'} {d} ppg after last week.
+        {t.stock_reason ? ` ${t.stock_reason}.` : ''}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/** "RB12 this season": rank at his position by actual points per game. */
+export function seasonRankText(position: string, t: Trend) {
+  return t.season_rank != null ? `${position}${t.season_rank}` : '—'
+}
+
 export function PlayerChip({ player, className, link = true }: { player: PlayerRef; className?: string; link?: boolean }) {
   return (
     <span className={cn('inline-flex items-center gap-1.5 rounded-md bg-muted/60 py-0.5 pr-2 pl-0.5 text-xs', className)}>
