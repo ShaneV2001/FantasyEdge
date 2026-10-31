@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 import duckdb
 from fastapi import APIRouter, Depends, Query
@@ -9,7 +10,7 @@ from app.config import Settings
 from app.deps import get_ai_settings, get_clients, get_con, write_lock
 from app.errors import InvalidInput, NotFound
 from app.schemas import models as m
-from app.services import context, leagues
+from app.services import context, freshness, leagues
 from ingest import run as jobs
 from ingest.http import SourceUnavailable
 from ingest.market_values import MarketFormat
@@ -96,6 +97,7 @@ def get_status(
         "SELECT source, last_synced_at, status, detail FROM sync_log ORDER BY source"
     ).fetchall()
     season, week = _current_week(con)
+    refresher, now = freshness.get(), datetime.now(UTC)
     return m.StatusOut(
         season=season,
         week=week,
@@ -105,6 +107,10 @@ def get_status(
         attribution=ATTRIBUTION,
         ai_enabled=ai.ai_enabled,
         ai_model=ai.ai_model if ai.ai_enabled else None,
+        data_refreshing=bool(refresher and refresher.running),
+        nfl_data_stale=freshness.nfl_stale(con, now),
+        unscored_week=freshness.unscored_week(con, now),
+        refresh_error=refresher.last_error if refresher else None,
     )
 
 
@@ -117,6 +123,17 @@ def refresh(
     """Re-pull league rosters/transactions (scope=league), market values, or everything."""
     detail: list[str] = []
     ok = True
+    # scope=all: download the player list and nflverse before taking the write lock, so other
+    # requests aren't held up by the downloads
+    fetched: dict[str, object] = {}
+    if body.scope == "all":
+        for name, fetch in (("players", jobs.fetch_players), ("stats", jobs.fetch_nflverse)):
+            try:
+                fetched[name] = fetch(c)
+            except Exception as exc:  # keep going; report per-source
+                ok = False
+                log.exception("refresh %s failed", name)
+                detail.append(f"{name} failed: {exc}")
     with write_lock:
         if body.scope in ("league", "all") and body.league_id:
             platform = con.execute(
@@ -147,13 +164,16 @@ def refresh(
                     ok = False
                     detail.append(f"market {fmt.key} failed: {exc.detail}")
         if body.scope == "all":
-            for name, job in (
-                ("players", jobs.players_sync),
-                ("stats", jobs.stats_sync),
-                ("trending", jobs.trending_sync),
-            ):
+            writes = {
+                "players": lambda: jobs.write_players(con, fetched["players"]),  # type: ignore[arg-type]
+                "stats": lambda: jobs.write_nflverse(con, c, fetched["stats"]),  # type: ignore[arg-type]
+                "trending": lambda: jobs.trending_sync(con, c),
+            }
+            for name, write in writes.items():
+                if name != "trending" and name not in fetched:
+                    continue  # its download failed (already reported)
                 try:
-                    detail.append(f"{name}: {job(con, c)}")
+                    detail.append(f"{name}: {write()}")
                 except Exception as exc:  # keep going; report per-source
                     ok = False
                     log.exception("refresh %s failed", name)

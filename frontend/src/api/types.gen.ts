@@ -374,6 +374,129 @@ export type ByesOut = {
 };
 
 /**
+ * ChatDeletedOut
+ */
+export type ChatDeletedOut = {
+    /**
+     * Deleted
+     */
+    deleted: string;
+};
+
+/**
+ * ChatMessageOut
+ */
+export type ChatMessageOut = {
+    /**
+     * Role
+     */
+    role: 'user' | 'assistant';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Tools
+     *
+     * Tools the answer used
+     */
+    tools: Array<string>;
+};
+
+/**
+ * ChatOut
+ */
+export type ChatOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Team Id
+     */
+    team_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Model
+     */
+    model: string | null;
+    /**
+     * Messages
+     */
+    messages: Array<ChatMessageOut>;
+    usage: ChatUsageOut;
+};
+
+/**
+ * ChatRequest
+ */
+export type ChatRequest = {
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Conversation Id
+     *
+     * Continue this conversation
+     */
+    conversation_id?: string | null;
+};
+
+/**
+ * ChatSummaryOut
+ */
+export type ChatSummaryOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Model
+     */
+    model: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ChatUsageOut
+ */
+export type ChatUsageOut = {
+    /**
+     * Input Tokens
+     */
+    input_tokens: number;
+    /**
+     * Output Tokens
+     */
+    output_tokens: number;
+    /**
+     * Cache Read Tokens
+     */
+    cache_read_tokens: number;
+    /**
+     * Cache Write Tokens
+     */
+    cache_write_tokens: number;
+    /**
+     * Cost Usd
+     *
+     * Estimate at list prices (None: unknown model)
+     */
+    cost_usd?: number | null;
+};
+
+/**
  * ConnectRequest
  */
 export type ConnectRequest = {
@@ -2768,6 +2891,40 @@ export type StatusOut = {
      * Attribution
      */
     attribution: Array<string>;
+    /**
+     * Ai Enabled
+     *
+     * An ANTHROPIC_API_KEY is set: the Ask page works
+     */
+    ai_enabled?: boolean;
+    /**
+     * Ai Model
+     */
+    ai_model?: string | null;
+    /**
+     * Data Refreshing
+     *
+     * The NFL data is being refreshed right now
+     */
+    data_refreshing?: boolean;
+    /**
+     * Nfl Data Stale
+     *
+     * Results are missing for games already played, or the copy is old
+     */
+    nfl_data_stale?: boolean;
+    /**
+     * Unscored Week
+     *
+     * Earliest recent week with a played game that has no score yet
+     */
+    unscored_week?: number | null;
+    /**
+     * Refresh Error
+     *
+     * The last background refresh failure
+     */
+    refresh_error?: string | null;
 };
 
 /**
@@ -4648,6 +4805,126 @@ export type UpdateUserSettingsResponses = {
 };
 
 export type UpdateUserSettingsResponse = UpdateUserSettingsResponses[keyof UpdateUserSettingsResponses];
+
+export type SendChatData = {
+    body: ChatRequest;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/chat';
+};
+
+export type SendChatErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SendChatError = SendChatErrors[keyof SendChatErrors];
+
+export type SendChatResponses = {
+    /**
+     * Server-sent events: `meta` {conversation_id, model}, `text` {text} as it streams, `tool` {name, label?, status: start|done|error}, `error` {message}, then `done` {stop_reason, usage}.
+     */
+    200: unknown;
+};
+
+export type ListChatsData = {
+    body?: never;
+    path: {
+        /**
+         * Team Id
+         */
+        team_id: string;
+    };
+    query?: never;
+    url: '/team/{team_id}/chats';
+};
+
+export type ListChatsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListChatsError = ListChatsErrors[keyof ListChatsErrors];
+
+export type ListChatsResponses = {
+    /**
+     * Response List Chats
+     *
+     * Successful Response
+     */
+    200: Array<ChatSummaryOut>;
+};
+
+export type ListChatsResponse = ListChatsResponses[keyof ListChatsResponses];
+
+export type DeleteChatData = {
+    body?: never;
+    path: {
+        /**
+         * Conversation Id
+         */
+        conversation_id: string;
+    };
+    query?: never;
+    url: '/chats/{conversation_id}';
+};
+
+export type DeleteChatErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteChatError = DeleteChatErrors[keyof DeleteChatErrors];
+
+export type DeleteChatResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChatDeletedOut;
+};
+
+export type DeleteChatResponse = DeleteChatResponses[keyof DeleteChatResponses];
+
+export type GetChatData = {
+    body?: never;
+    path: {
+        /**
+         * Conversation Id
+         */
+        conversation_id: string;
+    };
+    query?: never;
+    url: '/chats/{conversation_id}';
+};
+
+export type GetChatErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetChatError = GetChatErrors[keyof GetChatErrors];
+
+export type GetChatResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChatOut;
+};
+
+export type GetChatResponse = GetChatResponses[keyof GetChatResponses];
 
 export type HealthData = {
     body?: never;

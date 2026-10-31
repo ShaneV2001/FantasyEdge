@@ -3,19 +3,36 @@
 from __future__ import annotations
 
 import logging
+import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app import deps
 from app.errors import AuthRequired, InvalidInput, NotFound, NotReady
 from app.routes import chat, league, meta, settings, team, trade
+from app.services import freshness
 from ingest.http import SourceUnavailable
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("fantasyedge.api")
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Start the background NFL-data refresher (FF_AUTO_REFRESH=0 turns it off, e.g. in tests)."""
+    if os.getenv("FF_AUTO_REFRESH", "1") != "0":
+        freshness.start(freshness.Refresher(deps.get_clients, deps.new_cursor, deps.write_lock))
+    yield
+    if (r := freshness.get()) is not None:
+        r.stop()
+
+
 app = FastAPI(
+    lifespan=lifespan,
     generate_unique_id_function=lambda route: route.name,  # clean client names: getTeam, getAdvice…
     title="FantasyEdge API",
     version="0.1.0",

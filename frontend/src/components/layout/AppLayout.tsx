@@ -1,15 +1,15 @@
-import { useQuery } from '@tanstack/react-query'
 import { Outlet } from '@tanstack/react-router'
+import { Loader2 } from 'lucide-react'
 
-import { getStatusOptions } from '@/api/@tanstack/react-query.gen'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { useSyncTeamName } from '@/hooks/useSyncTeamName'
 import { AppSidebar } from './AppSidebar'
+import { StaleDataBanner, useStatus } from './DataFreshness'
 
 export function AppLayout() {
-  const status = useQuery({ ...getStatusOptions(), staleTime: 5 * 60_000, retry: false })
+  const status = useStatus()
   useSyncTeamName()
   return (
     <SidebarProvider>
@@ -21,7 +21,12 @@ export function AppLayout() {
           <span className="text-sm text-muted-foreground">Fantasy football team advisor</span>
           <div className="ml-auto flex items-center gap-2">
             {status.data?.week && (
-              <Badge variant="outline" className="font-mono">
+              <Badge
+                variant="outline"
+                className="font-mono"
+                title={status.data.data_refreshing ? 'Updating NFL data…' : undefined}
+              >
+                {status.data.data_refreshing && <Loader2 className="animate-spin" />}
                 {status.data.season} · Week {status.data.week}
               </Badge>
             )}
@@ -33,6 +38,7 @@ export function AppLayout() {
           </div>
         </header>
         <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-4 md:p-6">
+          <StaleDataBanner status={status.data} />
           <Outlet />
         </main>
         <Footer />

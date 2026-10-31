@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { ArrowLeftRight, CalendarRange, ClipboardPlus, Crosshair, LayoutList, ListOrdered, Plug, RefreshCw, Settings2, Sparkles, Swords, UserSearch, Users } from 'lucide-react'
+import { ArrowLeftRight, CalendarRange, ClipboardPlus, CloudDownload, Crosshair, LayoutList, ListOrdered, Plug, RefreshCw, Settings2, Sparkles, Swords, UserSearch, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { getTeamOptions, refreshMutation } from '@/api/@tanstack/react-query.gen'
@@ -21,6 +21,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { TeamSwitcher } from '@/components/layout/TeamSwitcher'
+import { nflSyncedAt, useNflRefresh, useStatus } from '@/components/layout/DataFreshness'
 import { useTradeOffers } from '@/components/trade/TradeOffers'
 import { describeError } from '@/lib/errors'
 import { fmtRelative } from '@/lib/format'
@@ -73,6 +74,9 @@ export function AppSidebar() {
   })
   const league = teamQuery.data?.league
   const offers = useTradeOffers(team)
+  const status = useStatus()
+  const nfl = useNflRefresh()
+  const nflBusy = nfl.isPending || !!status.data?.data_refreshing
   const badges: Partial<Record<(typeof NAV)[number]['to'], number>> = { '/trade': offers.data?.received.length ?? 0 }
 
   return (
@@ -149,6 +153,22 @@ export function AppSidebar() {
               >
                 <RefreshCw className={refresh.isPending ? 'animate-spin' : ''} />
                 Update
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground" data-testid="nfl-data-age">
+                NFL data {nflBusy ? 'updating…' : fmtRelative(nflSyncedAt(status.data))}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2"
+                disabled={nflBusy}
+                title="Scores, stats, injury reports and the player list (takes a minute)"
+                onClick={() => nfl.mutate({ body: { scope: 'all' } })}
+              >
+                <CloudDownload className={nflBusy ? 'animate-pulse' : ''} />
+                <span className="sr-only">Update NFL data</span>
               </Button>
             </div>
           </div>

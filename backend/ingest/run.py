@@ -56,6 +56,11 @@ def _now() -> datetime:
 
 
 def players_sync(con: duckdb.DuckDBPyConnection, c: Clients, force: bool = False) -> int:
+    return write_players(con, fetch_players(c, force))
+
+
+def fetch_players(c: Clients, force: bool = False) -> pl.DataFrame:
+    """Sleeper's player list in the `players` table's shape (network only, no database)."""
     raw = c.sleeper.players(force=force)
     df = idmap.attach_internal_ids(sleeper.parse_players(raw), c.id_map())
     df = df.select(
@@ -77,6 +82,10 @@ def players_sync(con: duckdb.DuckDBPyConnection, c: Clients, force: bool = False
         pl.col("injury_start_date").str.to_date(strict=False),
         pl.lit(_now()).alias("updated_at"),
     )
+    return df
+
+
+def write_players(con: duckdb.DuckDBPyConnection, df: pl.DataFrame) -> int:
     changes = status_changes(query_df(con, "SELECT player_id, injury_status FROM players"), df)
     with transaction(con):  # full replace: all-or-nothing so a failed insert keeps the old table
         n = replace_where(con, "players", df, "TRUE", [])
@@ -101,9 +110,19 @@ def status_changes(old: pl.DataFrame, new: pl.DataFrame) -> pl.DataFrame:
 
 
 def stats_sync(con: duckdb.DuckDBPyConnection, c: Clients) -> dict[str, int]:
+    return write_nflverse(con, c, fetch_nflverse(c))
+
+
+def fetch_nflverse(c: Clients) -> dict[str, pl.DataFrame]:
+    """Stats, schedule and injuries for the configured seasons (network only, no database)."""
     first, last = c.settings.seasons
-    seasons = list(range(first, last + 1))
-    tables = nflverse.load_all(seasons, c.id_map())
+    return nflverse.load_all(list(range(first, last + 1)), c.id_map())
+
+
+def write_nflverse(
+    con: duckdb.DuckDBPyConnection, c: Clients, tables: dict[str, pl.DataFrame]
+) -> dict[str, int]:
+    first, last = c.settings.seasons
     counts = {}
     with transaction(con):  # every table or none: downloads are done, only writes happen here
         for table, df in tables.items():

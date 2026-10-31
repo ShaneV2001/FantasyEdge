@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import polars as pl
@@ -10,6 +11,9 @@ from tenacity import wait_none
 from ingest.http import CachedHttp
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+# The API's background NFL-data refresher would download real data: tests drive it directly
+os.environ["FF_AUTO_REFRESH"] = "0"
 
 
 def load_json(name: str):

@@ -1073,6 +1073,14 @@ class StatusOut(BaseModel):
     attribution: list[str]
     ai_enabled: bool = Field(False, description="An ANTHROPIC_API_KEY is set: the Ask page works")
     ai_model: str | None = None
+    data_refreshing: bool = Field(False, description="The NFL data is being refreshed right now")
+    nfl_data_stale: bool = Field(
+        False, description="Results are missing for games already played, or the copy is old"
+    )
+    unscored_week: int | None = Field(
+        None, description="Earliest recent week with a played game that has no score yet"
+    )
+    refresh_error: str | None = Field(None, description="The last background refresh failure")
 
 
 # ───────── advisor chat ─────────

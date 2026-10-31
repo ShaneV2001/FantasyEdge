@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { clearPlayerAvailability, connectEspn, connectLeague, espnDefaults, evaluateTrade, findTrades, forgetTeam, getAdvice, getBuyTargets, getByes, getCredentials, getGamedayAlerts, getMatchup, getPendingTrades, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRecap, getRegression, getSavedTeams, getStartsit, getStatus, getTeam, getTradeOffers, getUserSettings, getWaivers, health, manualLeague, type Options, putCredentials, refresh, renameTeam, resetUserSettings, searchPlayers, selectTeam, setPlayerAvailability, suggestTrades, tradeOutlook, updateRoster, updateUserSettings } from '../sdk.gen';
-import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityError, ClearPlayerAvailabilityResponse, ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, ForgetTeamData, ForgetTeamError, ForgetTeamResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetGamedayAlertsData, GetGamedayAlertsError, GetGamedayAlertsResponse, GetMatchupData, GetMatchupError, GetMatchupResponse, GetPendingTradesData, GetPendingTradesError, GetPendingTradesResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRecapData, GetRecapError, GetRecapResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetSavedTeamsData, GetSavedTeamsResponse, GetStartsitData, GetStartsitError, GetStartsitResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetTradeOffersData, GetTradeOffersError, GetTradeOffersResponse, GetUserSettingsData, GetUserSettingsResponse, GetWaiversData, GetWaiversError, GetWaiversResponse, HealthData, HealthResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, RenameTeamData, RenameTeamError, RenameTeamResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SetPlayerAvailabilityData, SetPlayerAvailabilityError, SetPlayerAvailabilityResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, TradeOutlookData, TradeOutlookError, TradeOutlookResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
+import { clearPlayerAvailability, connectEspn, connectLeague, deleteChat, espnDefaults, evaluateTrade, findTrades, forgetTeam, getAdvice, getBuyTargets, getByes, getChat, getCredentials, getGamedayAlerts, getMatchup, getPendingTrades, getPlayer, getPlayersTable, getPlayerTrades, getRankings, getRecap, getRegression, getSavedTeams, getStartsit, getStatus, getTeam, getTradeOffers, getUserSettings, getWaivers, health, listChats, manualLeague, type Options, putCredentials, refresh, renameTeam, resetUserSettings, searchPlayers, selectTeam, setPlayerAvailability, suggestTrades, tradeOutlook, updateRoster, updateUserSettings } from '../sdk.gen';
+import type { ClearPlayerAvailabilityData, ClearPlayerAvailabilityError, ClearPlayerAvailabilityResponse, ConnectEspnData, ConnectEspnError, ConnectEspnResponse, ConnectLeagueData, ConnectLeagueError, ConnectLeagueResponse, DeleteChatData, DeleteChatError, DeleteChatResponse, EspnDefaultsData, EspnDefaultsResponse, EvaluateTradeData, EvaluateTradeError, EvaluateTradeResponse, FindTradesData, FindTradesError, FindTradesResponse, ForgetTeamData, ForgetTeamError, ForgetTeamResponse, GetAdviceData, GetAdviceError, GetAdviceResponse, GetBuyTargetsData, GetBuyTargetsError, GetBuyTargetsResponse, GetByesData, GetByesError, GetByesResponse, GetChatData, GetChatError, GetChatResponse, GetCredentialsData, GetCredentialsError, GetCredentialsResponse, GetGamedayAlertsData, GetGamedayAlertsError, GetGamedayAlertsResponse, GetMatchupData, GetMatchupError, GetMatchupResponse, GetPendingTradesData, GetPendingTradesError, GetPendingTradesResponse, GetPlayerData, GetPlayerError, GetPlayerResponse, GetPlayersTableData, GetPlayersTableError, GetPlayersTableResponse, GetPlayerTradesData, GetPlayerTradesError, GetPlayerTradesResponse, GetRankingsData, GetRankingsError, GetRankingsResponse, GetRecapData, GetRecapError, GetRecapResponse, GetRegressionData, GetRegressionError, GetRegressionResponse, GetSavedTeamsData, GetSavedTeamsResponse, GetStartsitData, GetStartsitError, GetStartsitResponse, GetStatusData, GetStatusResponse, GetTeamData, GetTeamError, GetTeamResponse, GetTradeOffersData, GetTradeOffersError, GetTradeOffersResponse, GetUserSettingsData, GetUserSettingsResponse, GetWaiversData, GetWaiversError, GetWaiversResponse, HealthData, HealthResponse, ListChatsData, ListChatsError, ListChatsResponse, ManualLeagueData, ManualLeagueError, ManualLeagueResponse, PutCredentialsData, PutCredentialsError, PutCredentialsResponse, RefreshData, RefreshError, RefreshResponse, RenameTeamData, RenameTeamError, RenameTeamResponse, ResetUserSettingsData, ResetUserSettingsResponse, SearchPlayersData, SearchPlayersError, SearchPlayersResponse, SelectTeamData, SelectTeamError, SelectTeamResponse, SetPlayerAvailabilityData, SetPlayerAvailabilityError, SetPlayerAvailabilityResponse, SuggestTradesData, SuggestTradesError, SuggestTradesResponse, TradeOutlookData, TradeOutlookError, TradeOutlookResponse, UpdateRosterData, UpdateRosterError, UpdateRosterResponse, UpdateUserSettingsData, UpdateUserSettingsError, UpdateUserSettingsResponse } from '../types.gen';
 
 /**
  * Connect League
@@ -912,6 +912,65 @@ export const updateUserSettingsMutation = (options?: Partial<Options<UpdateUserS
     };
     return mutationOptions;
 };
+
+export const listChatsQueryKey = (options: Options<ListChatsData>) => createQueryKey('listChats', options);
+
+/**
+ * List Chats
+ *
+ * This team's conversations, most recent first.
+ */
+export const listChatsOptions = (options: Options<ListChatsData>) => queryOptions<ListChatsResponse, ListChatsError, ListChatsResponse, ReturnType<typeof listChatsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listChats({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listChatsQueryKey(options)
+});
+
+/**
+ * Delete Chat
+ *
+ * Delete a conversation and its messages.
+ */
+export const deleteChatMutation = (options?: Partial<Options<DeleteChatData>>): UseMutationOptions<DeleteChatResponse, DeleteChatError, Options<DeleteChatData>> => {
+    const mutationOptions: UseMutationOptions<DeleteChatResponse, DeleteChatError, Options<DeleteChatData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteChat({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getChatQueryKey = (options: Options<GetChatData>) => createQueryKey('getChat', options);
+
+/**
+ * Get Chat
+ *
+ * One conversation as the chat shows it, with its total token use.
+ */
+export const getChatOptions = (options: Options<GetChatData>) => queryOptions<GetChatResponse, GetChatError, GetChatResponse, ReturnType<typeof getChatQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getChat({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getChatQueryKey(options)
+});
 
 export const healthQueryKey = (options?: Options<HealthData>) => createQueryKey('health', options);
 
