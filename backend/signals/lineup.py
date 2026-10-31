@@ -176,15 +176,19 @@ def lineup_points(
 
 
 def fit_to_slots(
-    players: Sequence[tuple[str, str]], slots: Sequence[str]
+    players: Sequence[tuple[str, str]],
+    slots: Sequence[str],
+    points: Mapping[str, float] | None = None,
 ) -> tuple[list[tuple[str, str | None]], list[str]]:
-    """Place chosen starters (player_id, position) into lineup slots, ignoring points.
+    """Place chosen starters (player_id, position) into lineup slots.
 
     Slots are filled most-restrictive first, each taking the eligible player who fits the fewest
-    slot types (so a QB isn't wasted on SUPER_FLEX while a RB could go there). Returns the slot
+    slot types (so a QB isn't wasted on SUPER_FLEX while a RB could go there), then the one with
+    the most `points`: your best WR takes the WR slot and the next one the FLEX. Returns the slot
     assignment and any players that could not be placed.
     """
     reach = {pos: sum(pos in elig for elig in SLOT_ELIGIBILITY.values()) for pos in SKILL_POSITIONS}
+    pts = points or {}
     remaining = list(players)
     assigned: list[tuple[str, str | None]] = [(s, None) for s in slots]
     for i in _slot_order(slots):
@@ -192,7 +196,7 @@ def fit_to_slots(
         cands = [p for p in remaining if p[1] in elig]
         if not cands:
             continue
-        pick = min(cands, key=lambda p: reach.get(p[1], 1))
+        pick = min(cands, key=lambda p: (reach.get(p[1], 1), -pts.get(p[0], 0.0)))
         remaining.remove(pick)
         assigned[i] = (slots[i], pick[0])
     return assigned, [p[0] for p in remaining]

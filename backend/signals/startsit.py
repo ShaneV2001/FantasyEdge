@@ -72,7 +72,7 @@ def plan_week(
     slots = list(math.slots)
     pos = {p: players[p]["position"] for p in roster if p in players}
     points = {p: round(math.week_points(p)[week], 2) for p in pos}
-    placed, _ = fit_to_slots([(p, pos[p]) for p in starters if p in pos], slots)
+    placed, _ = fit_to_slots([(p, pos[p]) for p in starters if p in pos], slots, points)
     current = [pid for _, pid in placed]
     locked = frozenset(p for p in locked if p in pos)
     fixed = {i: pid for i, pid in enumerate(current) if pid in locked}

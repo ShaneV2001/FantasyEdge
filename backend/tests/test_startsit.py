@@ -68,3 +68,10 @@ def test_a_bye_leaves_the_slot_empty(players):
     plan = ss.plan_week(math, players, list(players), ["qb", "rb1", "wr1", "wr2"], 7)
     assert plan.current[0] == "qb" and plan.optimal[0] is None  # nobody else can play QB
     assert plan.optimal_points == plan.current_points
+
+
+def test_the_better_starter_takes_the_dedicated_slot(players):
+    """A WR1 listed after a weaker WR still takes the WR slot; the weaker one goes to FLEX."""
+    math = RosMath(players, schedule(["AAA"], weeks=17), 7, 17, SLOTS)
+    plan = ss.plan_week(math, players, list(players), ["qb", "rb1", "wr2", "wr1"], 7)
+    assert plan.slots == SLOTS and plan.current == ["qb", "rb1", "wr1", "wr2"]
