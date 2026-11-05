@@ -133,7 +133,7 @@ def test_vegas_note_ranks_the_week():
     implied = {(f"T{i:02d}", 1): 15.0 + i for i in range(12)}
     m = MatchupModel(FactorWeights(), {}, {}, {}, {}, {}, {}, implied)
     top = m.notes("x", "K", "T11", "T00", 1)
-    assert top[0].text == "Game total 41.0: T11 implied for 26.0 (1st-highest this week)."
+    assert top[0].text == "Game total 41.0: T11 implied for 26.0 (the highest this week)."
     assert top[0].tone == "good"
     # the defense facing T11 sees the same line as bad news
     assert m.notes("x", "DEF", "T00", "T11", 1)[0].tone == "bad"

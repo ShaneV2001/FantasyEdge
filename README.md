@@ -63,6 +63,17 @@ Every number comes from a formula you can read and change; nothing is hidden ins
 - **Projections.** `projected PPG = 0.5 × season PPG + 0.5 × usage-implied PPG`. Usage-implied points
   come from targets, carries and red-zone opportunities. Each week is then adjusted for the
   opponent, byes and injuries.
+- **Matchups.** Two opponent factors move a week's projection:
+  - **The betting line.** A team expected to score more than usual this week gets a bump. For a
+    defense, it's the opponent's expected points that count.
+  - **What the defense allows.** For QBs and RBs this is split by stat: rushing vs. receiving,
+    yards vs. TDs, and passing. Each player is weighted by how he scores, so a pass-catching back
+    is judged on what the defense allows to backs through the air. Other positions use fantasy
+    points allowed to the position.
+
+  Finer splits appear as matchup notes on start/sit and the player page: throws to the middle
+  of the field (a slot-style stand-in), WR1 vs. WR2+, TE touchdowns allowed. These didn't beat
+  the backtest, so they're marked *context only* and don't change the points.
 - **Injuries.** Questionable and doubtful players count a fraction of this week. IR means out for a
   few weeks. A torn ACL or Achilles in the injury report means out for the season. You can override
   any player.
@@ -95,6 +106,9 @@ earlier games only. The weights were tuned on 2023–24 and checked on 2025.
 | **FantasyEdge** | **4.28** | **3.85** | **3.73** | **3.08** | **2.26** | **2.46** | **3.50** |
 | Season average | 4.62 | 4.06 | 4.20 | 3.27 | 3.23 | 3.14 | 3.91 |
 | Last 3 games | 5.29 | 4.54 | 4.58 | 3.82 | 3.48 | 3.49 | 4.37 |
+
+The matchup factors cut next-week error on the 2025 holdout at every position (all players:
+3.98 → 3.96 points). Kickers gained most: their weekly ranking accuracy rose from 0.14 to 0.19.
 
 **Regression flags, honestly:** *sell-high* flags (touchdowns or efficiency above what usage
 supports) did predict declines, of 1.1–1.6 points per game. *Buy-low* flags were a coin flip, so

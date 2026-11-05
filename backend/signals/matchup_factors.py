@@ -102,6 +102,11 @@ def ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
+def _nth(n: int, word: str) -> str:
+    """'most', '2nd-most', '3rd-most'…"""
+    return word if n == 1 else f"{ordinal(n)}-{word}"
+
+
 def with_depth(stats: pl.DataFrame) -> pl.DataFrame:
     """`depth`: WR1 for the team's most-targeted WR over his previous 4 games (known before
     kickoff, so the week itself can't leak in), WR2 for the other WRs, the position otherwise."""
@@ -267,12 +272,11 @@ class MatchupModel:
             return None
         what = f"{LABEL[stat]} to {GROUP[bucket]}"
         if rank <= NOTE_RANK:
-            most = "the most" if rank == 1 else f"the {ordinal(rank)}-most"
-            return MatchupNote(f"{opp} allows {most} {what}.", "good", in_proj, strength)
+            return MatchupNote(f"{opp} allows the {_nth(rank, 'most')} {what}.", "good", in_proj,
+                               strength)  # fmt: skip
         if rank > n - NOTE_RANK:
-            k = n - rank + 1
-            fewest = "the fewest" if k == 1 else f"the {ordinal(k)}-fewest"
-            return MatchupNote(f"{opp} allows {fewest} {what}.", "bad", in_proj, strength)
+            fewest = _nth(n - rank + 1, "fewest")
+            return MatchupNote(f"{opp} allows the {fewest} {what}.", "bad", in_proj, strength)
         return None
 
     def _vegas_note(self, pos: str, team: str, opp: str, week: int) -> MatchupNote | None:
@@ -285,14 +289,14 @@ class MatchupModel:
         total = week_imp[team] + week_imp[opp]
         head = f"Game total {total:.1f}: {side} implied for {week_imp[side]:.1f}"
         if rank <= NOTE_RANK:
-            tone, where = ("bad" if pos == "DEF" else "good"), f"{ordinal(rank)}-highest"
+            tone, where = ("bad" if pos == "DEF" else "good"), _nth(rank, "highest")
         elif rank > n - NOTE_RANK:
-            tone, where = ("good" if pos == "DEF" else "bad"), f"{ordinal(n - rank + 1)}-lowest"
+            tone, where = ("good" if pos == "DEF" else "bad"), _nth(n - rank + 1, "lowest")
         else:
             return None
         strength = abs(week_imp[side] / (sum(week_imp.values()) / n) - 1)
         in_proj = self.weights.vegas.get(pos, 0.0) > 0
-        return MatchupNote(f"{head} ({where} this week).", tone, in_proj, strength)
+        return MatchupNote(f"{head} (the {where} this week).", tone, in_proj, strength)
 
     def notes(
         self, pid: str, pos: str, team: str | None, opp: str | None, week: int

@@ -36,7 +36,7 @@ const DATA: StartSitOut = {
     pl('Wide Out', 'WR', 14, {
       matchup_notes: [
         { text: 'LV allows the most receiving yards on middle-of-field (slot-style) targets to WRs.', tone: 'good', in_projection: false },
-        { text: 'Game total 51.5: KC implied for 28.0 (2nd-highest this week).', tone: 'good', in_projection: true },
+        { text: 'Game total 51.5: KC implied for 28.0 (the 2nd-highest this week).', tone: 'good', in_projection: true },
       ],
     }),
     pl('Bench Star', 'WR', 12),
