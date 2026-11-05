@@ -12,6 +12,7 @@ import json
 import os
 import tempfile
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -20,6 +21,7 @@ from projections.base import IR_WEEKS_MISSED, STATUS_THIS_WEEK, InjuryAssumption
 from projections.baseline import SHRINK_GAMES, W_USAGE
 from signals import advisor, trade, waivers
 from signals.lineup import BENCH_BACKUPS
+from signals.matchup_factors import TUNED_FACTORS, FactorWeights
 from signals.schedule import MATCHUP_ALPHA
 from signals.targets import TOP_N
 from signals.verdict import GAP_MIN_POINTS, GAP_MIN_SHARE, STARTABLE_RANK
@@ -184,6 +186,11 @@ class UserSettings(BaseModel):
             "QB": self.matchup_alpha_qb, "RB": self.matchup_alpha_rb, "WR": self.matchup_alpha_wr,
             "TE": self.matchup_alpha_te, "K": self.matchup_alpha_k, "DEF": self.matchup_alpha_def,
         }  # fmt: skip
+
+    @property
+    def factors(self) -> FactorWeights:
+        """The tuned matchup factors at this user's per-position matchup strength."""
+        return replace(TUNED_FACTORS, alpha=self.alpha)
 
     @property
     def startable(self) -> dict[str, int]:

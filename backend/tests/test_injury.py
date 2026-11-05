@@ -11,6 +11,7 @@ from projections.base import (
 )
 from signals import trade as tr
 from signals import waivers as wv
+from signals.matchup_factors import MatchupModel
 from signals.targets import week_cells
 from signals.team import RosMath
 from tests.builders import schedule
@@ -79,9 +80,11 @@ def test_notes_say_why():
 def test_week_cells_and_ros_math_use_it():
     sched = schedule(["AAA"], weeks=17)
     p = {"name": "X", "position": "RB", "ppg": 14.0, "nfl_team": "AAA", "injury_status": "IR"}
-    cells = week_cells({**p, "return_week": SEASON_OUT}, sched, {}, 0.0, 7, 17)
+    cells = week_cells(
+        {**p, "return_week": SEASON_OUT}, sched, MatchupModel.position_only({}, {}), 7, 17
+    )
     assert sum(c.points for c in cells) == 0
-    cells = week_cells({**p, "return_week": 15}, sched, {}, 0.0, 7, 17)
+    cells = week_cells({**p, "return_week": 15}, sched, MatchupModel.position_only({}, {}), 7, 17)
     assert [c.week for c in cells if c.points > 0] == [15, 16, 17]
     math = RosMath({"x": {**p, "return_week": SEASON_OUT}}, sched, 7, 17, ["RB"])
     assert math.ros_lineup_points(["x"]) == 0

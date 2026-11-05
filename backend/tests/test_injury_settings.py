@@ -1,5 +1,6 @@
 from app.user_settings import UserSettings
 from projections.base import DEFAULT_INJURY, InjuryAssumptions, availability, availability_note
+from signals.matchup_factors import MatchupModel
 from signals.targets import week_cells
 from signals.team import RosMath
 from tests.builders import schedule
@@ -36,7 +37,7 @@ def test_cells_and_ros_math_use_the_assumptions():
     sched = schedule(["AAA", "BBB"], weeks=17)
     p = {"nfl_team": "AAA", "position": "WR", "ppg": 10.0, "injury_status": "Questionable"}
     inj = InjuryAssumptions(questionable=0.5)
-    assert week_cells(p, sched, {}, 0.0, 5, 5)[0].points == 8.5
-    assert week_cells(p, sched, {}, 0.0, 5, 5, inj)[0].points == 5.0
+    assert week_cells(p, sched, MatchupModel.position_only({}, {}), 5, 5)[0].points == 8.5
+    assert week_cells(p, sched, MatchupModel.position_only({}, {}), 5, 5, inj)[0].points == 5.0
     math = RosMath({"x": p}, sched, 5, 5, ["WR"], inj=inj)
     assert math.week_points("x")[5] == 5.0

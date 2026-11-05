@@ -34,6 +34,8 @@ class Schedule:
     completed: frozenset[tuple[str, int]] = frozenset()  # (team, week) games already final
     # (team, week) -> kickoff (UTC). nflverse times are US/Eastern; missing when unknown.
     kickoffs: Mapping[tuple[str, int], datetime] = field(default_factory=dict)
+    # (team, week) -> the team's implied points from the betting lines; missing until posted
+    implied: Mapping[tuple[str, int], float] = field(default_factory=dict)
 
     def kickoff(self, team: str | None, week: int) -> datetime | None:
         return self.kickoffs.get((team, week)) if team else None
@@ -84,14 +86,21 @@ def build_schedule(games: pl.DataFrame, season: int) -> Schedule:
     g = games.filter(pl.col("season") == season)
     if "kickoff" not in g.columns:
         g = g.with_columns(pl.lit(None, pl.Datetime).alias("kickoff"))
+    for c in ("spread_line", "total_line"):
+        if c not in g.columns:
+            g = g.with_columns(pl.lit(None, pl.Float64).alias(c))
     matchups: dict[tuple[str, int], str] = {}
     completed: set[tuple[str, int]] = set()
     kickoffs: dict[tuple[str, int], datetime] = {}
-    for home, away, week, score, kick in g.select(
-        "home_team", "away_team", "week", "home_score", "kickoff"
+    implied: dict[tuple[str, int], float] = {}
+    for home, away, week, score, kick, spread, total in g.select(
+        "home_team", "away_team", "week", "home_score", "kickoff", "spread_line", "total_line"
     ).iter_rows():
         matchups[(home, week)] = away
         matchups[(away, week)] = home
+        if spread is not None and total is not None:  # nflverse: spread > 0 = home favoured
+            implied[(home, week)] = (total + spread) / 2
+            implied[(away, week)] = (total - spread) / 2
         if score is not None:
             completed |= {(home, week), (away, week)}
         if kick is not None:
@@ -106,7 +115,67 @@ def build_schedule(games: pl.DataFrame, season: int) -> Schedule:
         missing = [w for w in range(1, weeks + 1) if w not in ws]
         if missing:
             byes[team] = missing[0]
-    return Schedule(season, weeks, matchups, byes, frozenset(completed), kickoffs)
+    return Schedule(season, weeks, matchups, byes, frozenset(completed), kickoffs, implied)
+
+
+def allowed_index(
+    df: pl.DataFrame,
+    keys: list[str],
+    value: str,
+    season: int,
+    through_week: int,
+    prior_weight: float = 3.0,
+    mean_weight: float | pl.Expr = 0.0,
+) -> pl.DataFrame:
+    """Opponent × `keys` → `value` allowed per game relative to the league average (`idx`).
+
+    The current season is shrunk toward the prior season with `prior_weight` pseudo-games and,
+    for noisy stats such as touchdowns, toward the league average with `mean_weight` more (a
+    number, or an expression over `keys`). Returns opponent, keys, idx and rank (1 = allows the
+    most).
+    """
+    keep = pl.col("opponent").is_not_null()
+    for k in keys:
+        keep &= pl.col(k).is_not_null()
+    cur = df.filter((pl.col("season") == season) & (pl.col("week") <= through_week) & keep)
+    prior = df.filter((pl.col("season") == season - 1) & keep)
+    by = ["opponent", *keys]
+
+    def per_game(d: pl.DataFrame) -> pl.DataFrame:
+        return (
+            d.group_by(*by, "week")
+            .agg(pl.col(value).sum())
+            .group_by(*by)
+            .agg(pl.col(value).sum().alias("total"), pl.len().alias("games"))
+        )
+
+    c = per_game(cur).rename({"total": "cur_total", "games": "cur_games"})
+    p = per_game(prior).with_columns((pl.col("total") / pl.col("games")).alias("prior_avg"))
+    out = c.join(p.select(*by, "prior_avg"), on=by, how="full", coalesce=True)
+    out = out.with_columns(pl.col("cur_total").fill_null(0), pl.col("cur_games").fill_null(0))
+    pos_avg = out.group_by(keys).agg(
+        (pl.col("cur_total").sum() / pl.col("cur_games").sum()).alias("pos_cur"),
+        pl.col("prior_avg").mean().alias("pos_prior"),
+    )
+    out = out.join(pos_avg, on=keys).with_columns(
+        pl.coalesce("prior_avg", "pos_prior", "pos_cur").alias("prior_avg")
+    )
+    mw = pl.lit(mean_weight) if isinstance(mean_weight, int | float) else mean_weight
+    toward_mean = pl.when(mw > 0).then(mw * pl.coalesce("pos_prior", "pos_cur")).otherwise(0.0)
+    out = out.with_columns(
+        (
+            (pl.col("cur_total") + prior_weight * pl.col("prior_avg") + toward_mean)
+            / (pl.col("cur_games") + prior_weight + mw)
+        ).alias("allowed")
+    )
+    league = out.group_by(keys).agg(pl.col("allowed").mean().alias("league_avg"))
+    return (
+        out.join(league, on=keys)
+        .with_columns((pl.col("allowed") / pl.col("league_avg")).alias("idx"))
+        .filter(pl.col("opponent").is_not_null() & pl.col("idx").is_finite())
+        .with_columns(pl.col("idx").rank("ordinal", descending=True).over(keys).alias("rank"))
+        .select(*by, "idx", "rank")
+    )
 
 
 def fp_allowed_index(
@@ -119,51 +188,9 @@ def fp_allowed_index(
     so (KC, "DEF") is how many DEF points defenses score against KC. The current season is shrunk
     toward the prior season with `prior_weight` pseudo-games.
     """
-    keep = pl.col("position").is_not_null() & pl.col("opponent").is_not_null()
-    cur = scored.filter((pl.col("season") == season) & (pl.col("week") <= through_week) & keep)
-    prior = scored.filter((pl.col("season") == season - 1) & keep)
-
-    def per_game(df: pl.DataFrame) -> pl.DataFrame:
-        return (
-            df.group_by("opponent", "position", "week")
-            .agg(pl.col("fp").sum())
-            .group_by("opponent", "position")
-            .agg(pl.col("fp").sum().alias("total"), pl.len().alias("games"))
-        )
-
-    c = per_game(cur).rename({"total": "cur_total", "games": "cur_games"})
-    p = per_game(prior).with_columns((pl.col("total") / pl.col("games")).alias("prior_avg"))
-    df = c.join(
-        p.select("opponent", "position", "prior_avg"),
-        on=["opponent", "position"],
-        how="full",
-        coalesce=True,
-    )
-    df = df.with_columns(
-        pl.col("cur_total").fill_null(0),
-        pl.col("cur_games").fill_null(0),
-    )
-    pos_avg = df.group_by("position").agg(
-        (pl.col("cur_total").sum() / pl.col("cur_games").sum()).alias("pos_cur"),
-        pl.col("prior_avg").mean().alias("pos_prior"),
-    )
-    df = df.join(pos_avg, on="position").with_columns(
-        pl.coalesce("prior_avg", "pos_prior", "pos_cur").alias("prior_avg")
-    )
-    df = df.with_columns(
-        (
-            (pl.col("cur_total") + prior_weight * pl.col("prior_avg"))
-            / (pl.col("cur_games") + prior_weight)
-        ).alias("allowed")
-    )
-    league = df.group_by("position").agg(pl.col("allowed").mean().alias("league_avg"))
-    df = df.join(league, on="position").with_columns(
-        (pl.col("allowed") / pl.col("league_avg")).alias("idx")
-    )
+    df = allowed_index(scored, ["position"], "fp", season, through_week, prior_weight)
     return {
-        (r[0], r[1]): float(r[2])
-        for r in df.select("opponent", "position", "idx").iter_rows()
-        if r[0]
+        (o, pos): float(i) for o, pos, i in df.select("opponent", "position", "idx").iter_rows()
     }
 
 

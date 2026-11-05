@@ -30,6 +30,7 @@ from projections.baseline import BaselineEngine
 from projections.norms import norms_window, position_rates
 from scoring.rules import describe, normalize, score
 from signals.lineup import SKILL_POSITIONS
+from signals.matchup_factors import MatchupModel, build_matchup_model
 from signals.regression import RegressionReport, build_report
 from signals.schedule import (
     Schedule,
@@ -346,7 +347,7 @@ def _value_players(
     info: dict[str, dict],
     report: RegressionReport,
     schedule: Schedule,
-    matchup: dict[tuple[str, str], float],
+    model: MatchupModel,
     start: int,
     end: int,
     market_source: str | None,
@@ -357,7 +358,7 @@ def _value_players(
         pid: r for pid, r in info.items()
         if r.get("position") in MATCHUP_POSITIONS and r.get("nfl_team")
     }  # fmt: skip
-    cells = all_cells(pool, schedule, matchup, tuning.alpha, start, end, tuning.injury)
+    cells = all_cells(pool, schedule, model, start, end, tuning.injury)
     model_pts = {pid: ros_points(c) for pid, c in cells.items()}
     values = value_players(
         info, model_pts, MATCHUP_POSITIONS,
@@ -475,7 +476,11 @@ def build_context(
             r["ease_next4"] = r["ease_playoffs"] = None
         info[pid] = r
     _add_unprojected(info, teams, proj.columns)
-    cells = _value_players(info, report, schedule, matchup, week, league.last_week, source, tuning)
+    model = build_matchup_model(
+        scored, schedule, {pid: r.get("nfl_team") for pid, r in info.items()}, league.rules,
+        league.season, through, tuning.factors, total=matchup,
+    )  # fmt: skip
+    cells = _value_players(info, report, schedule, model, week, league.last_week, source, tuning)
 
     return LeagueContext(
         league=league,

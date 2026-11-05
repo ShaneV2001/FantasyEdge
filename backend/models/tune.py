@@ -143,10 +143,11 @@ def matchup_table(
     every position at once) covers all positions.
     """
     from projections.matchup import MatchupAdjusted
+    from signals.matchup_factors import FactorWeights
 
     out = []
     for a in MATCHUP_ALPHAS:
-        engine = MatchupAdjusted(BaselineEngine(), dict.fromkeys(POSITIONS, a))
+        engine = MatchupAdjusted(BaselineEngine(), FactorWeights(alpha=dict.fromkeys(POSITIONS, a)))
         m = metrics(walk_forward(engine, stats, schedules, rules, seasons))
         out.append(m.select("position", "mae_1", "spearman").with_columns(pl.lit(a).alias("alpha")))
     return pl.concat(out).filter(pl.col("position") != "ALL")

@@ -1,9 +1,10 @@
 """Schedule-driven buy targets: who projects best each upcoming week and over the rest of season.
 
 Each week's projection is the player's per-game projection × expected availability × the
-matchup multiplier for that week's opponent (`signals.schedule.matchup_multiplier`, with each
-position's backtest-tuned strength). Byes and games already played count 0. The neutral
-projection (no matchup adjustment) is kept alongside so the schedule's effect is visible.
+matchup multiplier for that week's opponent (`signals.matchup_factors.MatchupModel`, with each
+factor's backtest-tuned strength). Byes and games already played count 0. The neutral
+projection (no matchup adjustment) is kept alongside so the schedule's effect is visible, with
+the matchup notes that explain it.
 """
 
 from __future__ import annotations
@@ -12,7 +13,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 from projections.base import DEFAULT_INJURY, InjuryAssumptions, availability
-from signals.schedule import Schedule, matchup_multiplier
+from signals.matchup_factors import MatchupModel, MatchupNote
+from signals.schedule import Schedule
 
 POSITIONS = ("QB", "RB", "WR", "TE", "K", "DEF")
 TOP_N = 10
@@ -26,6 +28,7 @@ class WeekCell:
     index: float | None  # opponent's points-allowed index for the position (>1 easier)
     points: float
     neutral: float
+    notes: tuple[MatchupNote, ...] = ()
 
 
 @dataclass
@@ -46,13 +49,16 @@ class TargetRow:
 def week_cells(
     player: Mapping,
     schedule: Schedule,
-    index: Mapping[tuple[str, str], float],
-    alpha: float,
+    model: MatchupModel,
     start: int,
     end: int,
     inj: InjuryAssumptions = DEFAULT_INJURY,
 ) -> list[WeekCell]:
-    team, pos = player.get("nfl_team"), player.get("position") or ""
+    pid, team, pos = (
+        player.get("player_id") or "",
+        player.get("nfl_team"),
+        player.get("position") or "",
+    )
     ppg = float(player.get("ppg") or 0.0)
     cells = []
     for w in range(start, end + 1):
@@ -64,10 +70,10 @@ def week_cells(
             player.get("injury_status"), player.get("status"), w, start, inj,
             player.get("return_week"),
         )  # fmt: skip
-        mult = matchup_multiplier(index, opp, pos, alpha)
+        mult = model.multiplier(pid, pos, team, opp, w)
         cells.append(
-            WeekCell(w, opp, round(index.get((opp, pos), 1.0), 3), round(base * mult, 2),
-                     round(base, 2))
+            WeekCell(w, opp, round(model.total.get((opp, pos), 1.0), 3), round(base * mult, 2),
+                     round(base, 2), tuple(model.notes(pid, pos, team, opp, w)))
         )  # fmt: skip
     return cells
 
@@ -75,17 +81,14 @@ def week_cells(
 def all_cells(
     players: Mapping[str, Mapping],
     schedule: Schedule,
-    index: Mapping[tuple[str, str], float],
-    alpha: Mapping[str, float],
+    model: MatchupModel,
     start: int,
     end: int,
     inj: InjuryAssumptions = DEFAULT_INJURY,
 ) -> dict[str, list[WeekCell]]:
     """Week-by-week matchup-adjusted projections for every player (computed once per context)."""
     return {
-        pid: week_cells(
-            p, schedule, index, alpha.get(p.get("position") or "", 0.0), start, end, inj
-        )
+        pid: week_cells({"player_id": pid, **p}, schedule, model, start, end, inj)
         for pid, p in players.items()
     }
 

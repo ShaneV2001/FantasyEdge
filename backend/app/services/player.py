@@ -53,7 +53,7 @@ def past_projections(ctx: LeagueContext) -> dict[int, dict[str, tuple[float, flo
     """{week: {player_id: (ppg, p10, p90)}} projected before each played week (memoized)."""
     if "past_projections" in ctx.memo:
         return ctx.memo["past_projections"]
-    engine = MatchupAdjusted(engine_for(ctx.tuning), ctx.tuning.alpha)
+    engine = MatchupAdjusted(engine_for(ctx.tuning), ctx.tuning.factors)
     players = _players_frame(ctx)
     s = ctx.season
     out: dict[int, dict[str, tuple[float, float, float]]] = {}

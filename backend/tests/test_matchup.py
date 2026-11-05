@@ -5,6 +5,7 @@ from projections.base import LeagueShape, ProjectionInputs
 from projections.baseline import BaselineEngine
 from projections.matchup import MatchupAdjusted
 from scoring.rules import HALF_PPR
+from signals.matchup_factors import FactorWeights
 from signals.schedule import Schedule, fp_allowed_index, matchup_multiplier
 from tests.builders import stat_row, stats_frame
 
@@ -59,13 +60,13 @@ def test_wrapper_uses_only_history_and_this_weeks_opponent():
     sched = _schedule({("AAA", 5): "SOFT", ("BBB", 5): "HARD"})
     inp = ProjectionInputs(hist, players, sched, HALF_PPR, 2026, 5, LeagueShape())
     base = {r[0]: r[1] for r in BaselineEngine().per_game(inp).select("player_id", "ppg").rows()}
-    adj = MatchupAdjusted(BaselineEngine(), {"WR": 1.0}).per_game(inp)
+    adj = MatchupAdjusted(BaselineEngine(), FactorWeights(alpha={"WR": 1.0})).per_game(inp)
     got = {r[0]: r[1] for r in adj.select("player_id", "ppg").rows()}
     assert base["a"] == base["b"]
     assert got["a"] > base["a"] > got["b"]
-    assert MatchupAdjusted(BaselineEngine(), {"WR": 0.0}).per_game(inp)["ppg"].to_list() == (
-        BaselineEngine().per_game(inp)["ppg"].to_list()
-    )
+    assert MatchupAdjusted(BaselineEngine(), FactorWeights(alpha={"WR": 0.0})).per_game(inp)[
+        "ppg"
+    ].to_list() == (BaselineEngine().per_game(inp)["ppg"].to_list())
 
 
 def test_regression_adjustment_shifts_by_score(monkeypatch):
