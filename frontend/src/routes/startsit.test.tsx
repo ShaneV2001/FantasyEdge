@@ -33,7 +33,12 @@ const DATA: StartSitOut = {
   players: [
     pl('Quarter Back', 'QB', 20),
     pl('Run Ner', 'RB', 15),
-    pl('Wide Out', 'WR', 14),
+    pl('Wide Out', 'WR', 14, {
+      matchup_notes: [
+        { text: 'LV allows the most receiving yards on middle-of-field (slot-style) targets to WRs.', tone: 'good', in_projection: false },
+        { text: 'Game total 51.5: KC implied for 28.0 (2nd-highest this week).', tone: 'good', in_projection: true },
+      ],
+    }),
     pl('Bench Star', 'WR', 12),
     pl('Slow Back', 'RB', 9),
     pl('Thursday Guy', 'TE', 0, { locked: true }),
@@ -110,5 +115,13 @@ describe('StartSitPage', () => {
     await screen.findByText('Bench Star')
     await userEvent.click(screen.getByRole('button', { name: /Copy lineup/ }))
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Week 7 lineup · 58.0 projected pts\nQB: Quarter Back (KC) · 20.0'))
+  })
+
+  it("shows the strongest matchup note, flagged when it's context only", async () => {
+    renderPage(<StartSitPage />)
+    const note = await screen.findByText(/LV allows the most receiving yards on middle-of-field/)
+    expect(note.parentElement).toHaveTextContent('(context only)')
+    // the rest are in the card's hover title
+    expect(screen.getByRole('button', { name: /^Wide Out/ })).toHaveAttribute('title', expect.stringContaining('KC implied for 28.0'))
   })
 })

@@ -20,7 +20,7 @@ import type { StartSitOut, StartSitPlayer } from '@/api'
 import { getStartsitOptions } from '@/api/@tanstack/react-query.gen'
 import { ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { InjuryTag, PositionBadge } from '@/components/player/badges'
-import { matchupTone } from '@/components/player/matchups'
+import { MatchupNote, matchupTone, notesTitle } from '@/components/player/matchups'
 import { GamedayAlerts } from '@/components/team/GamedayAlerts'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -56,6 +56,7 @@ function PlayerCard({
       tabIndex={0}
       aria-pressed={selected}
       aria-label={`${p.player.name}, ${fmtNum(p.points)} points${p.locked ? ', locked' : ''}`}
+      title={notesTitle(p.matchup_notes)}
       onClick={onSelect}
       className={cn(
         'flex w-full min-w-0 touch-none items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-left text-sm select-none',
@@ -81,6 +82,9 @@ function PlayerCard({
           {p.locked && ' · played'}
           {p.reserved && ' · IR'}
         </span>
+        {!p.on_bye && !p.locked && p.matchup_notes?.[0] && (
+          <MatchupNote note={p.matchup_notes[0]} className="truncate text-[11px]" />
+        )}
       </div>
       <span className="shrink-0 font-mono text-sm tabular-nums">{fmtNum(p.points)}</span>
     </div>

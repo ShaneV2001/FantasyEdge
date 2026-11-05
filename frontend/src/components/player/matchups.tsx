@@ -1,4 +1,4 @@
-import type { MatchupCell } from '@/api'
+import type { MatchupCell, MatchupNoteOut } from '@/api'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fmtNum } from '@/lib/format'
@@ -30,6 +30,23 @@ const TONE_CLASS = {
   neutral: 'bg-muted/50 text-muted-foreground',
 } as const
 
+/** One matchup note: ▲ good / ▼ bad for the player; dimmed when it doesn't move the projection. */
+export function MatchupNote({ note, className }: { note: MatchupNoteOut; className?: string }) {
+  return (
+    <span className={cn(note.tone === 'good' ? 'text-buy' : 'text-sell', !note.in_projection && 'opacity-70', className)}>
+      <span aria-hidden>{note.tone === 'good' ? '▲' : '▼'} </span>
+      {note.text}
+      {!note.in_projection && <span className="text-muted-foreground"> (context only)</span>}
+    </span>
+  )
+}
+
+/** Plain-text version for hover titles. */
+export function notesTitle(notes: MatchupNoteOut[] | undefined): string | undefined {
+  if (!notes?.length) return undefined
+  return notes.map((n) => `${n.tone === 'good' ? '▲' : '▼'} ${n.text}${n.in_projection ? '' : ' (context only)'}`).join('\n')
+}
+
 export function MatchupChip({ cell, position }: { cell: MatchupCell; position: string }) {
   const tone = matchupTone(cell.index)
   const what = position === 'DEF' ? 'DEF points scored against this offense' : `points allowed to ${position}s`
@@ -41,10 +58,13 @@ export function MatchupChip({ cell, position }: { cell: MatchupCell; position: s
           {cell.opponent ?? 'BYE'}
         </span>
       </TooltipTrigger>
-      <TooltipContent>
+      <TooltipContent className="max-w-xs">
         {cell.opponent
           ? `Week ${cell.week} vs ${cell.opponent}: ${fmtNum(cell.index, 2)}× the average ${what} · ${fmtNum(cell.points)} projected`
           : `Week ${cell.week}: bye`}
+        {cell.notes?.map((n) => (
+          <MatchupNote key={n.text} note={n} className="mt-1 block" />
+        ))}
       </TooltipContent>
     </Tooltip>
   )

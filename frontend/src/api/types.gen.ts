@@ -1064,6 +1064,36 @@ export type MatchupCell = {
      * Matchup-adjusted projected points
      */
     points: number;
+    /**
+     * Notes
+     *
+     * What stands out about this opponent, strongest first
+     */
+    notes?: Array<MatchupNoteOut>;
+};
+
+/**
+ * MatchupNoteOut
+ */
+export type MatchupNoteOut = {
+    /**
+     * Text
+     *
+     * e.g. 'DET allows the most receiving TDs to TEs.'
+     */
+    text: string;
+    /**
+     * Tone
+     *
+     * good | bad, for this player
+     */
+    tone: string;
+    /**
+     * In Projection
+     *
+     * False: shown for context only (the backtest didn't back this factor)
+     */
+    in_projection: boolean;
 };
 
 /**
@@ -2937,6 +2967,10 @@ export type StartSitPlayer = {
      * >1 = easier than average
      */
     matchup_index?: number | null;
+    /**
+     * Matchup Notes
+     */
+    matchup_notes?: Array<MatchupNoteOut>;
     /**
      * On Bye
      */
