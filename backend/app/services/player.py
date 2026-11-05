@@ -7,6 +7,7 @@ games before that week. One replay per league context, shared by every player pa
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 
 import polars as pl
@@ -17,6 +18,8 @@ from app.services.context import LeagueContext, engine_for
 from app.services.player_analytics import player_analytics
 from projections.base import ProjectionInputs
 from projections.matchup import MatchupAdjusted
+from signals.matchup_factors import MatchupNote
+from signals.targets import WeekCell
 
 SLEEPER_HEADSHOT = "https://sleepercdn.com/content/nfl/players/{}.jpg"
 SLEEPER_TEAM_LOGO = "https://sleepercdn.com/images/team_logos/nfl/{}.png"
@@ -41,6 +44,18 @@ def _players_frame(ctx: LeagueContext) -> pl.DataFrame:
         rows, schema={"player_id": pl.Utf8, "position": pl.Utf8, "nfl_team": pl.Utf8}, orient="row"
     ).with_columns(
         pl.lit(None, pl.Utf8).alias("injury_status"), pl.lit(None, pl.Utf8).alias("status")
+    )
+
+
+def notes_out(notes: Iterable[MatchupNote]) -> list[m.MatchupNoteOut]:
+    return [
+        m.MatchupNoteOut(text=n.text, tone=n.tone, in_projection=n.in_projection) for n in notes
+    ]
+
+
+def cell_out(c: WeekCell) -> m.MatchupCell:
+    return m.MatchupCell(
+        week=c.week, opponent=c.opponent, index=c.index, points=c.points, notes=notes_out(c.notes)
     )
 
 
@@ -165,10 +180,7 @@ def player_detail(
                 statline=_statline(row, pos) if row else {},
             )
         )
-    upcoming = [
-        m.MatchupCell(week=c.week, opponent=c.opponent, index=c.index, points=c.points)
-        for c in ctx.cells.get(player_id, [])
-    ]
+    upcoming = [cell_out(c) for c in ctx.cells.get(player_id, [])]
     return m.PlayerDetailOut(
         player_id=player_id,
         name=p["name"],

@@ -16,7 +16,7 @@ from models.backtest import POSITIONS, metrics, walk_forward
 from models.regression_eval import flag_outcomes, summarize
 from projections.baseline import BaselineEngine
 from signals.regression import RegressionConfig
-from signals.schedule import Schedule
+from signals.schedule import MATCHUP_ALPHA, Schedule
 
 WEIGHT_STEP = 0.1
 SHRINK_OPTIONS = (2, 4, 6, 8)
@@ -183,6 +183,160 @@ def tune_matchups(
             }
         )
     return rows
+
+
+VEGAS_BETAS = (0.0, 0.25, 0.5, 0.75, 1.0)
+FACTOR_ALPHAS = (0.25, 0.5, 0.75, 1.0)
+TD_PRIORS = (0.0, 8.0, 16.0)
+SKILL_POSITIONS = ("QB", "RB", "WR", "TE")
+
+
+@dataclass(frozen=True)
+class PosFactors:
+    """One position's matchup setting; `weights_from` turns a set of them into FactorWeights."""
+
+    alpha: float
+    components: bool = False
+    routes: bool = False
+    depth: bool = False
+    td_prior: float = 0.0
+    vegas: float = 0.0
+
+    def label(self) -> str:
+        parts = [f"a{self.alpha:g}"]
+        if self.components:
+            parts.append(f"comp(td{self.td_prior:g})")
+        if self.routes:
+            parts.append("routes")
+        if self.depth:
+            parts.append("depth")
+        if self.vegas:
+            parts.append(f"vegas{self.vegas:g}")
+        return " ".join(parts)
+
+
+def weights_from(settings: Mapping[str, PosFactors]):
+    from signals.matchup_factors import FactorWeights
+
+    def on(flag: str) -> frozenset[str]:
+        return frozenset(p for p, s in settings.items() if getattr(s, flag))
+
+    return FactorWeights(
+        alpha={p: s.alpha for p, s in settings.items()},
+        components=on("components"),
+        routes=on("routes"),
+        depth=settings["WR"].depth if "WR" in settings else False,
+        td_prior={p: s.td_prior for p, s in settings.items()},
+        vegas={p: s.vegas for p, s in settings.items()},
+    )
+
+
+class _SameBase:
+    """Every matchup setting scales the same baseline projections: compute each week once."""
+
+    def __init__(self, engine) -> None:
+        self.engine, self.run_id, self._memo = engine, engine.run_id, {}
+
+    def per_game(self, inputs):
+        key = (inputs.season, inputs.week)
+        if key not in self._memo:
+            self._memo[key] = self.engine.per_game(inputs)
+        return self._memo[key]
+
+
+def _factor_candidates(stage: str, pos: str, cur: PosFactors) -> list[PosFactors]:
+    td = cur.td_prior if cur.components else 8.0
+    if stage == "vegas":
+        return [replace(cur, vegas=b) for b in VEGAS_BETAS]
+    if stage == "components" and pos in SKILL_POSITIONS:
+        return [
+            replace(cur, alpha=a, components=True, td_prior=t)
+            for a in FACTOR_ALPHAS
+            for t in TD_PRIORS
+        ]
+    if stage == "routes" and pos in ("WR", "TE"):
+        return [
+            replace(cur, alpha=a, components=True, routes=True, td_prior=td) for a in FACTOR_ALPHAS
+        ]
+    if stage == "depth" and pos == "WR":
+        return [
+            replace(cur, alpha=a, components=True, depth=True, td_prior=td) for a in FACTOR_ALPHAS
+        ]
+    return []
+
+
+FACTOR_STAGES = ("vegas", "components", "routes", "depth")
+
+
+def tune_matchup_factors(
+    stats: pl.DataFrame,
+    schedules: Mapping[int, Schedule],
+    rules: dict[str, float],
+    train: Sequence[int],
+    valid: Sequence[int],
+) -> tuple[dict[str, PosFactors], list[dict]]:
+    """Add one matchup factor at a time; a position keeps it only if it has the lowest train
+    next-week MAE *and* beats the position's current setting on the holdout.
+
+    Stages: betting lines, stat components (with TD shrinkage), middle/outside route split
+    (WR, TE), WR1/WR2+ depth (WR). A position's multiplier only touches that position's rows,
+    so each candidate run covers every position at once.
+    """
+    from projections.matchup import MatchupAdjusted
+
+    base = _SameBase(BaselineEngine())
+    chosen = {p: PosFactors(MATCHUP_ALPHA[p]) for p in POSITIONS}
+
+    def run(settings: Mapping[str, PosFactors]) -> dict[str, pl.DataFrame]:
+        engine = MatchupAdjusted(base, weights_from(settings))
+        preds = walk_forward(engine, stats, schedules, rules, [*train, *valid])
+        return {
+            "train": metrics(preds.filter(pl.col("season").is_in(train))),
+            "valid": metrics(preds.filter(pl.col("season").is_in(valid))),
+        }
+
+    def val(m: pl.DataFrame, pos: str, col: str = "mae_1") -> float:
+        row = m.filter(pl.col("position") == pos)
+        return float(row[col][0]) if row.height and row[col][0] is not None else float("inf")
+
+    report = []
+    for stage in FACTOR_STAGES:
+        per_pos = {
+            p: [chosen[p], *(c for c in _factor_candidates(stage, p, chosen[p]) if c != chosen[p])]
+            for p in POSITIONS
+        }
+        results: dict[str, list[tuple[PosFactors, dict]]] = {p: [] for p in POSITIONS}
+        for i in range(max(len(v) for v in per_pos.values())):
+            m = run({p: v[min(i, len(v) - 1)] for p, v in per_pos.items()})
+            for p, v in per_pos.items():
+                if i < len(v):
+                    results[p].append((v[i], m))
+        for p in POSITIONS:
+            rows = results[p]
+            if len(rows) < 2:
+                continue
+            incumbent = rows[0]
+            best = min(rows, key=lambda r: val(r[1]["train"], p))
+            better = val(best[1]["valid"], p) < val(incumbent[1]["valid"], p)
+            keep = best[0] if better else chosen[p]
+            report.append(
+                {
+                    "stage": stage,
+                    "position": p,
+                    "rows": [
+                        (
+                            c.label(),
+                            val(m["train"], p),
+                            val(m["valid"], p),
+                            val(m["valid"], p, "spearman"),
+                        )
+                        for c, m in rows
+                    ],  # fmt: skip
+                    "chosen": keep.label(),
+                }
+            )
+            chosen[p] = keep
+    return chosen, report
 
 
 REG_BETA_SELL = (0.0, 0.25, 0.5, 0.75, 1.0)

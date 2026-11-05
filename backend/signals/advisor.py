@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from signals.byes import ByeWeekRow
 from signals.gameday import Alert
 from signals.lineup import SLOT_ELIGIBILITY, fit_to_slots
+from signals.matchup_factors import MatchupNote
 from signals.startsit import WeekPlan, plan_week
 from signals.team import RosMath, TeamProfile
 from signals.trade import TradeEvaluation
@@ -74,6 +75,8 @@ class AdvisorInputs:
     # open offers other teams sent you: (proposing team id, the analyzer's evaluation)
     offers: Sequence[tuple[str, TradeEvaluation]] = ()
     alerts: Sequence[Alert] = ()  # game-day alerts for this week's starters (signals.gameday)
+    # this week's matchup notes per player (signals.matchup_factors), strongest first
+    notes: Mapping[str, Sequence[MatchupNote]] = field(default_factory=dict)
     market_label: str = "Market"
     playoff_label: str = "weeks 15-17"
     waiver_min_gain: float = WAIVER_MIN_GAIN
@@ -136,8 +139,14 @@ def lineup_actions(inp: AdvisorInputs) -> list[Action]:
             reasons.append(f"{d['name']} is on bye in week {inp.week}.")
         elif d.get("injury_status"):
             reasons.append(f"{d['name']} is listed {d['injury_status']}.")
-        if a.get("ease_next4") and a["ease_next4"] >= inp.easy_schedule:
+        good = [n for n in inp.notes.get(add, ()) if n.tone == "good"]
+        bad = [n for n in inp.notes.get(drop, ()) if n.tone == "bad"]
+        if good:
+            reasons.append(f"{a['name']}: {good[0].text}")
+        elif a.get("ease_next4") and a["ease_next4"] >= inp.easy_schedule:
             reasons.append(f"{a['name']} has a favourable matchup.")
+        if bad:
+            reasons.append(f"{d['name']}: {bad[0].text}")
         actions.append(
             Action("Lineup", f"Start {a['name']} over {d['name']}", reasons, "this_week",
                    "high" if gain >= 4 or pts[drop] == 0 else "medium", min(gain / 2, 5.0), [add, drop])

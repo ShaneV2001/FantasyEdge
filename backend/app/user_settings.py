@@ -21,7 +21,7 @@ from projections.base import IR_WEEKS_MISSED, STATUS_THIS_WEEK, InjuryAssumption
 from projections.baseline import SHRINK_GAMES, W_USAGE
 from signals import advisor, trade, waivers
 from signals.lineup import BENCH_BACKUPS
-from signals.matchup_factors import TUNED_FACTORS, FactorWeights
+from signals.matchup_factors import TUNED_FACTORS, VEGAS_BETA, FactorWeights
 from signals.schedule import MATCHUP_ALPHA
 from signals.targets import TOP_N
 from signals.verdict import GAP_MIN_POINTS, GAP_MIN_SHARE, STARTABLE_RANK
@@ -42,6 +42,16 @@ def _alpha(pos: str):
     return _f(
         MATCHUP_ALPHA[pos], 0, 1.5, PROJ, f"{pos} matchup strength",
         f"How much an easy or hard opponent moves a {pos}'s weekly projection (0 = ignore matchups).",
+        tuned=True,
+    )  # fmt: skip
+
+
+def _vegas(pos: str):
+    side = "its opponent's" if pos == "DEF" else "its team's"
+    return _f(
+        VEGAS_BETA[pos], 0, 1.5, PROJ, f"{pos} betting-line strength",
+        f"How much {side} implied points from the betting lines (vs usual) move a {pos}'s weekly "
+        "projection (0 = ignore the lines).",
         tuned=True,
     )  # fmt: skip
 
@@ -74,6 +84,12 @@ class UserSettings(BaseModel):
     matchup_alpha_te: float = _alpha("TE")
     matchup_alpha_k: float = _alpha("K")
     matchup_alpha_def: float = _alpha("DEF")
+    vegas_beta_qb: float = _vegas("QB")
+    vegas_beta_rb: float = _vegas("RB")
+    vegas_beta_wr: float = _vegas("WR")
+    vegas_beta_te: float = _vegas("TE")
+    vegas_beta_k: float = _vegas("K")
+    vegas_beta_def: float = _vegas("DEF")
 
     gap_min_points: float = _f(
         GAP_MIN_POINTS, 0, 50, VERDICT, "Buy/sell gap (points)",
@@ -188,9 +204,16 @@ class UserSettings(BaseModel):
         }  # fmt: skip
 
     @property
+    def vegas(self) -> dict[str, float]:
+        return {
+            "QB": self.vegas_beta_qb, "RB": self.vegas_beta_rb, "WR": self.vegas_beta_wr,
+            "TE": self.vegas_beta_te, "K": self.vegas_beta_k, "DEF": self.vegas_beta_def,
+        }  # fmt: skip
+
+    @property
     def factors(self) -> FactorWeights:
-        """The tuned matchup factors at this user's per-position matchup strength."""
-        return replace(TUNED_FACTORS, alpha=self.alpha)
+        """The tuned matchup factors at this user's matchup and betting-line strengths."""
+        return replace(TUNED_FACTORS, alpha=self.alpha, vegas=self.vegas)
 
     @property
     def startable(self) -> dict[str, int]:

@@ -1287,6 +1287,11 @@ def advice_view(
         in_trades=in_trades,
         offers=graded,
         alerts=gameday_alerts(ctx, team_id),
+        notes={
+            pid: c[0].notes
+            for pid in team.player_ids
+            if (c := ctx.cells.get(pid)) and c[0].week == ctx.week
+        },  # fmt: skip
         week=ctx.week,
         trade_deadline_week=ctx.league.trade_deadline_week,
         trade_ideas=trade_ideas(ctx, team_id),
@@ -1373,10 +1378,7 @@ def _owner_label(ctx: LeagueContext, pid: str, team_id: str) -> tuple[str | None
 
 
 def _cells_out(cells) -> list[m.MatchupCell]:
-    return [
-        m.MatchupCell(week=c.week, opponent=c.opponent, index=c.index, points=c.points)
-        for c in cells
-    ]
+    return [ps.cell_out(c) for c in cells]
 
 
 def _ranking_row(ctx: LeagueContext, team_id: str, rank: int, r: TargetRow) -> m.RankingRow:
@@ -1677,6 +1679,7 @@ def startsit_view(ctx: LeagueContext, team_id: str, week: int | None = None) -> 
                 points=plan.points.get(pid, 0.0),
                 opponent=ctx.schedule.opponent(code, week),
                 matchup_index=cell.index if cell else None,
+                matchup_notes=ps.notes_out(cell.notes) if cell else [],
                 on_bye=bool(code) and not ctx.schedule.has_game(code, week),
                 injury_status=p.get("injury_status"),
                 return_week=p.get("return_week"),

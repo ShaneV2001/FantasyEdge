@@ -20,8 +20,10 @@ LIVE_GRACE = timedelta(hours=12)  # after a week's last kickoff, its games shoul
 # tune-matchups` (walk-forward, tuned on earlier seasons and checked on the latest).
 # 2025 holdout, next-week MAE at chosen α vs α=0: QB 6.46/6.49, RB 4.08/4.09, WR 3.72/3.72,
 # K 3.77/3.79, DEF 4.18/4.30 (weekly Spearman 0.12 → 0.23). TE: matchups didn't help.
+# QB and RB now meet the opponent by stat component (`signals.matchup_factors`), where
+# `tune-factors` chose α 0.5 (QB) and 0.25 (RB) for that blend.
 MATCHUP_ALPHA: dict[str, float] = {
-    "QB": 0.25, "RB": 0.5, "WR": 0.25, "TE": 0.0, "K": 0.25, "DEF": 0.75,
+    "QB": 0.5, "RB": 0.25, "WR": 0.25, "TE": 0.0, "K": 0.25, "DEF": 0.75,
 }  # fmt: skip
 
 

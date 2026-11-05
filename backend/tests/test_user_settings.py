@@ -3,6 +3,7 @@ import json
 import pytest
 
 from app import user_settings as us
+from signals.matchup_factors import TUNED_FACTORS, VEGAS_BETA
 from signals.schedule import MATCHUP_ALPHA
 from signals.verdict import STARTABLE_RANK
 
@@ -10,6 +11,9 @@ from signals.verdict import STARTABLE_RANK
 def test_defaults_match_the_tuned_constants():
     s = us.UserSettings()
     assert s.alpha == MATCHUP_ALPHA
+    assert s.vegas == VEGAS_BETA
+    assert s.factors == TUNED_FACTORS
+    assert us.UserSettings(vegas_beta_k=0).factors.vegas["K"] == 0
     assert s.startable == STARTABLE_RANK
     assert (s.usage_weight, s.shrink_games, s.gap_min_points, s.gap_min_share) == (
         0.5,

@@ -68,13 +68,26 @@ class FactorWeights:
     components: frozenset[str] = frozenset()  # positions scaled by stat components
     routes: frozenset[str] = frozenset()  # ...with receiving yards split middle / outside
     depth: bool = False  # WRs meet the opponent's WR1 or WR2+ index instead of all-WR
-    td_prior: float = 0.0  # extra pseudo-games at the league average for TD indexes
+    # extra pseudo-games at the league average for TD indexes, per position
+    td_prior: Mapping[str, float] = field(default_factory=dict)
     vegas: Mapping[str, float] = field(default_factory=dict)  # β per position
 
 
-# Chosen by `python -m models.run tune-factors` (tuned on earlier seasons, kept only where the
-# latest season's holdout improved). Until then: the position-level index alone.
-TUNED_FACTORS = FactorWeights()
+# Chosen by `python -m models.run tune-factors`: tuned on 2023-24, a factor kept only where it
+# was best on train *and* improved the 2025 holdout. Next-week MAE on the 2025 holdout, before →
+# after (weekly Spearman in brackets where it moved):
+#   betting lines   QB 6.457 → 6.440, RB 4.083 → 4.067, WR 3.721 → 3.710, TE 3.075 → 3.059,
+#                   K 3.773 → 3.735 (0.14 → 0.19), DEF 4.177 → 4.173 (0.23 → 0.25)
+#   stat components QB 6.440 → 6.429 (TDs shrunk with 16 games), RB 4.067 → 4.053
+#                   WR, TE: no gain on train, so off (TE was slightly better on the holdout)
+#   middle/outside routes (WR, TE), WR1 vs WR2+: no gain, so off
+# The factors left off still produce matchup notes, marked as not in the projection.
+VEGAS_BETA: dict[str, float] = {
+    "QB": 0.5, "RB": 0.5, "WR": 0.5, "TE": 0.5, "K": 0.75, "DEF": 0.25,
+}  # fmt: skip
+TUNED_FACTORS = FactorWeights(
+    components=frozenset({"QB", "RB"}), td_prior={"QB": 16.0}, vegas=dict(VEGAS_BETA)
+)
 
 
 @dataclass(frozen=True)
@@ -336,10 +349,13 @@ def build_matchup_model(
     if "rec_yds_mid" not in hist.columns:  # stores ingested before migration v13
         hist = hist.with_columns(pl.lit(0, pl.Int32).alias("rec_yds_mid"))
     td = pl.col("stat").is_in(TD_STATS)
+    prior_by_bucket = {b: weights.td_prior.get(b[:2], 0.0) for b in GROUP}  # WR1/WR2 → WR
     long = _long(hist)
     df = allowed_index(
         long, ["bucket", "stat"], "value", season, through_week,
-        mean_weight=pl.when(td).then(weights.td_prior).otherwise(0.0),
+        mean_weight=pl.when(td).then(
+            pl.col("bucket").replace_strict(prior_by_bucket, default=0.0, return_dtype=pl.Float64)
+        ).otherwise(0.0),
     )  # fmt: skip
     idx, rank = {}, {}
     for o, b, st, i, r in df.select("opponent", "bucket", "stat", "idx", "rank").iter_rows():

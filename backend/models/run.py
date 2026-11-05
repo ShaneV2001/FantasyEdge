@@ -4,6 +4,7 @@
     python -m models.run regression-eval [--seasons ...]
     python -m models.run tune [--seasons ...]   (last season is the holdout)
     python -m models.run tune-matchups [--seasons ...]
+    python -m models.run tune-factors [--seasons ...]
 
 Downloads (once, then cached) the seasons plus the season before the first, runs the walk-forward
 backtest for every engine, prints a comparison and records one `model_runs` row per engine.
@@ -25,7 +26,13 @@ from db.conn import connect, upsert
 from models.backtest import metrics, metrics_json, walk_forward
 from models.data import load_seasons
 from models.regression_eval import flag_outcomes, summarize
-from models.tune import tune_matchups, tune_regression, tune_thresholds, tune_weights
+from models.tune import (
+    tune_matchup_factors,
+    tune_matchups,
+    tune_regression,
+    tune_thresholds,
+    tune_weights,
+)
 from projections.baseline import BaselineEngine
 from projections.simple import Last3Engine, SeasonPpgEngine
 from scoring.rules import PRESETS
@@ -172,6 +179,31 @@ def cmd_tune_matchups(args: argparse.Namespace) -> None:
         print(f"     best on train {r['best_train']:g} -> chosen {r['chosen']:g}\n")
 
 
+def cmd_tune_factors(args: argparse.Namespace) -> None:
+    seasons = _seasons(args.seasons)
+    train, valid = seasons[:-1], seasons[-1:]
+    stats, schedules = load_seasons([seasons[0] - 1, *seasons], backtest_dir(), args.refresh)
+    print(
+        f"\nMatchup factors, one stage at a time: next-week MAE, tuned on {train}, holdout {valid}"
+    )
+    print(
+        "(a position keeps a factor only if best on train and better than its setting on holdout)"
+    )
+    chosen, report = tune_matchup_factors(stats, schedules, PRESETS[args.scoring], train, valid)
+    stage = None
+    for r in report:
+        if r["stage"] != stage:
+            stage = r["stage"]
+            print(f"\n== {stage} ==")
+        print(f"{r['position']:<4} {'setting':<36}{'train':>8}{'hold':>8}{'rho':>7}")
+        for label, t, v, rho in r["rows"]:
+            mark = "  <- chosen" if label == r["chosen"] else ""
+            print(f"     {label:<36}{t:>8.3f}{v:>8.3f}{rho:>7.3f}{mark}")
+    print("\nChosen:")
+    for p, c in chosen.items():
+        print(f"  {p:<4} {c.label()}")
+
+
 def cmd_tune_regression(args: argparse.Namespace) -> None:
     seasons = _seasons(args.seasons)
     train, valid = seasons[:-1], seasons[-1:]
@@ -208,6 +240,9 @@ def main(argv: list[str] | None = None) -> None:
     mt = sub.add_parser("tune-matchups", help="how much each position should follow its schedule")
     _common(mt)
     mt.set_defaults(fn=cmd_tune_matchups)
+    tf = sub.add_parser("tune-factors", help="which opponent factors should move projections")
+    _common(tf)
+    tf.set_defaults(fn=cmd_tune_factors)
     tr = sub.add_parser("tune-regression", help="how much regression flags should move projections")
     _common(tr)
     tr.set_defaults(fn=cmd_tune_regression)

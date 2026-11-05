@@ -719,6 +719,14 @@ class TradeOffersOut(BaseModel):
 # ───────── buy targets ─────────
 
 
+class MatchupNoteOut(BaseModel):
+    text: str = Field(description="e.g. 'DET allows the most receiving TDs to TEs.'")
+    tone: str = Field(description="good | bad, for this player")
+    in_projection: bool = Field(
+        description="False: shown for context only (the backtest didn't back this factor)"
+    )
+
+
 class MatchupCell(BaseModel):
     week: int
     opponent: str | None = Field(None, description="None on a bye")
@@ -726,6 +734,9 @@ class MatchupCell(BaseModel):
         None, description="Opponent's fantasy points allowed to the position vs average (>1 easier)"
     )
     points: float = Field(description="Matchup-adjusted projected points")
+    notes: list[MatchupNoteOut] = Field(
+        default_factory=list, description="What stands out about this opponent, strongest first"
+    )
 
 
 class RankingRow(PlayerTrend):
@@ -1043,6 +1054,7 @@ class StartSitPlayer(BaseModel):
     points: float = Field(description="Projected points this week (matchup-adjusted; 0 if done)")
     opponent: str | None = None
     matchup_index: float | None = Field(None, description=">1 = easier than average")
+    matchup_notes: list[MatchupNoteOut] = Field(default_factory=list)
     on_bye: bool
     injury_status: str | None = None
     return_week: int | None = Field(
