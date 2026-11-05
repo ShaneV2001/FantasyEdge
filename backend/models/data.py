@@ -18,7 +18,8 @@ from signals.schedule import Schedule, build_schedule
 log = logging.getLogger("fantasyedge.backtest")
 
 FANTASY_POSITIONS = ("QB", "RB", "WR", "TE", "K")
-CACHE_VERSION = 3  # bump when cached columns change (v2: K/DEF; v3: YAC, pass air yards)
+CACHE_VERSION = 4  # bump when cached columns change (v2: K/DEF; v3: YAC, pass air yards;
+# v4: middle-of-field targets, and betting lines in the games file)
 
 
 def _positions(raw_stats: pl.DataFrame) -> pl.DataFrame:
@@ -71,7 +72,7 @@ def load_seasons(
     for season in seasons:
         s_path, g_path = (
             cache_dir / f"{season}_stats_v{CACHE_VERSION}.parquet",
-            cache_dir / f"{season}_games.parquet",
+            cache_dir / f"{season}_games_v{CACHE_VERSION}.parquet",
         )
         if refresh or not (s_path.exists() and g_path.exists()):
             st, games = _download(season)

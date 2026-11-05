@@ -28,6 +28,7 @@ STATS_COLUMNS = [
     "air_yards", "target_share", "air_yards_share", "wopr",
     "rec_yac", "pass_yac", "pass_air_yards",
     "rz_carries", "rz_targets", "gl_carries", "rz_td",
+    "tgt_mid", "rec_mid", "rec_yds_mid", "rec_td_mid",
     "fumbles_lost", "two_pt", "epa_total",
     "pass_fd", "rush_fd", "rec_fd", "fumbles", "sacks_taken", "pass_int_td",
     "pass_2pt", "rush_2pt", "rec_2pt",
@@ -38,6 +39,7 @@ STATS_COLUMNS = [
 ]  # fmt: skip
 
 SKILL = ("QB", "RB", "WR", "TE")
+ROUTE_SPLIT = ("tgt_mid", "rec_mid", "rec_yds_mid", "rec_td_mid")  # middle-of-field targets
 
 
 def norm_team(col: str) -> pl.Expr:
@@ -234,6 +236,39 @@ def red_zone_from_pbp(pbp: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def route_split_from_pbp(pbp: pl.DataFrame) -> pl.DataFrame:
+    """Per player-week targets, catches, yards and TDs on throws to the middle of the field.
+
+    nflverse has no slot/wide alignment, so middle-of-field targets stand in for slot-style
+    usage; outside (left/right, or no location) is the player's total minus these.
+    """
+    yds = pl.col("receiving_yards") if "receiving_yards" in pbp.columns else pl.col("yards_gained")
+    mid = (
+        pbp.filter(
+            (pl.col("season_type") == "REG")
+            & (pl.col("two_point_attempt").fill_null(0) == 0)
+            & (pl.col("pass_attempt") == 1)
+            & (pl.col("sack").fill_null(0) == 0)
+            & pl.col("receiver_player_id").is_not_null()
+            & (pl.col("pass_location") == "middle")
+        )
+        .group_by(pl.col("receiver_player_id").alias("player_id"), "season", "week")
+        .agg(
+            pl.len().alias("tgt_mid"),
+            (pl.col("complete_pass").fill_null(0) == 1).sum().alias("rec_mid"),
+            pl.when(pl.col("complete_pass") == 1).then(yds).otherwise(0).fill_null(0).sum()
+            .alias("rec_yds_mid"),
+            (pl.col("pass_touchdown").fill_null(0) == 1).sum().alias("rec_td_mid"),
+        )
+    )  # fmt: skip
+    return mid.select(
+        "player_id",
+        pl.col("season").cast(pl.Int32),
+        pl.col("week").cast(pl.Int32),
+        *(pl.col(c).cast(pl.Int32) for c in ROUTE_SPLIT),
+    )
+
+
 def pick_sixes_from_pbp(pbp: pl.DataFrame) -> pl.DataFrame:
     """Interceptions returned for a touchdown, charged to the passer (Sleeper `pass_int_td`)."""
     return (
@@ -273,9 +308,10 @@ def build_player_week_stats(
     if pbp is not None:
         base = base.join(red_zone_from_pbp(pbp), on=keys, how="left")
         base = base.join(pick_sixes_from_pbp(pbp), on=keys, how="left")
+        base = base.join(route_split_from_pbp(pbp), on=keys, how="left")
     if snaps is not None:
         base = base.join(snaps, on=keys, how="left")
-    for col in ("rz_carries", "rz_targets", "gl_carries", "rz_td", "pass_int_td"):
+    for col in ("rz_carries", "rz_targets", "gl_carries", "rz_td", "pass_int_td", *ROUTE_SPLIT):
         if col not in base.columns:
             base = base.with_columns(pl.lit(0, pl.Int32).alias(col))
         base = base.with_columns(pl.col(col).fill_null(0))
@@ -322,6 +358,11 @@ def transform_schedule(sched: pl.DataFrame) -> pl.DataFrame:
         .alias("kickoff"),
         pl.col("home_score").cast(pl.Int32),
         pl.col("away_score").cast(pl.Int32),
+        # betting lines (spread > 0 = home favoured); null until posted
+        *(
+            (pl.col(c) if c in sched.columns else pl.lit(None)).cast(pl.Float64).alias(c)
+            for c in ("spread_line", "total_line")
+        ),
     )
 
 

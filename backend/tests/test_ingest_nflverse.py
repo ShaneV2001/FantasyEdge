@@ -4,6 +4,7 @@ from ingest.nflverse import (
     build_player_week_stats,
     pick_sixes_from_pbp,
     red_zone_from_pbp,
+    route_split_from_pbp,
     transform_kicker_stats,
     transform_schedule,
     transform_team_defense,
@@ -49,6 +50,27 @@ def test_red_zone_counts_and_tds():
     assert out["B"]["rz_targets"] == 1 and out["B"]["rz_carries"] == 0
 
 
+def test_route_split_counts_middle_targets_only():
+    pbp = _pbp(
+        [
+            {"pass_attempt": 1, "receiver_player_id": "A", "pass_location": "middle",
+             "complete_pass": 1, "receiving_yards": 12.0},
+            {"pass_attempt": 1, "receiver_player_id": "A", "pass_location": "middle",
+             "complete_pass": 1, "receiving_yards": 20.0, "pass_touchdown": 1},
+            {"pass_attempt": 1, "receiver_player_id": "A", "pass_location": "middle",
+             "complete_pass": 0, "receiving_yards": None},
+            {"pass_attempt": 1, "receiver_player_id": "A", "pass_location": "left",
+             "complete_pass": 1, "receiving_yards": 30.0},
+            {"pass_attempt": 1, "receiver_player_id": "B", "pass_location": "right",
+             "complete_pass": 1, "receiving_yards": 5.0},
+        ]
+    )  # fmt: skip
+    out = route_split_from_pbp(pbp)
+    assert out.select("player_id", "tgt_mid", "rec_mid", "rec_yds_mid", "rec_td_mid").rows() == [
+        ("A", 3, 2, 32, 1)
+    ]
+
+
 def test_schedule_has_one_bye_per_team():
     games = load_parquet("nfl_games.parquet").filter(pl.col("season") == 2025)
     assert set(games["home_team"]) == set(games["away_team"])
@@ -78,6 +100,10 @@ def test_transform_schedule_filters_postseason():
     )
     out = transform_schedule(raw)
     assert out.height == 1 and out["home_team"][0] == "LAR"
+    assert out["total_line"][0] is None  # lines missing upstream stay null
+
+    lined = transform_schedule(raw.with_columns(spread_line=pl.lit(3.5), total_line=pl.lit(47.5)))
+    assert lined.select("spread_line", "total_line").row(0) == (3.5, 47.5)
 
 
 def test_pick_sixes_charge_the_passer():

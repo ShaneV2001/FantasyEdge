@@ -124,6 +124,17 @@ MIGRATIONS: list[tuple[int, str]] = [
         " conversation_id VARCHAR, seq INTEGER, role VARCHAR, content JSON, created_at TIMESTAMP,"
         " PRIMARY KEY (conversation_id, seq));",
     ),
+    # v13: opponent matchup factors. Middle-of-field targets (a slot-style proxy: nflverse has
+    # no alignment) and the betting lines, for implied team totals.
+    (
+        13,
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS tgt_mid INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rec_mid INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rec_yds_mid INTEGER;"
+        "ALTER TABLE player_week_stats ADD COLUMN IF NOT EXISTS rec_td_mid INTEGER;"
+        "ALTER TABLE nfl_games ADD COLUMN IF NOT EXISTS spread_line DOUBLE;"
+        "ALTER TABLE nfl_games ADD COLUMN IF NOT EXISTS total_line DOUBLE;",
+    ),
 ]
 
 
