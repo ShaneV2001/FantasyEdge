@@ -32,8 +32,6 @@ export function ChatHeader({
   onSelectConversation,
   onNewChat,
 }: ChatHeaderProps) {
-  const currentConversation = conversations.find((c) => c.id === conversationId)
-
   return (
     <div className="flex items-center justify-between border-t border-border bg-card px-3 py-2">
       <div className="flex items-center gap-2">
@@ -44,9 +42,9 @@ export function ChatHeader({
           className="h-6 w-6 p-0"
         >
           {isExpanded ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
             <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
           )}
         </Button>
         <MessageSquare className="h-4 w-4 text-muted-foreground" />
@@ -60,7 +58,7 @@ export function ChatHeader({
             }
           >
             <SelectTrigger className="h-8 w-48 text-xs">
-              <SelectValue placeholder="New chat" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__new__">New chat</SelectItem>
