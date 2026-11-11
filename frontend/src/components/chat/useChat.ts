@@ -11,7 +11,7 @@ interface UseChatReturn {
   conversationsError: Error | null
   error: Error | null
   sendMessage: (text: string) => Promise<void>
-  selectConversation: (id: string | null) => void
+  selectConversation: (id: string | null) => Promise<void>
   startNewChat: () => void
 }
 
@@ -62,8 +62,14 @@ export function useChat(teamId: string): UseChatReturn {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || 'Chat request failed')
+        let detail = ''
+        try {
+          const errorData = await response.json()
+          detail = errorData.detail || ''
+        } catch {
+          // body not JSON
+        }
+        throw new Error(detail || `HTTP ${response.status}: Chat request failed`)
       }
 
       // Parse SSE stream
@@ -71,28 +77,31 @@ export function useChat(teamId: string): UseChatReturn {
       if (!reader) throw new Error('No response body')
 
       const decoder = new TextDecoder()
+      let buffer = ''
       let assistantContent = ''
       let toolStatus: ChatMessage['toolStatus'] = []
       let assistantMsg: ChatMessage | null = null
-      let newConversationId = conversationId
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
 
-        for (const line of lines) {
+        // Keep the last (potentially incomplete) line in the buffer
+        buffer = lines[lines.length - 1] || ''
+
+        for (let i = 0; i < lines.length - 1; i++) {
+          const line = lines[i]
           if (!line.trim()) continue
           if (!line.startsWith('data: ')) continue
 
-          const data = line.slice(6) // Remove 'data: '
-          const event = JSON.parse(data)
+          try {
+          const event = JSON.parse(line.slice(6))
 
           if (event.conversation_id && event.model) {
             // meta event
-            newConversationId = event.conversation_id
             setConversationId(event.conversation_id)
           } else if (event.text) {
             // text chunk
@@ -130,9 +139,16 @@ export function useChat(teamId: string): UseChatReturn {
                 )
               )
             }
+          } else if (event.message || (event.error && event.error.message)) {
+            // error event (backend sends {message}; also accept {error: {message}})
+            setError(new Error(event.message || event.error.message))
           } else if (event.stop_reason) {
             // done event
             refetchConversations()
+          }
+          } catch (parseErr) {
+            // JSON parse error in an event line; log but continue
+            console.error('Failed to parse SSE event:', parseErr)
           }
         }
       }
@@ -143,9 +159,32 @@ export function useChat(teamId: string): UseChatReturn {
     }
   }
 
-  const selectConversation = (id: string | null) => {
+  const selectConversation = async (id: string | null) => {
     setConversationId(id)
     setMessages([])
+    setError(null)
+
+    // Load message history if resuming an existing chat
+    if (id) {
+      try {
+        const response = await fetch(`/api/chats/${id}`)
+        if (!response.ok) throw new Error('Failed to load chat history')
+        const chat = (await response.json()) as {
+          messages: Array<{ role: 'user' | 'assistant'; text: string; tools: string[] }>
+        }
+        setMessages(
+          chat.messages.map((m) => ({
+            id: `${m.role}-${++messageIdRef.current}`,
+            role: m.role,
+            content: m.text,
+            createdAt: new Date(),
+          }))
+        )
+      } catch (err) {
+        // If history load fails, user can still continue the chat
+        console.error('Could not load chat history:', err)
+      }
+    }
   }
 
   const startNewChat = () => {
