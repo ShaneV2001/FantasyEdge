@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { ChatHeader } from './ChatHeader'
 import { ChatMessages } from './ChatMessages'
@@ -35,18 +35,18 @@ export function ChatPanel({ teamId }: ChatPanelProps) {
     document.addEventListener('mouseup', handleMouseUp)
   }
 
-  const handleMouseMove = (e: MouseEvent) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDraggingRef.current) return
-    const delta = e.clientY - startYRef.current
+    const delta = startYRef.current - e.clientY
     const newHeight = Math.max(200, Math.min(600, startHeightRef.current + delta))
     setPanelHeight(newHeight)
-  }
+  }, [])
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     isDraggingRef.current = false
     document.removeEventListener('mousemove', handleMouseMove)
     document.removeEventListener('mouseup', handleMouseUp)
-  }
+  }, [handleMouseMove])
 
   return (
     <Card className="flex flex-col border-t border-l-0 border-r-0 border-b-0">

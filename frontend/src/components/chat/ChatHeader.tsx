@@ -3,7 +3,7 @@ import {
   ChevronDown,
   Plus,
   MessageSquare,
-  Minus2,
+  Minus,
 } from 'lucide-react'
 import {
   Select,
@@ -78,7 +78,7 @@ export function ChatHeader({
             <Plus className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" onClick={onToggle} className="h-6 w-6 p-0">
-            <Minus2 className="h-4 w-4" />
+            <Minus className="h-4 w-4" />
           </Button>
         </div>
       )}
