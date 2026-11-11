@@ -16,6 +16,7 @@ import { useState } from 'react'
 
 import type { ActionOut } from '@/api'
 import { getAdviceOptions } from '@/api/@tanstack/react-query.gen'
+import { ChatPanel } from '@/components/chat/ChatPanel'
 import { EmptyState, ErrorState, ListSkeleton, PageHeader } from '@/components/common/states'
 import { PlayerChip } from '@/components/player/badges'
 import { TeamGrades } from '@/components/team/TeamGrades'
@@ -52,62 +53,67 @@ export function AdvisorPage() {
   const n = advice.data?.pending_trades ?? 0
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Advisor"
-        description={
-          advice.data
-            ? `${team.teamName} · Week ${advice.data.week}${n ? ` · after ${n} accepted trade${n > 1 ? 's' : ''}` : ''} · ${advice.data.actions.length} recommended moves, highest priority first`
-            : team.teamName
-        }
-      />
-      {pending.has && pending.data && (
-        <PendingTradesBanner data={pending.data} action={<RosterViewToggle view={pending.view} onChange={pending.setView} />} />
-      )}
-      {advice.isPending && (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            {Array.from({ length: 5 }, (_, i) => (
-              <Skeleton key={i} className="h-[76px] rounded-xl" />
-            ))}
-          </div>
-          <ListSkeleton rows={5} height="h-28" />
-        </>
-      )}
-      {advice.isError && <ErrorState error={advice.error} onRetry={() => void advice.refetch()} />}
-      {advice.data && (
-        <>
-          <section className="flex flex-col gap-2">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              {advice.data.view === 'after' ? 'Team grade after the accepted trades' : 'Team grade'}
-            </h2>
-            <TeamGrades
-              grades={advice.data.grades}
-              overall={advice.data.overall_grade}
-              basis={advice.data.grade_basis}
-              needs={advice.data.needs}
-              compare={advice.data.view === 'after' ? current.data?.grades : undefined}
-              compareOverall={advice.data.view === 'after' ? current.data?.overall_grade : undefined}
-            />
-          </section>
-          {(advice.data.notes ?? []).map((n) => (
-            <Alert key={n}>
-              <Info />
-              <AlertDescription>{n}</AlertDescription>
-            </Alert>
-          ))}
-          <section className="flex flex-col gap-3">
-            {advice.data.actions.length === 0 ? (
-              <EmptyState title="Nothing urgent this week" icon={<ShoppingCart className="size-6" />}>
-                Your lineup is set, no bye holes are coming, and no player shows a strong regression signal. Check
-                back after the next refresh.
-              </EmptyState>
-            ) : (
-              advice.data.actions.map((a, i) => <ActionCard key={`${a.type}-${a.headline}`} action={a} rank={i + 1} />)
-            )}
-          </section>
-        </>
-      )}
+    <div className="flex flex-col h-screen">
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-6">
+          <PageHeader
+            title="Advisor"
+            description={
+              advice.data
+                ? `${team.teamName} · Week ${advice.data.week}${n ? ` · after ${n} accepted trade${n > 1 ? 's' : ''}` : ''} · ${advice.data.actions.length} recommended moves, highest priority first`
+                : team.teamName
+            }
+          />
+          {pending.has && pending.data && (
+            <PendingTradesBanner data={pending.data} action={<RosterViewToggle view={pending.view} onChange={pending.setView} />} />
+          )}
+          {advice.isPending && (
+            <>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Skeleton key={i} className="h-[76px] rounded-xl" />
+                ))}
+              </div>
+              <ListSkeleton rows={5} height="h-28" />
+            </>
+          )}
+          {advice.isError && <ErrorState error={advice.error} onRetry={() => void advice.refetch()} />}
+          {advice.data && (
+            <>
+              <section className="flex flex-col gap-2">
+                <h2 className="text-sm font-medium text-muted-foreground">
+                  {advice.data.view === 'after' ? 'Team grade after the accepted trades' : 'Team grade'}
+                </h2>
+                <TeamGrades
+                  grades={advice.data.grades}
+                  overall={advice.data.overall_grade}
+                  basis={advice.data.grade_basis}
+                  needs={advice.data.needs}
+                  compare={advice.data.view === 'after' ? current.data?.grades : undefined}
+                  compareOverall={advice.data.view === 'after' ? current.data?.overall_grade : undefined}
+                />
+              </section>
+              {(advice.data.notes ?? []).map((n) => (
+                <Alert key={n}>
+                  <Info />
+                  <AlertDescription>{n}</AlertDescription>
+                </Alert>
+              ))}
+              <section className="flex flex-col gap-3">
+                {advice.data.actions.length === 0 ? (
+                  <EmptyState title="Nothing urgent this week" icon={<ShoppingCart className="size-6" />}>
+                    Your lineup is set, no bye holes are coming, and no player shows a strong regression signal. Check
+                    back after the next refresh.
+                  </EmptyState>
+                ) : (
+                  advice.data.actions.map((a, i) => <ActionCard key={`${a.type}-${a.headline}`} action={a} rank={i + 1} />)
+                )}
+              </section>
+            </>
+          )}
+        </div>
+      </div>
+      <ChatPanel teamId={team.teamId} />
     </div>
   )
 }
