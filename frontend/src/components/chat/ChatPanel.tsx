@@ -37,7 +37,7 @@ export function ChatPanel({ teamId }: ChatPanelProps) {
 
   const handleMouseMove = (e: MouseEvent) => {
     if (!isDraggingRef.current) return
-    const delta = startYRef.current - e.clientY
+    const delta = e.clientY - startYRef.current
     const newHeight = Math.max(200, Math.min(600, startHeightRef.current + delta))
     setPanelHeight(newHeight)
   }
