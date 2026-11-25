@@ -33,3 +33,6 @@ Thumbs.db
 # internal working notes (kept outside the repo)
 HANDOFF.md
 docs/superpowers/
+
+# local agent working notes
+.superpowers/
