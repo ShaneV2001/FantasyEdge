@@ -97,7 +97,12 @@ class RosterPlayer(PlayerValue):
     )
     on_bye: bool = Field(False, description="His NFL team doesn't play this week")
     flags: list[FlagOut] = []
-    arriving: bool = Field(False, description="Received in an accepted trade not processed yet")
+    arriving: bool = Field(
+        False, description="Received in an accepted (or previewed) trade not processed yet"
+    )
+    lineup_slot: str | None = Field(
+        None, description="Slot in this week's best lineup (QB, RB, FLEX, W/R …); None = bench"
+    )
 
 
 # ───────── leagues ─────────
@@ -506,6 +511,18 @@ class TradeOutlookOut(BaseModel):
     slots: list[str]
     me: RosterOutlookOut
     partner: RosterOutlookOut | None = None
+
+
+class TradePreviewOut(BaseModel):
+    """Both teams as if a proposed trade had gone through (after any forced drops): rosters with
+    this week's best lineup by slot, and position grades and ranks re-computed league-wide."""
+
+    me: TeamOut
+    partner: TeamOut | None = Field(None, description="None for a hypothetical trade")
+    me_drops: list[DropOut] = Field(
+        default_factory=list, description="Players you'd have to cut to stay at the roster limit"
+    )
+    partner_drops: list[DropOut] = Field(default_factory=list)
 
 
 class PendingTradeOut(BaseModel):

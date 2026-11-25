@@ -200,6 +200,41 @@ def test_trade_evaluate_and_suggest(client):
         assert idea["me"]["lineup_delta"] > 0 and idea["partner"]["lineup_delta"] > 0
 
 
+def test_trade_preview_moves_players_and_regrades(client):
+    tc, _ = client
+    team_id = connect_and_pick(tc)
+    team = tc.get(f"/team/{team_id}").json()
+    other = next(t for t in team["league_teams"] if not t["is_mine"])
+    theirs = tc.get(f"/team/{other['team_id']}").json()
+    give = next(p["player_id"] for p in team["roster"] if p["position"] == "RB")
+    get = next(p["player_id"] for p in theirs["roster"] if p["position"] == "RB")
+
+    r = tc.post("/trade/preview", json={"team_id": team_id, "give": [give], "receive": [get]})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    me, partner = d["me"], d["partner"]
+    mine = {p["player_id"]: p for p in me["roster"]}
+    assert get in mine and mine[get]["arriving"] and give not in mine
+    their = {p["player_id"]: p for p in partner["roster"]}
+    assert give in their and their[give]["arriving"] and get not in their
+    for side, drops in ((me, d["me_drops"]), (partner, d["partner_drops"])):
+        ids = {p["player_id"] for p in side["roster"]}
+        assert not ids & {x["player"]["player_id"] for x in drops}
+        # the lineup comes first, in slot order, and only best-lineup players have a slot
+        assert all((p["lineup_slot"] is not None) == p["optimal_starter"] for p in side["roster"])
+        n = sum(p["optimal_starter"] for p in side["roster"])
+        assert all(p["optimal_starter"] for p in side["roster"][:n])
+    # league-wide grades are re-computed on the new rosters
+    assert {t["team_id"] for t in me["league_teams"]} == {
+        t["team_id"] for t in team["league_teams"]
+    }
+    # today's league is untouched
+    assert get not in {p["player_id"] for p in tc.get(f"/team/{team_id}").json()["roster"]}
+
+    bad = tc.post("/trade/preview", json={"team_id": team_id, "give": [get], "receive": []})
+    assert bad.status_code == 422
+
+
 def test_trade_validation_errors(client):
     tc, _ = client
     team_id = connect_and_pick(tc)

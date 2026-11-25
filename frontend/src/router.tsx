@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { AdvisorPage } from '@/routes/advisor'
 import { ByesPage } from '@/routes/byes'
 import { ConnectPage } from '@/routes/connect'
+import { LeaguePage, leagueSearchSchema } from '@/routes/league'
 import { MatchupPage } from '@/routes/matchup'
 import { BuyTargetsPage } from '@/routes/buy-targets'
 import { PlayerPage } from '@/routes/player'
@@ -39,6 +40,13 @@ const advisorRoute = createRoute({
   component: AdvisorPage,
 })
 const teamRoute = createRoute({ getParentRoute: () => rootRoute, path: '/team', beforeLoad: requireTeam, component: TeamPage })
+const leagueRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/league',
+  beforeLoad: requireTeam,
+  validateSearch: (search) => leagueSearchSchema.parse(search),
+  component: LeaguePage,
+})
 const teamEditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/team/edit',
@@ -97,7 +105,7 @@ const waiversRoute = createRoute({
 })
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/settings', component: SettingsPage })
 
-const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, startSitRoute, matchupRoute, byesRoute, rankingsRoute, buyTargetsRoute, playersRoute, playerRoute, tradeRoute, waiversRoute, settingsRoute])
+const routeTree = rootRoute.addChildren([indexRoute, connectRoute, advisorRoute, teamRoute, teamEditRoute, leagueRoute, startSitRoute, matchupRoute, byesRoute, rankingsRoute, buyTargetsRoute, playersRoute, playerRoute, tradeRoute, waiversRoute, settingsRoute])
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' })
 

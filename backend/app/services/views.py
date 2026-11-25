@@ -646,7 +646,14 @@ def team_view(
     prof = profs.get(team_id)
     # This week's best lineup (matchup-adjusted): a player on bye or ruled out can't be in it, and
     # a starter whose game is already final keeps his spot. Full-strength profiles are for grades.
-    optimal = week_plan(ctx, team_id).starters
+    plan = week_plan(ctx, team_id)
+    optimal = plan.starters
+    # each starter's slot in that lineup, and the slot order (QB, RB, RB, WR … FLEX) to sort by
+    lineup_slot = {
+        pid: (i, slot_label(s))
+        for i, (s, pid) in enumerate(zip(plan.slots, plan.optimal, strict=True))
+        if pid
+    }
     slot_of = team.slots
     roster = []
     for pid in team.player_ids:
@@ -660,11 +667,13 @@ def team_view(
                 on_bye=_on_bye(ctx, pid),
                 flags=[flag_out(f) for f in ctx.regression.for_player(pid)],
                 arriving=pid in arriving_ids,
+                lineup_slot=lineup_slot[pid][1] if pid in lineup_slot else None,
             )
         )
     roster.sort(
         key=lambda r: (
             not r.optimal_starter,
+            lineup_slot[r.player_id][0] if r.player_id in lineup_slot else 0,
             ["QB", "RB", "WR", "TE", "K", "DEF"].index(r.position)
             if r.position in ("QB", "RB", "WR", "TE", "K", "DEF")
             else 9,
@@ -1050,32 +1059,80 @@ def with_trades(ctx: LeagueContext, rows: Sequence) -> LeagueContext:
     No forced drops: ESPN only processes a trade that leaves both rosters legal."""
     key = ("after", tuple(sorted(r.external_id for r in rows)))
     if key not in ctx.memo:
-        gone: dict[str, set[str]] = {}
-        incoming: dict[str, list[str]] = {}
-        for r in rows:
-            for mv in r.moves:
-                gone.setdefault(mv["from_team"], set()).add(mv["player_id"])
-                incoming.setdefault(mv["to_team"], []).append(mv["player_id"])
-            for d in r.drops:
-                gone.setdefault(d["team_id"], set()).add(d["player_id"])
-        teams = []
-        for t in ctx.teams:
-            out, new = gone.get(t.team_id, set()), incoming.get(t.team_id, [])
-            if not out and not new:
-                teams.append(t)
-                continue
-            added = [p for p in new if p not in t.player_ids]
-            teams.append(
-                dataclasses.replace(
-                    t,
-                    player_ids=[p for p in t.player_ids if p not in out] + added,
-                    starters=[p for p in t.starters if p not in out],
-                    slots={p: s for p, s in t.slots.items() if p not in out}
-                    | dict.fromkeys(added, "bench"),
-                )
-            )
-        ctx.memo[key] = dataclasses.replace(ctx, teams=teams, memo={})
+        moves = [mv for r in rows for mv in r.moves]
+        ctx.memo[key] = with_moves(ctx, moves, [d for r in rows for d in r.drops])
     return ctx.memo[key]
+
+
+def with_moves(ctx: LeagueContext, moves: Sequence[Mapping], drops: Sequence[Mapping] = ()):
+    """A copy of the league with these players moved (`{player_id, from_team, to_team}`; either
+    team may be None for a free agent or a player leaving the league) and these cut
+    (`{player_id, team_id}`). Received players start on the bench; the copy gets its own memo.
+    Not cached: callers that reuse a result memoize it themselves."""
+    gone: dict[str | None, set[str]] = {}
+    incoming: dict[str | None, list[str]] = {}
+    for mv in moves:
+        gone.setdefault(mv["from_team"], set()).add(mv["player_id"])
+        incoming.setdefault(mv["to_team"], []).append(mv["player_id"])
+    for d in drops:
+        gone.setdefault(d["team_id"], set()).add(d["player_id"])
+    teams = []
+    for t in ctx.teams:
+        out, new = gone.get(t.team_id, set()), incoming.get(t.team_id, [])
+        if not out and not new:
+            teams.append(t)
+            continue
+        added = [p for p in new if p not in t.player_ids]
+        teams.append(
+            dataclasses.replace(
+                t,
+                player_ids=[p for p in t.player_ids if p not in out] + added,
+                starters=[p for p in t.starters if p not in out],
+                slots={p: s for p, s in t.slots.items() if p not in out}
+                | dict.fromkeys(added, "bench"),
+            )
+        )
+    return dataclasses.replace(ctx, teams=teams, memo={})
+
+
+def preview_view(
+    ctx: LeagueContext, team_id: str, give: list[str], receive: list[str]
+) -> m.TradePreviewOut:
+    """Both teams' rosters, best lineups and grades as if this trade had gone through, after the
+    drops each side would be forced to make. A hypothetical trade only changes your team."""
+    team = ctx.team(team_id)
+    partner = _trade_partner(ctx, team_id, give, receive)
+    if not set(give) <= set(team.player_ids):
+        raise InvalidInput("you can only give players on your roster")
+    pid_partner = partner.team_id if partner else None
+    math, rules = ros_math(ctx), roster_rules(ctx)
+    _, my_drops = tr.roster_after(math, ctx.players, team_id, team.player_ids, give, receive, rules)
+    their_drops = (
+        tr.roster_after(
+            math, ctx.players, partner.team_id, partner.player_ids, receive, give, rules
+        )[1]
+        if partner
+        else []
+    )
+    moves = [{"player_id": p, "from_team": team_id, "to_team": pid_partner} for p in give] + [
+        {"player_id": p, "from_team": pid_partner, "to_team": team_id} for p in receive
+    ]
+    drops = [{"player_id": d.player_id, "team_id": team_id} for d in my_drops] + [
+        {"player_id": d.player_id, "team_id": pid_partner} for d in their_drops
+    ]
+    after = with_moves(ctx, moves, drops)
+
+    def drops_out(ds: Sequence[tr.Drop]) -> list[m.DropOut]:
+        return [m.DropOut(player=player_ref(ctx, d.player_id), reason=d.reason) for d in ds]
+
+    return m.TradePreviewOut(
+        me=team_view(after, team_id, arriving_ids=frozenset(receive)),
+        partner=team_view(after, partner.team_id, arriving_ids=frozenset(give))
+        if partner
+        else None,
+        me_drops=drops_out(my_drops),
+        partner_drops=drops_out(their_drops),
+    )
 
 
 def pending_view(

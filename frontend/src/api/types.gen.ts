@@ -2606,9 +2606,15 @@ export type RosterPlayer = {
     /**
      * Arriving
      *
-     * Received in an accepted trade not processed yet
+     * Received in an accepted (or previewed) trade not processed yet
      */
     arriving?: boolean;
+    /**
+     * Lineup Slot
+     *
+     * Slot in this week's best lineup (QB, RB, FLEX, W/R …); None = bench
+     */
+    lineup_slot?: string | null;
 };
 
 /**
@@ -3446,6 +3452,30 @@ export type TradeOutlookOut = {
     slots: Array<string>;
     me: RosterOutlookOut;
     partner?: RosterOutlookOut | null;
+};
+
+/**
+ * TradePreviewOut
+ *
+ * Both teams as if a proposed trade had gone through (after any forced drops): rosters with
+ * this week's best lineup by slot, and position grades and ranks re-computed league-wide.
+ */
+export type TradePreviewOut = {
+    me: TeamOut;
+    /**
+     * None for a hypothetical trade
+     */
+    partner?: TeamOut | null;
+    /**
+     * Me Drops
+     *
+     * Players you'd have to cut to stay at the roster limit
+     */
+    me_drops?: Array<DropOut>;
+    /**
+     * Partner Drops
+     */
+    partner_drops?: Array<DropOut>;
 };
 
 /**
@@ -4673,6 +4703,31 @@ export type TradeOutlookResponses = {
 };
 
 export type TradeOutlookResponse = TradeOutlookResponses[keyof TradeOutlookResponses];
+
+export type TradePreviewData = {
+    body: TradeEvaluateRequest;
+    path?: never;
+    query?: never;
+    url: '/trade/preview';
+};
+
+export type TradePreviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TradePreviewError = TradePreviewErrors[keyof TradePreviewErrors];
+
+export type TradePreviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: TradePreviewOut;
+};
+
+export type TradePreviewResponse = TradePreviewResponses[keyof TradePreviewResponses];
 
 export type SuggestTradesData = {
     body?: never;

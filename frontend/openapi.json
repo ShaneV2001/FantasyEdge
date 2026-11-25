@@ -1484,6 +1484,48 @@
         }
       }
     },
+    "/trade/preview": {
+      "post": {
+        "tags": [
+          "trade"
+        ],
+        "summary": "Trade Preview",
+        "description": "Both teams as if the trade had gone through: rosters with this week's best lineup by slot\n(received players flagged), forced drops, and position grades and league ranks re-computed.",
+        "operationId": "trade_preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeEvaluateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradePreviewOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/trade/suggest": {
       "get": {
         "tags": [
@@ -6691,8 +6733,20 @@
           "arriving": {
             "type": "boolean",
             "title": "Arriving",
-            "description": "Received in an accepted trade not processed yet",
+            "description": "Received in an accepted (or previewed) trade not processed yet",
             "default": false
+          },
+          "lineup_slot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lineup Slot",
+            "description": "Slot in this week's best lineup (QB, RB, FLEX, W/R \u2026); None = bench"
           }
         },
         "type": "object",
@@ -8100,6 +8154,45 @@
           "me"
         ],
         "title": "TradeOutlookOut"
+      },
+      "TradePreviewOut": {
+        "properties": {
+          "me": {
+            "$ref": "#/components/schemas/TeamOut"
+          },
+          "partner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TeamOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None for a hypothetical trade"
+          },
+          "me_drops": {
+            "items": {
+              "$ref": "#/components/schemas/DropOut"
+            },
+            "type": "array",
+            "title": "Me Drops",
+            "description": "Players you'd have to cut to stay at the roster limit"
+          },
+          "partner_drops": {
+            "items": {
+              "$ref": "#/components/schemas/DropOut"
+            },
+            "type": "array",
+            "title": "Partner Drops"
+          }
+        },
+        "type": "object",
+        "required": [
+          "me"
+        ],
+        "title": "TradePreviewOut",
+        "description": "Both teams as if a proposed trade had gone through (after any forced drops): rosters with\nthis week's best lineup by slot, and position grades and ranks re-computed league-wide."
       },
       "TradeSideOut": {
         "properties": {

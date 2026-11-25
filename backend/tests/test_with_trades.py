@@ -54,3 +54,14 @@ def test_involves_keeps_only_this_teams_trades():
     rows = [trade("t1", [("x", "a", "b")]), trade("t2", [("y", "c", "d")])]
     assert [r.external_id for r in views.involves(rows, "a")] == ["t1"]
     assert views.involves(rows, "e") == []
+
+
+def test_with_moves_handles_free_agents_and_is_not_cached():
+    ctx = FakeCtx([team("a", ["qb", "wr1"], ["qb", "wr1"]), team("b", ["wr2"], ["wr2"])])
+    moves = [{"player_id": "wr1", "from_team": "a", "to_team": None},  # leaves the league
+             {"player_id": "fa", "from_team": None, "to_team": "a"}]  # a free agent comes in  # fmt: skip
+    after = views.with_moves(ctx, moves, [{"player_id": "qb", "team_id": "a"}])
+    a, b = after.teams
+    assert a.player_ids == ["fa"] and a.starters == [] and a.slots == {"fa": "bench"}
+    assert b is ctx.teams[1]
+    assert ctx.memo == {}  # a one-off preview doesn't pile up copies in the cached league

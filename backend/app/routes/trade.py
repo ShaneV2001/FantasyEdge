@@ -35,6 +35,18 @@ def trade_outlook(
     return views.outlook_view(ctx, body.team_id, body.give, body.receive)
 
 
+@router.post("/preview", response_model=m.TradePreviewOut)
+def trade_preview(
+    body: m.TradeEvaluateRequest,
+    con: duckdb.DuckDBPyConnection = Depends(get_con),
+    tuning: UserSettings = Depends(get_tuning),
+) -> m.TradePreviewOut:
+    """Both teams as if the trade had gone through: rosters with this week's best lineup by slot
+    (received players flagged), forced drops, and position grades and league ranks re-computed."""
+    ctx = get_context(con, leagues.league_id_for_team(con, body.team_id), tuning)
+    return views.preview_view(ctx, body.team_id, body.give, body.receive)
+
+
 @router.get("/suggest", response_model=m.TradeSuggestOut)
 def suggest_trades(
     team_id: str = Query(...),

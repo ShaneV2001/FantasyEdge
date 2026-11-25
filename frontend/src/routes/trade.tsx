@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Inbox, Lightbulb, Loader2, Plus, RefreshCw, Scale, Search, Shuffle } from 'lucide-react'
+import { Check, Inbox, Lightbulb, Loader2, Plus, RefreshCw, Scale, Search, Shuffle, Users } from 'lucide-react'
 import { useDeferredValue, useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import {
   refreshMutation,
   searchPlayersOptions,
   suggestTradesOptions,
+  tradePreviewMutation,
 } from '@/api/@tanstack/react-query.gen'
 import { describeError } from '@/lib/errors'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -19,6 +20,7 @@ import { EmptyState, ErrorState, ListSkeleton, PageHeader } from '@/components/c
 import { PlayerChip, PositionBadge } from '@/components/player/badges'
 import { TradeCard } from '@/components/team/TradeCard'
 import { TradeOffers, useTradeOffers } from '@/components/trade/TradeOffers'
+import { TradePreview } from '@/components/trade/TradePreview'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -52,7 +54,7 @@ function prefillFromSearch(search: Record<string, unknown>): AnalyzerPrefill | n
   const list = (v: unknown) => (typeof v === 'string' && v ? v.split(',') : [])
   const give = list(search.give)
   const receive = list(search.receive)
-  if (!give.length && !receive.length) return null
+  if (!give.length && !receive.length && !search.partner) return null
   return { key: `url:${String(search.partner ?? '')}:${give}:${receive}`, partnerId: String(search.partner ?? ''), give, receive }
 }
 
@@ -438,13 +440,18 @@ function Analyzer({ teamId, prefill }: { teamId: string; prefill?: AnalyzerPrefi
   const [receive, setReceive] = useState<Set<string>>(new Set(prefill?.receive ?? []))
   const [anyReceive, setAnyReceive] = useState<PlayerRef[]>([])
   const evaluate = useMutation(evaluateTradeMutation())
+  const preview = useMutation(tradePreviewMutation())
+  const reset = () => {
+    evaluate.reset()
+    preview.reset()
+  }
 
   const toggle = (set: Set<string>, update: (s: Set<string>) => void, id: string) => {
     const next = new Set(set)
     if (next.has(id)) next.delete(id)
     else next.add(id)
     update(next)
-    evaluate.reset()
+    reset()
   }
 
   if (mine.isPending) return <ListSkeleton rows={2} height="h-40" />
@@ -471,7 +478,7 @@ function Analyzer({ teamId, prefill }: { teamId: string; prefill?: AnalyzerPrefi
               setPartnerChoice(v)
               setReceive(new Set())
               setAnyReceive([])
-              evaluate.reset()
+              reset()
             }}
           >
             <SelectTrigger className="w-full sm:w-80" aria-label="Trade partner">
@@ -499,11 +506,11 @@ function Analyzer({ teamId, prefill }: { teamId: string; prefill?: AnalyzerPrefi
                 picked={anyReceive}
                 onAdd={(p) => {
                   if (anyReceive.length < 5) setAnyReceive([...anyReceive, p])
-                  evaluate.reset()
+                  reset()
                 }}
                 onRemove={(id) => {
                   setAnyReceive(anyReceive.filter((p) => p.player_id !== id))
-                  evaluate.reset()
+                  reset()
                 }}
               />
             ) : partnerId ? (
@@ -537,6 +544,21 @@ function Analyzer({ teamId, prefill }: { teamId: string; prefill?: AnalyzerPrefi
       </Card>
       {evaluate.isError && <ErrorState error={evaluate.error} />}
       {evaluate.data && <TradeCard trade={evaluate.data} />}
+      {evaluate.data && !preview.data && (
+        <Button
+          variant="outline"
+          className="self-start"
+          disabled={preview.isPending}
+          onClick={() => preview.mutate({ body: { team_id: teamId, give: [...give], receive: receiveIds } })}
+        >
+          {preview.isPending ? <Loader2 className="animate-spin" /> : <Users />}
+          See both rosters after the trade
+        </Button>
+      )}
+      {preview.isError && <ErrorState error={preview.error} />}
+      {preview.data && (
+        <TradePreview data={preview.data} mineBefore={mine.data} partnerBefore={hypothetical ? undefined : partner.data} />
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { ArrowLeftRight, CalendarRange, ClipboardPlus, CloudDownload, Crosshair, LayoutList, ListOrdered, Plug, RefreshCw, Settings2, Sparkles, Swords, UserSearch, Users } from 'lucide-react'
+import { ArrowLeftRight, CalendarRange, ClipboardPlus, CloudDownload, Crosshair, LayoutList, ListOrdered, Plug, RefreshCw, Settings2, Sparkles, Swords, Trophy, UserSearch, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { getTeamOptions, refreshMutation } from '@/api/@tanstack/react-query.gen'
@@ -30,6 +30,7 @@ import { useTeamStore } from '@/stores/team'
 const NAV = [
   { to: '/advisor', label: 'Advisor', icon: Sparkles },
   { to: '/team', label: 'My Team', icon: Users },
+  { to: '/league', label: 'League', icon: Trophy },
   { to: '/startsit', label: 'Start/Sit', icon: LayoutList },
   { to: '/matchup', label: 'Matchup', icon: Swords },
   { to: '/byes', label: 'Byes', icon: CalendarRange },
