@@ -267,7 +267,7 @@ def answer(
     except anthropic.RateLimitError:
         yield sse("error", {"message": "Anthropic's rate limit was hit. Try again in a minute."})
     except anthropic.APIStatusError as exc:
-        log.warning("Anthropic API error %s", exc.status_code)
+        log.warning("Anthropic API error %s: %s", exc.status_code, exc.message)
         yield sse("error", {"message": f"Anthropic API error ({exc.status_code}). Try again."})
     except anthropic.APIConnectionError:
         yield sse("error", {"message": "Couldn't reach Anthropic. Check your connection."})
