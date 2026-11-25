@@ -1,7 +1,8 @@
 // frontend/src/components/chat/useChat.ts
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChatMessage, ChatSummaryOut, SSEMeta, SSEDone } from './types'
+import { API_BASE } from '@/lib/api-config'
+import type { ChatMessage, ChatSummaryOut } from './types'
 
 interface UseChatReturn {
   messages: ChatMessage[]
@@ -30,7 +31,7 @@ export function useChat(teamId: string): UseChatReturn {
   } = useQuery({
     queryKey: ['chats', teamId],
     queryFn: async () => {
-      const response = await fetch(`/api/team/${teamId}/chats`)
+      const response = await fetch(`${API_BASE}/team/${teamId}/chats`)
       if (!response.ok) throw new Error('Failed to fetch conversations')
       return response.json() as Promise<ChatSummaryOut[]>
     },
@@ -52,7 +53,7 @@ export function useChat(teamId: string): UseChatReturn {
     setIsLoading(true)
 
     try {
-      const response = await fetch(`/api/team/${teamId}/chat`, {
+      const response = await fetch(`${API_BASE}/team/${teamId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -133,9 +134,10 @@ export function useChat(teamId: string): UseChatReturn {
               label: event.label,
             })
             if (assistantMsg) {
+              const id = assistantMsg.id
               setMessages((prev) =>
                 prev.map((m) =>
-                  m.id === assistantMsg.id ? { ...m, toolStatus } : m
+                  m.id === id ? { ...m, toolStatus } : m
                 )
               )
             }
@@ -167,7 +169,7 @@ export function useChat(teamId: string): UseChatReturn {
     // Load message history if resuming an existing chat
     if (id) {
       try {
-        const response = await fetch(`/api/chats/${id}`)
+        const response = await fetch(`${API_BASE}/chats/${id}`)
         if (!response.ok) throw new Error('Failed to load chat history')
         const chat = (await response.json()) as {
           messages: Array<{ role: 'user' | 'assistant'; text: string; tools: string[] }>

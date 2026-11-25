@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { ChatSummaryOut } from './types'
+import type { ChatSummaryOut } from './types'
 
 interface ChatHeaderProps {
   isExpanded: boolean

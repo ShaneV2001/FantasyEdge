@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ChatMessage as ChatMessageType } from './types'
+import type { ChatMessage as ChatMessageType } from './types'
 import { Badge } from '@/components/ui/badge'
 import { Check, AlertCircle, Loader2 } from 'lucide-react'
 

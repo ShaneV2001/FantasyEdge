@@ -110,8 +110,9 @@ describe('AdvisorPage', () => {
     expect(screen.getByText(/expected ~2.2/)).toBeInTheDocument()
     expect(screen.getByText('F')).toBeInTheDocument() // WR grade
     expect(screen.getByText('#1')).toBeInTheDocument()
-    const req = fetchMock.mock.calls[0][0] as Request
-    expect(req.url).toContain('/team/sl-1-1/advice')
+    // the page also loads the chat panel's conversations, so look for the advice request among all of them
+    const urls = fetchMock.mock.calls.map(([r]) => (r instanceof Request ? r.url : String(r)))
+    expect(urls.some((u) => u.includes('/team/sl-1-1/advice'))).toBe(true)
 
     // trade breakdown is collapsible
     await userEvent.click(screen.getByRole('button', { name: /show trade breakdown/i }))
